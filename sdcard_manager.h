@@ -87,7 +87,8 @@ void initSDCardDatabase() {
     DB_CUSTOMERS,
     DB_BILLS,
     DB_READINGS,
-    DB_LOGS
+    DB_LOGS,
+    DB_SETTINGS
   };
   
   const int numDirs = sizeof(dbDirs) / sizeof(dbDirs[0]);
@@ -113,6 +114,7 @@ void initSDCardDatabase() {
   Serial.println(F("  ├─ /CUSTOMERS  (Customer data)"));
   Serial.println(F("  ├─ /BILLS      (Generated bills)"));
   Serial.println(F("  ├─ /READINGS   (Meter readings)"));
+  Serial.println(F("  ├─ /SETTINGS   (System settings)"));
   Serial.println(F("  └─ /LOGS       (System logs)"));
   
   // Reselect TFT
@@ -161,6 +163,63 @@ void checkSDCardStatus() {
 // ===== SD CARD STATUS QUERY =====
 bool isSDCardReady() {
   return sdCardPresent;
+}
+
+// ===== WATER RATE SETTINGS =====
+void saveWaterRate(float rate) {
+  if (!sdCardPresent) {
+    Serial.println(F("Cannot save rate: SD card not available"));
+    return;
+  }
+  
+  digitalWrite(TFT_CS, HIGH);
+  
+  File rateFile = SD.open("/WATER_DB/SETTINGS/settings.txt", FILE_WRITE);
+  if (rateFile) {
+    rateFile.println(rate, 2);
+    rateFile.close();
+    Serial.print(F("Water rate saved: "));
+    Serial.println(rate, 2);
+  } else {
+    Serial.println(F("Failed to save water rate"));
+  }
+  
+  digitalWrite(SD_CS, HIGH);
+}
+
+float loadWaterRate() {
+  float defaultRate = 15.00;
+  
+  if (!sdCardPresent) {
+    Serial.println(F("SD card not available, using default rate"));
+    return defaultRate;
+  }
+  
+  digitalWrite(TFT_CS, HIGH);
+  
+  if (!SD.exists("/WATER_DB/SETTINGS/settings.txt")) {
+    Serial.println(F("Settings file not found, using default rate"));
+    digitalWrite(SD_CS, HIGH);
+    return defaultRate;
+  }
+  
+  File rateFile = SD.open("/WATER_DB/SETTINGS/settings.txt", FILE_READ);
+  if (rateFile) {
+    String rateStr = rateFile.readStringUntil('\n');
+    rateFile.close();
+    float loadedRate = rateStr.toFloat();
+    
+    if (loadedRate > 0) {
+      Serial.print(F("Water rate loaded: "));
+      Serial.println(loadedRate, 2);
+      digitalWrite(SD_CS, HIGH);
+      return loadedRate;
+    }
+  }
+  
+  Serial.println(F("Failed to load rate, using default"));
+  digitalWrite(SD_CS, HIGH);
+  return defaultRate;
 }
 
 #endif  // SDCARD_MANAGER_H

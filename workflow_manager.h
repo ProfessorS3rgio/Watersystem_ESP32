@@ -21,7 +21,9 @@ enum WorkflowState {
   STATE_ACCOUNT_FOUND,     // Account found, showing customer info
   STATE_ENTER_READING,     // Waiting for current meter reading entry
   STATE_BILL_CALCULATED,   // Bill calculated, ready to print
-  STATE_PRINTING           // Printing bill
+  STATE_PRINTING,          // Printing bill
+  STATE_EDIT_RATE,         // Editing water rate
+  STATE_VIEW_RATE          // Viewing current rate
 };
 
 WorkflowState currentState = STATE_WELCOME;
@@ -29,6 +31,10 @@ String inputBuffer = "";          // Buffer for numeric input
 int selectedCustomerIndex = -1;   // Index of selected customer
 unsigned long currentReading = 0; // Current meter reading from keypad
 float waterRate = 15.00;          // Default water rate per m3
+
+// Forward declaration for rate management
+void saveWaterRate(float rate);
+float loadWaterRate();
 
 // ===== DISPLAY FUNCTIONS FOR WORKFLOW =====
 
@@ -87,6 +93,79 @@ void displayMenuScreen() {
   tft.println(F("Press # or press"));
   tft.setCursor(32, 118);
   tft.println(F("C to cancel"));
+}
+
+void displayViewRateScreen() {
+  tft.fillScreen(COLOR_BG);
+  
+  tft.setTextColor(COLOR_HEADER);
+  tft.setTextSize(1);
+  tft.setCursor(35, 10);
+  tft.println(F("BILL RATE"));
+  
+  tft.drawLine(0, 20, 160, 20, COLOR_LINE);
+  
+  tft.setTextColor(COLOR_LABEL);
+  tft.setCursor(5, 35);
+  tft.println(F("Current Rate:"));
+  
+  tft.setTextColor(COLOR_AMOUNT);
+  tft.setTextSize(2);
+  tft.setCursor(20, 50);
+  tft.print(F("P"));
+  tft.print(waterRate, 2);
+  tft.println(F("/m3"));
+  tft.setTextSize(1);
+  
+  tft.drawLine(0, 75, 160, 75, COLOR_LINE);
+  
+  tft.setTextColor(COLOR_LABEL);
+  tft.setCursor(20, 90);
+  tft.println(F("Press B to change"));
+  tft.setCursor(32, 102);
+  tft.println(F("rate settings"));
+  
+  tft.setCursor(28, 118);
+  tft.println(F("Press C to exit"));
+}
+
+void displayEditRateScreen() {
+  tft.fillScreen(COLOR_BG);
+  
+  tft.setTextColor(COLOR_HEADER);
+  tft.setTextSize(1);
+  tft.setCursor(25, 10);
+  tft.println(F("EDIT BILL RATE"));
+  
+  tft.drawLine(0, 20, 160, 20, COLOR_LINE);
+  
+  tft.setTextColor(COLOR_LABEL);
+  tft.setCursor(5, 30);
+  tft.println(F("Current Rate:"));
+  tft.setTextColor(COLOR_TEXT);
+  tft.setCursor(10, 42);
+  tft.print(F("PHP "));
+  tft.print(waterRate, 2);
+  tft.println(F("/m3"));
+  
+  tft.drawLine(0, 56, 160, 56, COLOR_LINE);
+  
+  tft.setTextColor(COLOR_LABEL);
+  tft.setCursor(5, 64);
+  tft.println(F("Enter new rate:"));
+  
+  tft.setTextColor(COLOR_AMOUNT);
+  tft.setTextSize(2);
+  tft.setCursor(20, 80);
+  tft.print(F("P"));
+  tft.println(inputBuffer);
+  tft.setTextSize(1);
+  
+  tft.setTextColor(COLOR_LABEL);
+  tft.setCursor(26, 105);
+  tft.println(F("D - Save Rate"));
+  tft.setCursor(32, 117);
+  tft.println(F("C - Cancel"));
 }
 
 void displayCustomerInfo() {
@@ -183,8 +262,7 @@ void displayBillCalculated() {
   
   // Calculate bill
   unsigned long used = currentReading - cust->previousReading;
-  float rate = 15.00;  // Default rate
-  float total = used * rate;
+  float total = used * waterRate;  // Use global waterRate
   
   // Update the currentBill for printing
   currentBill.customerName = cust->customerName;
@@ -192,7 +270,7 @@ void displayBillCalculated() {
   currentBill.address = cust->address;
   currentBill.prevReading = cust->previousReading;
   currentBill.currReading = currentReading;
-  currentBill.rate = rate;
+  currentBill.rate = waterRate;  // Use global waterRate
   
   tft.setTextColor(COLOR_HEADER);
   tft.setTextSize(1);

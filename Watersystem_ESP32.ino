@@ -42,6 +42,9 @@ void setup() {
   // Initialize SD Card
   initSDCard();
   
+  // Load water rate from SD card
+  waterRate = loadWaterRate();
+  
   // Initialize Customers Database
   initCustomersDatabase();
   
