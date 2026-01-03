@@ -29,11 +29,7 @@ void printerTask(void *parameter) {
   
   Serial.println(F("[Printer Task] Starting print..."));
   
-  // Subscribe to watchdog first, then unsubscribe
-  // This ensures proper registration before deletion
-  esp_task_wdt_add(NULL);  // Subscribe current task to WDT
-  esp_task_wdt_delete(NULL);  // Now unsubscribe it (safely)
-  
+
   // Call the print function
   printBill();
   
@@ -133,14 +129,15 @@ void startParallelPrinting() {
   Serial.println(F("Starting parallel print and animation tasks..."));
   
   // Create printer task (high priority)
-  xTaskCreate(
-    printerTask,           // Function to execute
-    "PrinterTask",         // Task name
-    4096,                  // Stack size (words)
-    NULL,                  // Parameter
-    2,                     // Priority (higher = more important)
-    &printTaskHandle       // Task handle
-  );
+    xTaskCreatePinnedToCore(
+    printerTask,
+    "PrinterTask",
+    4096,
+    NULL,
+    1,
+    &printTaskHandle,
+    1   // ✅ CORE 1 (critical)
+    );
   
   // Small delay to let printer start
   delay(100);

@@ -17,6 +17,7 @@
 
 
 
+
 // ===== TFT DISPLAY =====
 Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
 
@@ -105,34 +106,137 @@ void loop() {
 
 // ===== TFT DISPLAY FUNCTIONS =====
 
+// Function to draw BMP image from SD card
+void drawBMP(const char *filename, int16_t x, int16_t y) {
+  File bmpFile;
+  int bmpWidth, bmpHeight;
+  uint8_t bmpDepth;
+  uint32_t bmpImageoffset;
+  uint32_t rowSize;
+  boolean goodBmp = false;
+  boolean flip = true;
+  int w, h, row, col;
+  uint8_t r, g, b;
+  uint32_t pos = 0;
+
+  if ((x >= tft.width()) || (y >= tft.height())) return;
+
+  bmpFile = SD.open(filename);
+  if (!bmpFile) {
+    Serial.print(F("BMP not found: "));
+    Serial.println(filename);
+    return;
+  }
+
+  // Parse BMP header
+  if (read16(bmpFile) == 0x4D42) { // BMP signature
+    (void)read32(bmpFile); // File size
+    (void)read32(bmpFile); // Creator bytes
+    bmpImageoffset = read32(bmpFile);
+    (void)read32(bmpFile); // Header size
+    bmpWidth = read32(bmpFile);
+    bmpHeight = read32(bmpFile);
+    
+    if (read16(bmpFile) == 1) { // # planes -- must be '1'
+      bmpDepth = read16(bmpFile);
+      if ((bmpDepth == 24) && (read32(bmpFile) == 0)) { // 0 = uncompressed
+        goodBmp = true;
+
+        rowSize = (bmpWidth * 3 + 3) & ~3;
+        if (bmpHeight < 0) {
+          bmpHeight = -bmpHeight;
+          flip = false;
+        }
+
+        w = bmpWidth;
+        h = bmpHeight;
+        if ((x + w - 1) >= tft.width()) w = tft.width() - x;
+        if ((y + h - 1) >= tft.height()) h = tft.height() - y;
+
+        for (row = 0; row < h; row++) {
+          if (flip)
+            pos = bmpImageoffset + (bmpHeight - 1 - row) * rowSize;
+          else
+            pos = bmpImageoffset + row * rowSize;
+          
+          if (bmpFile.position() != pos) {
+            bmpFile.seek(pos);
+          }
+
+          for (col = 0; col < w; col++) {
+            b = bmpFile.read();
+            g = bmpFile.read();
+            r = bmpFile.read();
+            tft.drawPixel(x + col, y + row, tft.color565(r, g, b));
+          }
+        }
+      }
+    }
+  }
+
+  bmpFile.close();
+  if (!goodBmp) Serial.println(F("BMP format not recognized."));
+}
+
+uint16_t read16(File &f) {
+  uint16_t result;
+  ((uint8_t *)&result)[0] = f.read();
+  ((uint8_t *)&result)[1] = f.read();
+  return result;
+}
+
+uint32_t read32(File &f) {
+  uint32_t result;
+  ((uint8_t *)&result)[0] = f.read();
+  ((uint8_t *)&result)[1] = f.read();
+  ((uint8_t *)&result)[2] = f.read();
+  ((uint8_t *)&result)[3] = f.read();
+  return result;
+}
+
 void showWelcomeScreen() {
   tft.fillScreen(COLOR_BG);
   
-  tft.setTextColor(COLOR_HEADER);
-  tft.setTextSize(1);
-  tft.setCursor(20, 10);
-  tft.println(F("DONA JOSEFA M."));
-  tft.setCursor(15, 22);
-  tft.println(F("BULU-AN CAPARAN"));
+  // ===== TOP BORDER =====
+  tft.fillRect(0, 0, 160, 3, COLOR_HEADER);
   
+  // ===== DISPLAY LOGO FROM SD CARD =====
+  // Draw logo from BMP file on the left side
+  int logoX = 10;  // Left side
+  int logoY = 15;
+  drawBMP("/WATER_DB/ASSETS/water_logo3.bmp", logoX, logoY);
+  
+  // ===== SERVICE DESCRIPTION (Next to logo) =====
   tft.setTextColor(COLOR_TEXT);
-  tft.setCursor(25, 38);
-  tft.println(F("Water & Sanitation"));
-  tft.setCursor(45, 48);
+  tft.setTextSize(1);
+  tft.setCursor(80, 20);
+  tft.println(F("Water &"));
+  tft.setCursor(80, 30);
+  tft.println(F("Sanitation"));
+  tft.setCursor(80, 40);
   tft.println(F("Association"));
   
-  tft.drawLine(10, 60, 150, 60, COLOR_LINE);
+  // ===== DECORATIVE SEPARATOR =====
+  // tft.fillRect(20, 105, 120, 1, COLOR_LINE);
+  // tft.fillRect(30, 107, 100, 1, COLOR_LINE);
   
+  // ===== STATUS INDICATOR =====
   tft.setTextColor(COLOR_LABEL);
-  tft.setCursor(30, 70);
+  tft.setCursor(44, 70);  // Centered
   tft.println(F("System Ready"));
   
+  // ===== INSTRUCTIONS =====
   tft.setTextColor(ST77XX_MAGENTA);
   tft.setTextSize(1);
-  tft.setCursor(20, 95);
+  tft.setCursor(29, 88);  // Centered
+  tft.println(F("Press A for Menu"));
+  tft.setCursor(44, 100);  // Centered
   tft.println(F("Press D or B"));
-  tft.setCursor(15, 107);
+  tft.setCursor(32, 112);  // Centered
   tft.println(F("to start billing"));
+  
+  // ===== BOTTOM BORDER =====
+  tft.fillRect(0, 125, 160, 3, COLOR_HEADER);
 }
 
 void displayBillOnTFT() {
@@ -214,51 +318,55 @@ void displayBillOnTFT() {
 void printBill() {
   printer.wake();
   printer.setDefault();
+  YIELD_WDT();
 
-  // Calculate values
   unsigned long used = currentBill.currReading - currentBill.prevReading;
   float total = used * currentBill.rate + currentBill.penalty;
 
   customFeed(1);
+  YIELD_WDT();
 
-  // Logo
   printer.justify('C');
   printer.printBitmap(LOGO_WIDTH, LOGO_HEIGHT, logo);
-  customFeed(1);
+  YIELD_WDT();  // 🚨 REQUIRED
 
-  // Header
-  printer.justify('C');
+  customFeed(1);
+  YIELD_WDT();
+
   printer.setSize('S');
   printer.println(F("DONA JOSEFA M. BULU-AN CAPARAN"));
   printer.println(F("Water & Sanitation Assoc."));
   printer.println(F("Bulu-an, IPIL, Zambo. Sibugay"));
   printer.println(F("TIN: 464-252-005-000"));
   printer.println(F("--------------------------------"));
+  YIELD_WDT();
 
-  // Bill info
   printer.justify('L');
   printer.boldOn();
   printer.println(F("WATER BILL"));
   printer.boldOff();
+  YIELD_WDT();
 
   printer.print(F("Bill No: "));
   printer.println((unsigned long)(millis() / 1000));
   printer.print(F("Date   : "));
   printer.println(F(__DATE__));
+  YIELD_WDT();
 
   printer.println(F("--------------------------------"));
+  YIELD_WDT();
 
-  // Customer info
   printer.print(F("Customer : "));
   printer.println(currentBill.customerName);
   printer.print(F("Account  : "));
   printer.println(currentBill.accountNo);
   printer.print(F("Address  : "));
   printer.println(currentBill.address);
+  YIELD_WDT();
 
   printer.println(F("--------------------------------"));
+  YIELD_WDT();
 
-  // Collector & Due date
   printer.print(F("Collector: "));
   printer.println(currentBill.collector);
   printer.print(F("Penalty  : "));
@@ -268,15 +376,17 @@ void printBill() {
   } else {
     printer.println(F("None"));
   }
+  YIELD_WDT();
+
   printer.print(F("Due Date : "));
   printer.println(currentBill.dueDate);
-
   printer.println(F("--------------------------------"));
+  YIELD_WDT();
 
-  // Meter readings
   printer.boldOn();
   printer.println(F("METER READINGS"));
   printer.boldOff();
+  YIELD_WDT();
 
   printer.print(F("Previous : "));
   printer.println(currentBill.prevReading);
@@ -285,14 +395,15 @@ void printBill() {
   printer.print(F("Used     : "));
   printer.print(used);
   printer.println(F(" m3"));
+  YIELD_WDT();
 
   printer.println(F("--------------------------------"));
+  YIELD_WDT();
 
-  // Billing
   printer.print(F("Rate/m3  : PHP "));
   printer.println(currentBill.rate, 2);
-
   printer.println(F("================================"));
+  YIELD_WDT();
 
   printer.justify('C');
   printer.setSize('M');
@@ -304,21 +415,24 @@ void printBill() {
   printer.boldOff();
   printer.setSize('S');
   printer.justify('L');
+  YIELD_WDT();
 
   printer.println(F("================================"));
+  YIELD_WDT();
 
-  // Footer
   printer.justify('C');
-  printer.setSize('S');
   printer.println(F(""));
   printer.println(F("Please pay on or before due date"));
   printer.println(F("to avoid penalties."));
   printer.println(F(""));
   printer.println(F("Thank you!"));
   printer.justify('L');
+  YIELD_WDT();
 
   customFeed(4);
-  delay(500);
+  YIELD_WDT();
+
+  vTaskDelay(pdMS_TO_TICKS(500)); // ✅ replace delay()
 }
 
 void customFeed(int lines) {

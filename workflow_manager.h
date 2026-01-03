@@ -16,6 +16,7 @@ void printBill();
 // ===== WORKFLOW STATES =====
 enum WorkflowState {
   STATE_WELCOME,           // Initial welcome screen
+  STATE_MENU,              // Menu screen
   STATE_ENTER_ACCOUNT,     // Waiting for account number entry
   STATE_ACCOUNT_FOUND,     // Account found, showing customer info
   STATE_ENTER_READING,     // Waiting for current meter reading entry
@@ -27,6 +28,7 @@ WorkflowState currentState = STATE_WELCOME;
 String inputBuffer = "";          // Buffer for numeric input
 int selectedCustomerIndex = -1;   // Index of selected customer
 unsigned long currentReading = 0; // Current meter reading from keypad
+float waterRate = 15.00;          // Default water rate per m3
 
 // ===== DISPLAY FUNCTIONS FOR WORKFLOW =====
 
@@ -47,10 +49,44 @@ void displayEnterAccountScreen() {
   
   tft.setTextColor(COLOR_LABEL);
   tft.setTextSize(1);
-  tft.setCursor(15, 85);
-  tft.println(F("Press D to confirm"));
-  tft.setCursor(20, 100);
-  tft.println(F("Press C to clear"));
+  tft.setCursor(32, 85);  // Centered
+  tft.println(F("D - Confirm"));
+  tft.setCursor(38, 97);  // Centered
+  tft.println(F("C - Clear"));
+  tft.setCursor(36, 109);  // Centered
+  tft.println(F("B - Cancel"));
+}
+
+void displayMenuScreen() {
+  tft.fillScreen(COLOR_BG);
+  
+  tft.setTextColor(COLOR_HEADER);
+  tft.setTextSize(1);
+  tft.setCursor(55, 5);
+  tft.println(F("MENU"));
+  
+  tft.drawLine(0, 16, 160, 16, COLOR_LINE);
+  
+  tft.setTextColor(COLOR_TEXT);
+  tft.setCursor(10, 25);
+  tft.println(F("1. About"));
+  tft.setCursor(10, 40);
+  tft.println(F("2. Update"));
+  tft.setCursor(10, 55);
+  tft.println(F("3. Bill Rate"));
+  tft.setCursor(10, 70);
+  tft.println(F("4. Restart"));
+  tft.setCursor(10, 85);
+  tft.println(F("5. Printer Test"));
+  
+  tft.drawLine(0, 100, 160, 100, COLOR_LINE);
+  
+  tft.setTextColor(COLOR_LABEL);
+  tft.setTextSize(1);
+  tft.setCursor(20, 108);
+  tft.println(F("Press # or press"));
+  tft.setCursor(32, 118);
+  tft.println(F("C to cancel"));
 }
 
 void displayCustomerInfo() {
@@ -131,10 +167,12 @@ void displayEnterReadingScreen() {
   tft.setTextSize(1);
   
   tft.setTextColor(COLOR_LABEL);
-  tft.setCursor(15, 100);
-  tft.println(F("Press D to calc"));
-  tft.setCursor(20, 112);
-  tft.println(F("Press C to cancel"));
+  tft.setCursor(20, 95);
+  tft.println(F("D - Calculate"));
+  tft.setCursor(32, 107);
+  tft.println(F("B - Clear"));
+  tft.setCursor(28, 119);
+  tft.println(F("C - Cancel"));
 }
 
 void displayBillCalculated() {
@@ -179,7 +217,7 @@ void displayBillCalculated() {
   tft.print(F("Rate: "));
   tft.setTextColor(COLOR_TEXT);
   tft.print(F("PHP "));
-  tft.println(rate, 2);
+  tft.println(waterRate, 2);  // Use global waterRate
   
   tft.drawLine(0, 58, 160, 58, COLOR_LINE);
   
