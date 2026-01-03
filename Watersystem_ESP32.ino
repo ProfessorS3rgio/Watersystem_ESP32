@@ -220,10 +220,12 @@ void printBill() {
   float total = used * currentBill.rate + currentBill.penalty;
 
   customFeed(1);
+  delay(1);  // Yield to keep idle tasks running
 
   // Logo
   printer.justify('C');
   printer.printBitmap(LOGO_WIDTH, LOGO_HEIGHT, logo);
+  delay(1);  // Avoid starving the idle task while printing bitmap
   customFeed(1);
 
   // Header
@@ -234,6 +236,7 @@ void printBill() {
   printer.println(F("Bulu-an, IPIL, Zambo. Sibugay"));
   printer.println(F("TIN: 464-252-005-000"));
   printer.println(F("--------------------------------"));
+  delay(1);  // Let lower-priority tasks run
 
   // Bill info
   printer.justify('L');
@@ -266,12 +269,13 @@ void printBill() {
     printer.print(F("PHP "));
     printer.println(currentBill.penalty, 2);
   } else {
-    printer.println(F("None"));
+  printer.println(F("None"));
   }
   printer.print(F("Due Date : "));
   printer.println(currentBill.dueDate);
 
   printer.println(F("--------------------------------"));
+  delay(1);  // Yield between long print sections
 
   // Meter readings
   printer.boldOn();
@@ -324,5 +328,6 @@ void printBill() {
 void customFeed(int lines) {
   for (int i = 0; i < lines; i++) {
     printer.write(0x0A);
+    delay(1);  // Allow the scheduler to run while feeding paper
   }
 }
