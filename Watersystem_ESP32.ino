@@ -231,12 +231,8 @@ void showWelcomeScreen() {
   // ===== INSTRUCTIONS =====
   tft.setTextColor(ST77XX_MAGENTA);
   tft.setTextSize(1);
-  tft.setCursor(29, 88);  // Centered
-  tft.println(F("Press A for Menu"));
-  tft.setCursor(44, 100);  // Centered
-  tft.println(F("Press D or B"));
-  tft.setCursor(32, 112);  // Centered
-  tft.println(F("to start billing"));
+  tft.setCursor(20, 100);  // Centered
+  tft.println(F("A-Menu  D/B-Billing"));
   
   // ===== BOTTOM BORDER =====
   tft.fillRect(0, 125, 160, 3, COLOR_HEADER);

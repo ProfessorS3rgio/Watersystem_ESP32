@@ -17,6 +17,7 @@ void printBill();
 enum WorkflowState {
   STATE_WELCOME,           // Initial welcome screen
   STATE_MENU,              // Menu screen
+  STATE_ABOUT,             // About screen
   STATE_ENTER_ACCOUNT,     // Waiting for account number entry
   STATE_ACCOUNT_FOUND,     // Account found, showing customer info
   STATE_ENTER_READING,     // Waiting for current meter reading entry
@@ -48,19 +49,30 @@ void displayEnterAccountScreen() {
   
   tft.drawLine(0, 20, 160, 20, COLOR_LINE);
   
+  tft.setTextColor(COLOR_LABEL);
+  tft.setCursor(5, 35);
+  tft.println(F("Account Number:"));
+  
+  // Input box
+  tft.drawRect(10, 50, 140, 30, COLOR_LINE);
+  
   tft.setTextColor(COLOR_TEXT);
   tft.setTextSize(2);
-  tft.setCursor(30, 50);
-  tft.println(inputBuffer);
+  tft.setCursor(20, 58);
+  if (inputBuffer.length() > 0) {
+    tft.println(inputBuffer);
+  } else {
+    // Placeholder
+    tft.setTextColor(COLOR_LABEL);
+    tft.println(F("___"));
+  }
   
-  tft.setTextColor(COLOR_LABEL);
   tft.setTextSize(1);
-  tft.setCursor(32, 85);  // Centered
-  tft.println(F("D - Confirm"));
-  tft.setCursor(38, 97);  // Centered
-  tft.println(F("C - Clear"));
-  tft.setCursor(36, 109);  // Centered
-  tft.println(F("B - Cancel"));
+  tft.setTextColor(COLOR_LABEL);
+  tft.setCursor(10, 100);
+  tft.println(F("D-Confirm B-Clear"));
+  tft.setCursor(32, 112);
+  tft.println(F("C-Cancel"));
 }
 
 void displayMenuScreen() {

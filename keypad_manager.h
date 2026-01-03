@@ -67,6 +67,7 @@ void handleKeypadInput(char key) {
     // Menu navigation
     if (key == '1') {
       // About
+      currentState = STATE_ABOUT;
       tft.fillScreen(COLOR_BG);
       tft.setTextColor(COLOR_HEADER);
       tft.setTextSize(1);
@@ -83,17 +84,19 @@ void handleKeypadInput(char key) {
       tft.setCursor(5, 70);
       tft.println(F("Zamboanga Sibugay"));
       tft.setTextColor(COLOR_LABEL);
-      tft.setCursor(28, 110);
-      tft.println(F("Press C to exit"));
+      tft.setCursor(8, 110);
+      tft.println(F("Press C to go back"));
+      tft.setCursor(28, 120);
+      tft.println(F("to the Menu"));
     }
     else if (key == '2') {
       // Update - placeholder
       tft.fillScreen(COLOR_BG);
       tft.setTextColor(COLOR_HEADER);
-      tft.setCursor(45, 50);
+      tft.setCursor(62, 50);
       tft.println(F("UPDATE"));
       tft.setTextColor(COLOR_TEXT);
-      tft.setCursor(20, 70);
+      tft.setCursor(38, 70);
       tft.println(F("Coming soon..."));
       delay(2000);
       displayMenuScreen();
@@ -131,6 +134,13 @@ void handleKeypadInput(char key) {
       resetWorkflow();
     }
   }
+  else if (currentState == STATE_ABOUT) {
+    // About screen
+    if (key == 'C') {
+      currentState = STATE_MENU;
+      displayMenuScreen();
+    }
+  }
   else if (currentState == STATE_ENTER_ACCOUNT) {
     // Entering account number
     if (key >= '0' && key <= '9') {
@@ -141,11 +151,11 @@ void handleKeypadInput(char key) {
       selectedCustomerIndex = findCustomerByAccount(inputBuffer);
       processAccountNumberEntry();
     }
-    else if (key == 'C') {  // Clear
+    else if (key == 'B') {  // Clear
       inputBuffer = "";
       displayEnterAccountScreen();
     }
-    else if (key == 'B') {  // Cancel - go back to welcome
+    else if (key == 'C') {  // Cancel - go back to welcome
       resetWorkflow();
     }
   }
