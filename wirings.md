@@ -11,7 +11,7 @@
 | DC      | GPIO 2      | Data/Command                   |
 | SDA     | GPIO 23     | MOSI (Hardware SPI)            |
 | SCL     | GPIO 18     | CLK (Hardware SPI)             |
-| BLK     | 3.3V        | Backlight always on          |
+| BLK     | GPIO 15     | Backlight (PWM for sleep mode) |
 
 ## Thermal Printer (UART2)
 
@@ -28,7 +28,7 @@
 |-------------|----------|----------------------------|
 | 3V3         | 3.3V     | Power                      |
 | GND         | GND      | Ground                     |
-| CS          | GPIO 15  | Chip Select (dedicated)    |
+| CS          | GPIO 22  | Chip Select (dedicated)    |
 | MOSI        | GPIO 23  | Shared with TFT            |
 | CLK         | GPIO 18  | Shared with TFT            |
 | MISO        | GPIO 19  | SD Card data out           |
@@ -69,12 +69,13 @@
 | 5    | TFT CS                | ST7735 Display   |
 | 13   | Keypad R1             | 4x4 Keypad       |
 | 14   | Keypad R2             | 4x4 Keypad       |
-| 15   | SD Card CS            | SD Card Module   |
+| 15   | TFT Backlight         | ST7735 Display   |
 | 16   | UART2 RX              | Thermal Printer  |
 | 17   | UART2 TX              | Thermal Printer  |
 | 18   | SPI CLK               | TFT + SD Card    |
 | 19   | SPI MISO              | SD Card Module   |
 | 21   | Keypad C4             | 4x4 Keypad       |
+| 22   | SD Card CS            | SD Card Module   |
 | 23   | SPI MOSI              | TFT + SD Card    |
 | 25   | Keypad C1             | 4x4 Keypad       |
 | 26   | Keypad R4             | 4x4 Keypad       |
