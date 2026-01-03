@@ -84,10 +84,17 @@ void handleKeypadInput(char key) {
   else if (currentState == STATE_BILL_CALCULATED) {
     // Bill ready to print
     if (key == 'D') {  // Print bill
-      Serial.println(F("Printing bill..."));
-      printBill();
-      Serial.println(F("Print complete."));
-      delay(1000);
+      Serial.println(F("Starting print job..."));
+      currentState = STATE_PRINTING;
+      
+      // Start printing and animation in parallel using FreeRTOS
+      startParallelPrinting();
+      
+      // Wait for both tasks to complete
+      waitForPrintCompletion();
+      
+      Serial.println(F("Print workflow complete."));
+      delay(500);
       resetWorkflow();
     }
     else if (key == 'C') {  // Cancel

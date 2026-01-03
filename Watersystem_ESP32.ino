@@ -9,6 +9,7 @@
 #include "config.h"
 #include "customers_database.h"
 #include "water_system.h"
+#include "print_manager.h"
 #include "workflow_manager.h"
 #include "sdcard_manager.h"
 #include "keypad_manager.h"
