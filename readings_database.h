@@ -186,10 +186,19 @@ static bool markAllReadingsSynced() {
 }
 
 static void exportReadingsForSync() {
+  uint32_t startMs = millis();
   Serial.println(F("BEGIN_READINGS"));
+
+  uint32_t exported = 0;
 
   if (!isSdReadyForReadings() || !SD.exists(READINGS_SYNC_FILE)) {
     Serial.println(F("END_READINGS"));
+    uint32_t elapsedMs = millis() - startMs;
+    Serial.print(F("Done. ("));
+    Serial.print(elapsedMs);
+    Serial.println(F(" ms)"));
+    Serial.print(F("Total readings exported: "));
+    Serial.println(exported);
     return;
   }
 
@@ -198,6 +207,12 @@ static void exportReadingsForSync() {
   File f = SD.open(READINGS_SYNC_FILE, FILE_READ);
   if (!f) {
     Serial.println(F("END_READINGS"));
+    uint32_t elapsedMs = millis() - startMs;
+    Serial.print(F("Done. ("));
+    Serial.print(elapsedMs);
+    Serial.println(F(" ms)"));
+    Serial.print(F("Total readings exported: "));
+    Serial.println(exported);
     return;
   }
 
@@ -243,10 +258,19 @@ static void exportReadingsForSync() {
     Serial.print(usage);
     Serial.print('|');
     Serial.println(epoch);
+
+    exported++;
   }
 
   f.close();
   Serial.println(F("END_READINGS"));
+
+  uint32_t elapsedMs = millis() - startMs;
+  Serial.print(F("Done. ("));
+  Serial.print(elapsedMs);
+  Serial.println(F(" ms)"));
+  Serial.print(F("Total readings exported: "));
+  Serial.println(exported);
 }
 
 static bool recordReadingForCustomerIndex(int customerIndex, unsigned long currReading) {

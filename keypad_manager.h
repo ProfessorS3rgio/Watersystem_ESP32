@@ -201,6 +201,9 @@ void handleKeypadInput(char key) {
       } else {
         Serial.println(F("[READING] Save skipped/failed"));
       }
+
+      // Track print count for device info
+      incrementPrintCount();
       
       // Start printing and animation in parallel using FreeRTOS
       startParallelPrinting();

@@ -15,7 +15,9 @@ bool isSDCardReady();
 
 // ===== SD CARD INITIALIZATION =====
 void initSDCard() {
+#if WS_SERIAL_VERBOSE
   Serial.println(F("Initializing SD card..."));
+#endif
   
   // Deselect TFT before initializing SD
   digitalWrite(TFT_CS, HIGH);
@@ -25,43 +27,62 @@ void initSDCard() {
     Serial.println(F("Check: 1) Card inserted? 2) Wiring correct? 3) Card formatted as FAT32?"));
     sdCardPresent = false;
   } else {
+#if WS_SERIAL_VERBOSE
     Serial.println(F("SD card initialized successfully!"));
+#endif
     sdCardPresent = true;
     
     // Print card info
     uint8_t cardType = SD.cardType();
+#if WS_SERIAL_VERBOSE
     Serial.print(F("SD Card Type: "));
+#endif
     switch (cardType) {
       case CARD_NONE:
+#if WS_SERIAL_VERBOSE
         Serial.println(F("No card detected"));
+#endif
         sdCardPresent = false;
         break;
       case CARD_MMC:
+#if WS_SERIAL_VERBOSE
         Serial.println(F("MMC"));
+#endif
         break;
       case CARD_SD:
+#if WS_SERIAL_VERBOSE
         Serial.println(F("SDSC"));
+#endif
         break;
       case CARD_SDHC:
+#if WS_SERIAL_VERBOSE
         Serial.println(F("SDHC"));
+#endif
         break;
       default:
+#if WS_SERIAL_VERBOSE
         Serial.println(F("Unknown"));
+#endif
+        break;
     }
     
     if (sdCardPresent) {
       uint64_t cardSize = SD.cardSize() / (1024 * 1024);
+    #if WS_SERIAL_VERBOSE
       Serial.print(F("SD Card Size: "));
       Serial.print((uint32_t)cardSize);
       Serial.println(F(" MB"));
+    #endif
       
       uint64_t usedBytes = SD.usedBytes() / (1024 * 1024);
       uint64_t totalBytes = SD.totalBytes() / (1024 * 1024);
+    #if WS_SERIAL_VERBOSE
       Serial.print(F("Used: "));
       Serial.print((uint32_t)usedBytes);
       Serial.print(F(" MB / "));
       Serial.print((uint32_t)totalBytes);
       Serial.println(F(" MB"));
+    #endif
     }
   }
   
@@ -76,7 +97,9 @@ void initSDCard() {
 
 // ===== DATABASE DIRECTORY INITIALIZATION =====
 void initSDCardDatabase() {
+#if WS_SERIAL_VERBOSE
   Serial.println(F("Initializing SD Card Database..."));
+#endif
   
   // Deselect TFT
   digitalWrite(TFT_CS, HIGH);
@@ -96,18 +119,25 @@ void initSDCardDatabase() {
   for (int i = 0; i < numDirs; i++) {
     if (!SD.exists(dbDirs[i])) {
       if (SD.mkdir(dbDirs[i])) {
+#if WS_SERIAL_VERBOSE
         Serial.print(F("Created: "));
         Serial.println(dbDirs[i]);
+#endif
       } else {
+#if WS_SERIAL_VERBOSE
         Serial.print(F("Failed to create: "));
         Serial.println(dbDirs[i]);
+#endif
       }
     } else {
+#if WS_SERIAL_VERBOSE
       Serial.print(F("Exists: "));
       Serial.println(dbDirs[i]);
+#endif
     }
   }
-  
+
+#if WS_SERIAL_VERBOSE
   Serial.println(F("Database initialization complete!"));
   Serial.println(F("Directory Structure:"));
   Serial.println(F("/WATER_DB/"));
@@ -116,6 +146,7 @@ void initSDCardDatabase() {
   Serial.println(F("  ├─ /READINGS   (Meter readings)"));
   Serial.println(F("  ├─ /SETTINGS   (System settings)"));
   Serial.println(F("  └─ /LOGS       (System logs)"));
+#endif
   
   // Reselect TFT
   digitalWrite(SD_CS, HIGH);
@@ -191,14 +222,18 @@ float loadWaterRate() {
   float defaultRate = 15.00;
   
   if (!sdCardPresent) {
+#if WS_SERIAL_VERBOSE
     Serial.println(F("SD card not available, using default rate"));
+#endif
     return defaultRate;
   }
   
   digitalWrite(TFT_CS, HIGH);
   
   if (!SD.exists("/WATER_DB/SETTINGS/settings.txt")) {
+#if WS_SERIAL_VERBOSE
     Serial.println(F("Settings file not found, using default rate"));
+#endif
     digitalWrite(SD_CS, HIGH);
     return defaultRate;
   }
@@ -210,16 +245,21 @@ float loadWaterRate() {
     float loadedRate = rateStr.toFloat();
     
     if (loadedRate > 0) {
+#if WS_SERIAL_VERBOSE
       Serial.print(F("Water rate loaded: "));
       Serial.println(loadedRate, 2);
+#endif
       digitalWrite(SD_CS, HIGH);
       return loadedRate;
     }
   }
   
+#if WS_SERIAL_VERBOSE
   Serial.println(F("Failed to load rate, using default"));
+#endif
   digitalWrite(SD_CS, HIGH);
   return defaultRate;
 }
+
 
 #endif  // SDCARD_MANAGER_H

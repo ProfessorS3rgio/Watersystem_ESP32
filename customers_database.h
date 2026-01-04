@@ -126,7 +126,9 @@ static bool saveCustomersToSD() {
 
 // ===== INITIALIZE DATABASE WITH SAMPLE DATA =====
 void initCustomersDatabase() {
+#if WS_SERIAL_VERBOSE
   Serial.println(F("Initializing Customers Database..."));
+#endif
 
   // Prefer SD-backed customer file (so the device really uses SD as its database).
   bool loadedFromSd = false;
@@ -135,10 +137,11 @@ void initCustomersDatabase() {
   }
 
   if (loadedFromSd) {
+#if WS_SERIAL_VERBOSE
     Serial.print(F("Loaded "));
     Serial.print(customerCount);
     Serial.println(F(" customers from SD card."));
-    printCustomersList();
+#endif
     return;
   }
   
@@ -179,10 +182,11 @@ void initCustomersDatabase() {
     (void)saveCustomersToSD();
   }
   
+#if WS_SERIAL_VERBOSE
   Serial.print(F("Loaded "));
   Serial.print(customerCount);
   Serial.println(F(" customers from database."));
-  printCustomersList();
+#endif
 }
 
 // ===== FIND CUSTOMER BY ACCOUNT NUMBER =====
@@ -263,6 +267,7 @@ bool updateCustomerReading(String accountNumber, unsigned long newReading) {
 //   -> prints ACK|UPSERT|<account_no> or ERR|<message>
 
 static void exportCustomersForSync() {
+  uint32_t startMs = millis();
   Serial.println(F("BEGIN_CUSTOMERS"));
   for (int i = 0; i < customerCount; i++) {
     Serial.print(F("CUST|"));
@@ -277,6 +282,13 @@ static void exportCustomersForSync() {
     Serial.println(customers[i].is_active ? '1' : '0');
   }
   Serial.println(F("END_CUSTOMERS"));
+
+  uint32_t elapsedMs = millis() - startMs;
+  Serial.print(F("Done. ("));
+  Serial.print(elapsedMs);
+  Serial.println(F(" ms)"));
+  Serial.print(F("Total Customers exported: "));
+  Serial.println(customerCount);
 }
 
 static bool upsertCustomerFromSync(const String& accountNo, const String& name, const String& address, unsigned long prev, bool active) {

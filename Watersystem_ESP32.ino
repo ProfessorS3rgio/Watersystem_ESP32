@@ -9,6 +9,7 @@
 #include "config.h"
 #include "customers_database.h"
 #include "readings_database.h"
+#include "device_info.h"
 #include "water_system.h"
 #include "print_manager.h"
 #include "workflow_manager.h"
@@ -152,13 +153,18 @@ void setup() {
   // Initialize Readings database (time offset + readings log)
   initReadingsDatabase();
 
+  // Initialize Device Info (about/last sync/print count)
+  initDeviceInfo();
+
   // Initialize Customers Database
   initCustomersDatabase();
-  
+
+#if WS_SERIAL_VERBOSE
   Serial.println(F("Watersystem ESP32 ready."));
   Serial.println(F("Use keypad or serial commands:"));
   Serial.println(F("Press D or B on keypad to start entering account"));
   Serial.println(F("Commands: 'P' = Print sample, 'S' = SD status, 'L' = List customers"));
+#endif
   
   // Show welcome screen on TFT
   currentState = STATE_WELCOME;
@@ -179,8 +185,14 @@ void loop() {
 
     // ---- Sync protocol (do NOT uppercase; payload may be mixed-case) ----
     if (raw == "EXPORT_CUSTOMERS") {
-      Serial.println(F("[SYNC] Exporting customers..."));
+      Serial.println(F("Exporting customers..."));
       exportCustomersForSync();
+      return;
+    }
+
+    if (raw == "EXPORT_DEVICE_INFO") {
+      Serial.println(F("Exporting device info..."));
+      exportDeviceInfoForSync();
       return;
     }
 
@@ -199,8 +211,23 @@ void loop() {
       return;
     }
 
+    if (raw.startsWith("SET_LAST_SYNC|")) {
+      // SET_LAST_SYNC|<epoch_seconds>
+      String payload = raw.substring(String("SET_LAST_SYNC|").length());
+      payload.trim();
+      uint32_t epoch = (uint32_t)payload.toInt();
+      if (epoch > 0) {
+        setLastSyncEpoch(epoch);
+        Serial.print(F("ACK|SET_LAST_SYNC|"));
+        Serial.println(epoch);
+      } else {
+        Serial.println(F("ERR|BAD_LAST_SYNC"));
+      }
+      return;
+    }
+
     if (raw == "EXPORT_READINGS") {
-      Serial.println(F("[SYNC] Exporting readings..."));
+      Serial.println(F("Exporting readings..."));
       exportReadingsForSync();
       return;
     }
@@ -208,6 +235,7 @@ void loop() {
     if (raw == "READINGS_SYNCED") {
       bool ok = markAllReadingsSynced();
       if (ok) {
+        setLastSyncEpoch(deviceEpochNow());
         Serial.println(F("ACK|READINGS_SYNCED"));
       } else {
         Serial.println(F("ERR|READINGS_SYNC_FAILED"));

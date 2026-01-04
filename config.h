@@ -4,6 +4,13 @@
 // ===== SERIAL BAUD =====
 #define SERIAL_BAUD 115200
 
+// ===== SERIAL LOGGING =====
+// 0 = minimal serial prints (recommended for Web Serial sync UI)
+// 1 = verbose serial prints (debugging)
+#ifndef WS_SERIAL_VERBOSE
+#define WS_SERIAL_VERBOSE 0
+#endif
+
 // ===== TFT DISPLAY PINS (ST7735) =====
 #define TFT_CS    5      // Chip Select
 #define TFT_RST   4      // Reset
