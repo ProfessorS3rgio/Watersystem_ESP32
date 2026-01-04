@@ -4,6 +4,7 @@
 #include <Keypad.h>
 #include "config.h"
 #include "Adafruit_Thermal.h"
+#include "readings_database.h"
 
 // Forward declarations for workflow and display functions (defined in main .ino and workflow_manager.h)
 void handleKeypadInput(char key);
@@ -28,6 +29,7 @@ extern WorkflowState currentState;
 extern String inputBuffer;
 extern int selectedCustomerIndex;
 extern float waterRate;
+extern unsigned long currentReading;
 
 // External objects from main .ino
 extern Adafruit_Thermal printer;
@@ -192,6 +194,13 @@ void handleKeypadInput(char key) {
     if (key == 'D') {  // Print bill
       Serial.println(F("Starting print job..."));
       currentState = STATE_PRINTING;
+
+      // Persist the reading immediately (so the device remains the source of truth)
+      if (recordReadingForCustomerIndex(selectedCustomerIndex, currentReading)) {
+        Serial.println(F("[READING] Saved to SD log"));
+      } else {
+        Serial.println(F("[READING] Save skipped/failed"));
+      }
       
       // Start printing and animation in parallel using FreeRTOS
       startParallelPrinting();

@@ -8,6 +8,7 @@
 // ===== REFACTORED HEADER FILES =====
 #include "config.h"
 #include "customers_database.h"
+#include "readings_database.h"
 #include "water_system.h"
 #include "print_manager.h"
 #include "workflow_manager.h"
@@ -25,6 +26,106 @@ Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
 HardwareSerial printerSerial(2);  // Use UART2 on ESP32
 Adafruit_Thermal printer(&printerSerial);
 
+// ===== BOOT SCREEN HELPERS =====
+static bool checkPrinterCommunication(uint16_t timeoutMs = 250) {
+  // Sends a standard ESC/POS status request (DLE EOT 1) and waits briefly for a reply.
+  // If the printer is powered and UART wiring is correct, many printers will respond.
+  while (printerSerial.available()) {
+    printerSerial.read();
+  }
+
+  printerSerial.write(0x10);
+  printerSerial.write(0x04);
+  printerSerial.write(0x01);
+  printerSerial.flush();
+
+  unsigned long deadline = millis() + timeoutMs;
+  while (millis() < deadline) {
+    if (printerSerial.available() > 0) {
+      (void)printerSerial.read();
+      return true;
+    }
+    delay(5);
+  }
+  return false;
+}
+
+static void showBootScreen() {
+  tft.fillScreen(COLOR_BG);
+  tft.setTextSize(1);
+
+  int y = 2;
+  tft.setTextColor(ST77XX_GREEN);
+  tft.setCursor(2, y);
+  tft.println(F("[BOOT] Watersystem ESP32"));
+  y += 12;
+
+  tft.setCursor(2, y);
+  tft.println(F("[CHK] SD Card..."));
+
+  initSDCard();
+  y += 12;
+  tft.setCursor(2, y);
+  tft.print(F("[SD ] Status: "));
+  if (isSDCardReady()) {
+    tft.setTextColor(ST77XX_GREEN);
+    tft.println(F("OK"));
+  } else {
+    tft.setTextColor(ST77XX_RED);
+    tft.println(F("FAIL"));
+  }
+  tft.setTextColor(ST77XX_GREEN);
+
+  y += 12;
+  tft.setCursor(2, y);
+  tft.println(F("[CFG] Loading rate..."));
+  waterRate = loadWaterRate();
+
+  y += 12;
+  tft.setCursor(2, y);
+  tft.print(F("[CFG] Rate: PHP "));
+  tft.println(waterRate, 2);
+
+  y += 12;
+  tft.setCursor(2, y);
+  tft.println(F("[CHK] Printer..."));
+
+  // Initialize Printer
+  printerSerial.begin(PRINTER_BAUD, SERIAL_8N1, PRINTER_RX, PRINTER_TX);
+  printer.begin();
+  printer.wake();
+  printer.setDefault();
+
+  y += 12;
+  tft.setCursor(2, y);
+  tft.print(F("[PRN] UART: "));
+  if (checkPrinterCommunication()) {
+    tft.setTextColor(ST77XX_GREEN);
+    tft.println(F("OK"));
+  } else {
+    tft.setTextColor(ST77XX_RED);
+    tft.println(F("NO RESP"));
+  }
+  tft.setTextColor(ST77XX_GREEN);
+
+  y += 12;
+  tft.setCursor(2, y);
+  tft.println(F("[OK ] Starting UI..."));
+
+  int countdownY = y + 12;
+  for (int i = 5; i >= 1; i--) {
+    tft.fillRect(0, countdownY, 160, 10, COLOR_BG);
+    tft.setTextColor(COLOR_LABEL);
+    tft.setCursor(2, countdownY);
+    tft.print(F("Booting in "));
+    tft.print(i);
+    tft.print(F("..."));
+    delay(1000);
+  }
+  tft.fillRect(0, countdownY, 160, 10, COLOR_BG);
+  delay(300);
+}
+
 
 
 void setup() {
@@ -38,19 +139,21 @@ void setup() {
   tft.initR(INITR_BLACKTAB);  // For 128x160 ST7735S
   tft.setRotation(1);          // Landscape mode (160x128)
   tft.fillScreen(COLOR_BG);
-  
-  // Initialize SD Card
-  initSDCard();
-  
-  // Load water rate from SD card
-  waterRate = loadWaterRate();
-  
+
+  // Ensure shared SPI CS pins are in a safe state before SD init
+  pinMode(TFT_CS, OUTPUT);
+  pinMode(SD_CS, OUTPUT);
+  digitalWrite(TFT_CS, HIGH);
+  digitalWrite(SD_CS, HIGH);
+
+  // Boot screen: console-style checks (SD + settings + printer)
+  showBootScreen();
+
+  // Initialize Readings database (time offset + readings log)
+  initReadingsDatabase();
+
   // Initialize Customers Database
   initCustomersDatabase();
-  
-  // Initialize Printer
-  printerSerial.begin(PRINTER_BAUD, SERIAL_8N1, PRINTER_RX, PRINTER_TX);
-  printer.begin();
   
   Serial.println(F("Watersystem ESP32 ready."));
   Serial.println(F("Use keypad or serial commands:"));
@@ -71,8 +174,86 @@ void loop() {
   
   // ===== SERIAL INPUT =====
   if (Serial.available()) {
-    String cmd = Serial.readStringUntil('\n');
-    cmd.trim();
+    String raw = Serial.readStringUntil('\n');
+    raw.trim();
+
+    // ---- Sync protocol (do NOT uppercase; payload may be mixed-case) ----
+    if (raw == "EXPORT_CUSTOMERS") {
+      Serial.println(F("[SYNC] Exporting customers..."));
+      exportCustomersForSync();
+      return;
+    }
+
+    if (raw.startsWith("SET_TIME|")) {
+      // SET_TIME|<epoch_seconds>
+      String payload = raw.substring(String("SET_TIME|").length());
+      payload.trim();
+      uint32_t epoch = (uint32_t)payload.toInt();
+      if (epoch > 0) {
+        setDeviceEpoch(epoch);
+        Serial.print(F("ACK|SET_TIME|"));
+        Serial.println(epoch);
+      } else {
+        Serial.println(F("ERR|BAD_TIME"));
+      }
+      return;
+    }
+
+    if (raw == "EXPORT_READINGS") {
+      Serial.println(F("[SYNC] Exporting readings..."));
+      exportReadingsForSync();
+      return;
+    }
+
+    if (raw == "READINGS_SYNCED") {
+      bool ok = markAllReadingsSynced();
+      if (ok) {
+        Serial.println(F("ACK|READINGS_SYNCED"));
+      } else {
+        Serial.println(F("ERR|READINGS_SYNC_FAILED"));
+      }
+      return;
+    }
+
+    if (raw.startsWith("UPSERT_CUSTOMER|")) {
+      // UPSERT_CUSTOMER|account_no|customer_name|address|previous_reading|is_active
+      String payload = raw.substring(String("UPSERT_CUSTOMER|").length());
+
+      int p1 = payload.indexOf('|');
+      int p2 = (p1 >= 0) ? payload.indexOf('|', p1 + 1) : -1;
+      int p3 = (p2 >= 0) ? payload.indexOf('|', p2 + 1) : -1;
+      int p4 = (p3 >= 0) ? payload.indexOf('|', p3 + 1) : -1;
+      if (p1 < 0 || p2 < 0 || p3 < 0 || p4 < 0) {
+        Serial.println(F("ERR|BAD_FORMAT"));
+        return;
+      }
+
+      String accountNo = payload.substring(0, p1);
+      String name = payload.substring(p1 + 1, p2);
+      String address = payload.substring(p2 + 1, p3);
+      String prevStr = payload.substring(p3 + 1, p4);
+      String activeStr = payload.substring(p4 + 1);
+
+      accountNo.trim();
+      name.trim();
+      address.trim();
+      prevStr.trim();
+      activeStr.trim();
+
+      unsigned long prev = (unsigned long)prevStr.toInt();
+      bool active = (activeStr == "1" || activeStr == "true" || activeStr == "TRUE" || activeStr == "Y" || activeStr == "y");
+
+      if (upsertCustomerFromSync(accountNo, name, address, prev, active)) {
+        Serial.print(F("ACK|UPSERT|"));
+        Serial.println(accountNo);
+      } else {
+        Serial.println(F("ERR|UPSERT_FAILED"));
+      }
+      return;
+    }
+
+    // ---- Existing console commands ----
+    String cmd = raw;
     cmd.toUpperCase();
     
     if (cmd == "P" || cmd == "PRINT") {

@@ -197,13 +197,13 @@ void displayCustomerInfo() {
   tft.setCursor(2, 22);
   tft.print(F("Acct: "));
   tft.setTextColor(COLOR_TEXT);
-  tft.println(cust->accountNumber);
+  tft.println(cust->account_no);
   
   tft.setTextColor(COLOR_LABEL);
   tft.setCursor(2, 34);
   tft.print(F("Name: "));
   tft.setTextColor(COLOR_TEXT);
-  tft.println(cust->customerName);
+  tft.println(cust->customer_name);
   
   tft.setTextColor(COLOR_LABEL);
   tft.setCursor(2, 46);
@@ -217,7 +217,7 @@ void displayCustomerInfo() {
   tft.setCursor(2, 64);
   tft.print(F("Prev: "));
   tft.setTextColor(COLOR_AMOUNT);
-  tft.println(cust->previousReading);
+  tft.println(cust->previous_reading);
   
   tft.setTextColor(COLOR_LABEL);
   tft.setCursor(2, 100);
@@ -243,7 +243,7 @@ void displayEnterReadingScreen() {
   tft.setCursor(2, 28);
   tft.print(F("Name: "));
   tft.setTextColor(COLOR_TEXT);
-  tft.println(cust->customerName);
+  tft.println(cust->customer_name);
   
   tft.drawLine(0, 40, 160, 40, COLOR_LINE);
   
@@ -273,14 +273,14 @@ void displayBillCalculated() {
   if (cust == nullptr) return;
   
   // Calculate bill
-  unsigned long used = currentReading - cust->previousReading;
+  unsigned long used = currentReading - cust->previous_reading;
   float total = used * waterRate;  // Use global waterRate
   
   // Update the currentBill for printing
-  currentBill.customerName = cust->customerName;
-  currentBill.accountNo = cust->accountNumber;
+  currentBill.customerName = cust->customer_name;
+  currentBill.accountNo = cust->account_no;
   currentBill.address = cust->address;
-  currentBill.prevReading = cust->previousReading;
+  currentBill.prevReading = cust->previous_reading;
   currentBill.currReading = currentReading;
   currentBill.rate = waterRate;  // Use global waterRate
   
@@ -293,7 +293,7 @@ void displayBillCalculated() {
   
   tft.setTextColor(COLOR_TEXT);
   tft.setCursor(2, 22);
-  tft.println(cust->customerName);
+  tft.println(cust->customer_name);
   
   tft.setTextColor(COLOR_LABEL);
   tft.setCursor(2, 34);
@@ -337,7 +337,7 @@ void processAccountNumberEntry() {
     displayCustomerInfo();
     
     Serial.print(F("Account found: "));
-    Serial.println(customers[selectedCustomerIndex].customerName);
+    Serial.println(customers[selectedCustomerIndex].customer_name);
   } else {
     // Account not found - show error and stay in entry mode
     tft.fillScreen(COLOR_BG);
@@ -358,7 +358,7 @@ void processAccountNumberEntry() {
 void processReadingEntry() {
   currentReading = inputBuffer.toInt();
   
-  if (currentReading <= customers[selectedCustomerIndex].previousReading) {
+  if (currentReading <= customers[selectedCustomerIndex].previous_reading) {
     // Invalid reading - must be higher than previous
     tft.fillScreen(COLOR_BG);
     tft.setTextColor(ST77XX_RED);

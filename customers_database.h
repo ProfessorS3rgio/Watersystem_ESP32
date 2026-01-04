@@ -1,6 +1,7 @@
 #ifndef CUSTOMERS_DATABASE_H
 #define CUSTOMERS_DATABASE_H
 
+#include <SD.h>
 #include "config.h"
 
 // Forward declarations
@@ -8,10 +9,16 @@ void printCustomersList();
 
 // ===== CUSTOMER DATA STRUCTURE =====
 struct Customer {
-  String accountNumber;
-  String customerName;
+  // Match Laravel schema fields:
+  // account_no, customer_name, address, previous_reading, is_active, timestamps
+  unsigned long id;
+  String account_no;
+  String customer_name;
   String address;
-  unsigned long previousReading;
+  unsigned long previous_reading;
+  bool is_active;
+  unsigned long created_at;  // epoch seconds if available, else 0
+  unsigned long updated_at;  // epoch seconds if available, else 0
 };
 
 // ===== CUSTOMER DATABASE =====
@@ -19,29 +26,158 @@ const int MAX_CUSTOMERS = 50;  // Maximum customers to store
 Customer customers[MAX_CUSTOMERS];
 int customerCount = 0;
 
+static const char* CUSTOMERS_SYNC_FILE = "/WATER_DB/CUSTOMERS/customers.psv"; // pipe-separated values
+
+static String sanitizeSyncField(const String& s) {
+  String out = s;
+  out.replace("\r", " ");
+  out.replace("\n", " ");
+  out.replace("|", " ");
+  return out;
+}
+
+static bool parseBoolToken(const String& s) {
+  String v = s;
+  v.trim();
+  v.toLowerCase();
+  return (v == "1" || v == "true" || v == "y" || v == "yes");
+}
+
+static bool loadCustomersFromSD() {
+  if (!SD.exists(CUSTOMERS_SYNC_FILE)) {
+    return false;
+  }
+
+  File f = SD.open(CUSTOMERS_SYNC_FILE, FILE_READ);
+  if (!f) {
+    return false;
+  }
+
+  customerCount = 0;
+  while (f.available() && customerCount < MAX_CUSTOMERS) {
+    String line = f.readStringUntil('\n');
+    line.trim();
+    if (line.length() == 0) continue;
+    if (line.startsWith("#")) continue;
+
+    int p1 = line.indexOf('|');
+    int p2 = (p1 >= 0) ? line.indexOf('|', p1 + 1) : -1;
+    int p3 = (p2 >= 0) ? line.indexOf('|', p2 + 1) : -1;
+    int p4 = (p3 >= 0) ? line.indexOf('|', p3 + 1) : -1;
+    if (p1 < 0 || p2 < 0 || p3 < 0 || p4 < 0) {
+      continue;
+    }
+
+    String accountNo = line.substring(0, p1);
+    String name = line.substring(p1 + 1, p2);
+    String address = line.substring(p2 + 1, p3);
+    String prev = line.substring(p3 + 1, p4);
+    String active = line.substring(p4 + 1);
+
+    accountNo.trim();
+    name.trim();
+    address.trim();
+    prev.trim();
+    active.trim();
+    if (accountNo.length() == 0) continue;
+
+    customers[customerCount].id = (unsigned long)(customerCount + 1);
+    customers[customerCount].account_no = accountNo;
+    customers[customerCount].customer_name = name;
+    customers[customerCount].address = address;
+    customers[customerCount].previous_reading = (unsigned long)prev.toInt();
+    customers[customerCount].is_active = parseBoolToken(active);
+    customers[customerCount].created_at = 0;
+    customers[customerCount].updated_at = 0;
+    customerCount++;
+  }
+
+  f.close();
+  return (customerCount > 0);
+}
+
+static bool saveCustomersToSD() {
+  // Best-effort: truncate by removing first
+  if (SD.exists(CUSTOMERS_SYNC_FILE)) {
+    SD.remove(CUSTOMERS_SYNC_FILE);
+  }
+
+  File f = SD.open(CUSTOMERS_SYNC_FILE, FILE_WRITE);
+  if (!f) {
+    return false;
+  }
+
+  f.println(F("# account_no|customer_name|address|previous_reading|is_active"));
+  for (int i = 0; i < customerCount; i++) {
+    f.print(sanitizeSyncField(customers[i].account_no));
+    f.print('|');
+    f.print(sanitizeSyncField(customers[i].customer_name));
+    f.print('|');
+    f.print(sanitizeSyncField(customers[i].address));
+    f.print('|');
+    f.print(customers[i].previous_reading);
+    f.print('|');
+    f.println(customers[i].is_active ? '1' : '0');
+  }
+
+  f.close();
+  return true;
+}
+
 // ===== INITIALIZE DATABASE WITH SAMPLE DATA =====
 void initCustomersDatabase() {
   Serial.println(F("Initializing Customers Database..."));
+
+  // Prefer SD-backed customer file (so the device really uses SD as its database).
+  bool loadedFromSd = false;
+  if (SD.cardType() != CARD_NONE) {
+    loadedFromSd = loadCustomersFromSD();
+  }
+
+  if (loadedFromSd) {
+    Serial.print(F("Loaded "));
+    Serial.print(customerCount);
+    Serial.println(F(" customers from SD card."));
+    printCustomersList();
+    return;
+  }
   
   // Customer 1
-  customers[0].accountNumber = "001";
-  customers[0].customerName = "Theodore Romero";
+  customers[0].id = 1;
+  customers[0].account_no = "001";
+  customers[0].customer_name = "Theodore Romero";
   customers[0].address = "Purok 2 Makilas";
-  customers[0].previousReading = 1250;
+  customers[0].previous_reading = 1250;
+  customers[0].is_active = true;
+  customers[0].created_at = 0;
+  customers[0].updated_at = 0;
   
   // Customer 2
-  customers[1].accountNumber = "002";
-  customers[1].customerName = "Billy Mamaril";
+  customers[1].id = 2;
+  customers[1].account_no = "002";
+  customers[1].customer_name = "Billy Mamaril";
   customers[1].address = "Purok 2 Makilas";
-  customers[1].previousReading = 1220;
+  customers[1].previous_reading = 1220;
+  customers[1].is_active = true;
+  customers[1].created_at = 0;
+  customers[1].updated_at = 0;
   
   // Customer 3
-  customers[2].accountNumber = "003";
-  customers[2].customerName = "John Doe";
+  customers[2].id = 3;
+  customers[2].account_no = "003";
+  customers[2].customer_name = "John Doe";
   customers[2].address = "Purok 2 Makilas";
-  customers[2].previousReading = 1210;
+  customers[2].previous_reading = 1210;
+  customers[2].is_active = true;
+  customers[2].created_at = 0;
+  customers[2].updated_at = 0;
   
   customerCount = 3;
+
+  // Persist the initial sample set to SD so the next boot reads from SD.
+  if (SD.cardType() != CARD_NONE) {
+    (void)saveCustomersToSD();
+  }
   
   Serial.print(F("Loaded "));
   Serial.print(customerCount);
@@ -52,7 +188,7 @@ void initCustomersDatabase() {
 // ===== FIND CUSTOMER BY ACCOUNT NUMBER =====
 int findCustomerByAccount(String accountNumber) {
   for (int i = 0; i < customerCount; i++) {
-    if (customers[i].accountNumber == accountNumber) {
+    if (customers[i].account_no == accountNumber) {
       return i;  // Return index
     }
   }
@@ -80,12 +216,20 @@ bool addCustomer(String accountNumber, String customerName, String address, unsi
     return false;
   }
   
-  customers[customerCount].accountNumber = accountNumber;
-  customers[customerCount].customerName = customerName;
+  customers[customerCount].account_no = accountNumber;
+  customers[customerCount].customer_name = customerName;
   customers[customerCount].address = address;
-  customers[customerCount].previousReading = previousReading;
+  customers[customerCount].previous_reading = previousReading;
+  customers[customerCount].is_active = true;
+  customers[customerCount].created_at = 0;
+  customers[customerCount].updated_at = 0;
+  customers[customerCount].id = (unsigned long)(customerCount + 1);
   
   customerCount++;
+
+  if (SD.cardType() != CARD_NONE) {
+    (void)saveCustomersToSD();
+  }
   
   Serial.print(F("Added customer: "));
   Serial.println(customerName);
@@ -100,28 +244,84 @@ bool updateCustomerReading(String accountNumber, unsigned long newReading) {
     return false;
   }
   
-  customers[index].previousReading = newReading;
+  customers[index].previous_reading = newReading;
+
+  if (SD.cardType() != CARD_NONE) {
+    (void)saveCustomersToSD();
+  }
   Serial.print(F("Updated reading for "));
-  Serial.print(customers[index].customerName);
+  Serial.print(customers[index].customer_name);
   Serial.print(F(" to "));
   Serial.println(newReading);
+  return true;
+}
+
+// ===== SYNC PROTOCOL (Web Serial) =====
+// EXPORT_CUSTOMERS
+//   -> prints BEGIN_CUSTOMERS, then CUST|account_no|customer_name|address|previous_reading|is_active lines, then END_CUSTOMERS
+// UPSERT_CUSTOMER|account_no|customer_name|address|previous_reading|is_active
+//   -> prints ACK|UPSERT|<account_no> or ERR|<message>
+
+static void exportCustomersForSync() {
+  Serial.println(F("BEGIN_CUSTOMERS"));
+  for (int i = 0; i < customerCount; i++) {
+    Serial.print(F("CUST|"));
+    Serial.print(sanitizeSyncField(customers[i].account_no));
+    Serial.print('|');
+    Serial.print(sanitizeSyncField(customers[i].customer_name));
+    Serial.print('|');
+    Serial.print(sanitizeSyncField(customers[i].address));
+    Serial.print('|');
+    Serial.print(customers[i].previous_reading);
+    Serial.print('|');
+    Serial.println(customers[i].is_active ? '1' : '0');
+  }
+  Serial.println(F("END_CUSTOMERS"));
+}
+
+static bool upsertCustomerFromSync(const String& accountNo, const String& name, const String& address, unsigned long prev, bool active) {
+  String acct = accountNo;
+  acct.trim();
+  if (acct.length() == 0) return false;
+
+  int idx = findCustomerByAccount(acct);
+  if (idx == -1) {
+    if (customerCount >= MAX_CUSTOMERS) {
+      return false;
+    }
+    idx = customerCount;
+    customers[idx].id = (unsigned long)(idx + 1);
+    customers[idx].account_no = acct;
+    customerCount++;
+  }
+
+  customers[idx].customer_name = name;
+  customers[idx].address = address;
+  customers[idx].previous_reading = prev;
+  customers[idx].is_active = active;
+
+  if (SD.cardType() != CARD_NONE) {
+    (void)saveCustomersToSD();
+  }
   return true;
 }
 
 // ===== PRINT ALL CUSTOMERS =====
 void printCustomersList() {
   Serial.println(F("\n===== CUSTOMERS DATABASE ====="));
-  Serial.println(F("Account | Name              | Address         | Prev Read"));
-  Serial.println(F("--------|-------------------|-----------------|----------"));
+  Serial.println(F("Account | Name              | Address         | Prev Read | Active"));
+  Serial.println(F("--------|-------------------|-----------------|----------|-------"));
   
   for (int i = 0; i < customerCount; i++) {
-    Serial.print(customers[i].accountNumber);
+    Serial.print(customers[i].account_no);
     Serial.print(F("       | "));
-    Serial.print(customers[i].customerName);
+    Serial.print(customers[i].customer_name);
     Serial.print(F("      | "));
     Serial.print(customers[i].address);
     Serial.print(F(" | "));
-    Serial.println(customers[i].previousReading);
+    Serial.print(customers[i].previous_reading);
+    Serial.print(F(" | "));
+    Serial.println(customers[i].is_active ? F("Y") : F("N"));
   }
   
   Serial.println(F("===============================\n"));
