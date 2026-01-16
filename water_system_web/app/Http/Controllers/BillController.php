@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Bill;
 use App\Models\Setting;
 use App\Models\Customer;
+use App\Models\BillTransaction;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 
@@ -14,6 +15,7 @@ class BillController extends Controller
     {
         $status = $request->query('status');
         $customerId = $request->query('customer_id');
+        $customerSearch = $request->query('customer_search');
 
         $query = Bill::with('customer');
 
@@ -23,6 +25,13 @@ class BillController extends Controller
 
         if ($customerId) {
             $query->where('customer_id', $customerId);
+        }
+
+        if ($customerSearch) {
+            $query->whereHas('customer', function ($q) use ($customerSearch) {
+                $q->where('customer_name', 'like', '%' . $customerSearch . '%')
+                  ->orWhere('account_no', 'like', '%' . $customerSearch . '%');
+            });
         }
 
         $bills = $query->orderBy('created_at', 'desc')->paginate(20);
@@ -51,23 +60,30 @@ class BillController extends Controller
 
     public function paymentsByCustomer(Request $request, Customer $customer)
     {
-        // For now, return paid bills as payments
-        // In a real implementation, you'd have a separate payments table
         $limit = $request->query('limit', 10);
 
-        $payments = Bill::where('customer_id', $customer->id)
-            ->where('status', 'paid')
-            ->orderBy('updated_at', 'desc')
-            ->limit($limit)
-            ->get()
-            ->map(function ($bill) {
-                return [
-                    'id' => $bill->id,
-                    'bill_no' => $bill->bill_no,
-                    'amount_paid' => $bill->total_due,
-                    'created_at' => $bill->updated_at,
-                ];
-            });
+        $payments = BillTransaction::whereHas('bill', function ($query) use ($customer) {
+            $query->where('customer_id', $customer->id);
+        })
+        ->whereIn('type', ['payment', 'void'])
+        ->with(['bill', 'processedBy'])
+        ->orderBy('transaction_date', 'desc')
+        ->limit($limit)
+        ->get()
+        ->map(function ($transaction) {
+            return [
+                'id' => $transaction->id,
+                'bill_no' => $transaction->bill->bill_no,
+                'amount_paid' => $transaction->amount,
+                'cash_received' => $transaction->cash_received,
+                'change' => $transaction->change,
+                'payment_method' => $transaction->payment_method,
+                'processed_by' => $transaction->processedBy?->name,
+                'created_at' => $transaction->transaction_date,
+                'notes' => $transaction->notes,
+                'type' => $transaction->type,
+            ];
+        });
 
         return response()->json([
             'data' => $payments,
@@ -94,8 +110,17 @@ class BillController extends Controller
         $bill->status = 'paid';
         $bill->save();
 
-        // In a real implementation, you'd create a payment record here
-        // For now, we'll just return the bill data
+        // Create transaction record
+        BillTransaction::create([
+            'bill_id' => $bill->id,
+            'type' => 'payment',
+            'amount' => $validated['amount_paid'],
+            'cash_received' => $validated['cash_received'],
+            'change' => $validated['change_amount'],
+            'transaction_date' => now(),
+            'payment_method' => $validated['payment_method'],
+            'processed_by_user_id' => auth()->id(),
+        ]);
 
         return response()->json([
             'data' => $bill,
@@ -108,6 +133,22 @@ class BillController extends Controller
 
         $payments = Bill::where('status', 'paid')
             ->whereDate('updated_at', $today)
+            ->get();
+
+        return response()->json([
+            'count' => $payments->count(),
+            'total' => $payments->sum('total_due'),
+        ]);
+    }
+
+    public function monthlyPayments(Request $request)
+    {
+        $currentMonth = now()->month;
+        $currentYear = now()->year;
+
+        $payments = Bill::where('status', 'paid')
+            ->whereYear('updated_at', $currentYear)
+            ->whereMonth('updated_at', $currentMonth)
             ->get();
 
         return response()->json([
@@ -154,6 +195,18 @@ class BillController extends Controller
         $bill->status = 'paid';
         $bill->save();
 
+        // Create transaction record
+        BillTransaction::create([
+            'bill_id' => $bill->id,
+            'type' => 'payment',
+            'amount' => $bill->total_due,
+            'cash_received' => $bill->total_due,
+            'change' => 0,
+            'transaction_date' => now(),
+            'payment_method' => 'cash',
+            'processed_by_user_id' => auth()->id(),
+        ]);
+
         return response()->json([
             'data' => $bill,
         ]);
@@ -172,12 +225,37 @@ class BillController extends Controller
             'reason' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        $bill->status = 'void';
+        $bill->status = 'pending';
         $bill->void_reason = $validated['reason'] ?? null;
         $bill->save();
+
+        // Create transaction record for void
+        BillTransaction::create([
+            'bill_id' => $bill->id,
+            'type' => 'void',
+            'amount' => $bill->total_due,
+            'transaction_date' => now(),
+            'processed_by_user_id' => auth()->id(),
+            'notes' => $validated['reason'] ?? null,
+        ]);
 
         return response()->json([
             'data' => $bill,
         ]);
     }
+
+    public function transactions(Request $request)
+    {
+        $limit = $request->query('limit', 50);
+
+        $transactions = BillTransaction::with(['bill.customer', 'processedBy'])
+            ->orderBy('transaction_date', 'desc')
+            ->limit($limit)
+            ->get();
+
+        return response()->json([
+            'data' => $transactions,
+        ]);
+    }
 }
+    

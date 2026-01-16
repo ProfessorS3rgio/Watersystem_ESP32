@@ -40,4 +40,9 @@ class Bill extends Model
     {
         return $this->belongsTo(Reading::class);
     }
+
+    public function transactions()
+    {
+        return $this->hasMany(BillTransaction::class);
+    }
 }

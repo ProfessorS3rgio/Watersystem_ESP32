@@ -14,6 +14,7 @@
         :totalCollected="totalCollected"
         :pendingBillsCount="pendingBillsCount"
         :overdueBillsCount="overdueBillsCount"
+        :transactions="transactions"
       />
 
       <!-- Customer Billing View -->
@@ -134,17 +135,17 @@
         </div>
       </div>
     </div>
-  </AppSidebar>
 
-  <!-- Void Bill Dialog -->
-  <VoidBillDialog
-    :is-open="showVoidDialog"
-    message="Are you sure you want to void this bill? This action cannot be undone."
-    :is-loading="voidLoading"
-    :is-dark="isDark"
-    @confirm="confirmVoid"
-    @cancel="cancelVoid"
-  />
+    <!-- Void Bill Dialog -->
+    <VoidBillDialog
+      :is-open="showVoidDialog"
+      message="Are you sure you want to void this bill? This action cannot be undone."
+      :is-loading="voidLoading"
+      :is-dark="isDark"
+      @confirm="confirmVoid"
+      @cancel="cancelVoid"
+    />
+  </AppSidebar>
 </template>
 
 <script>
@@ -156,7 +157,7 @@ import SuccessModal from '../components/SuccessModal.vue'
 import VoidBillDialog from '../components/VoidBillDialog.vue'
 import { useBilling } from '../composables/billing.js'
 import { useRoute, useRouter } from 'vue-router'
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 
 export default {
   name: 'Billing',
@@ -182,6 +183,21 @@ export default {
     // Redirect /billing to /billing/summary
     if (route.path === '/billing') {
       router.replace('/billing/summary')
+    }
+
+    // Destructure loadAllBills
+    const { loadAllBills } = billingComposable
+
+    // Watch for activeView changes to load data
+    watch(activeView, (newView) => {
+      if (newView === 'all-bills') {
+        loadAllBills()
+      }
+    })
+
+    // Load all bills initially if on all-bills view
+    if (activeView.value === 'all-bills') {
+      loadAllBills()
     }
 
     return {

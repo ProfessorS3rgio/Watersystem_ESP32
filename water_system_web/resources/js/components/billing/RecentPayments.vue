@@ -18,14 +18,18 @@
       </div>
 
       <div v-else class="space-y-3">
-        <div v-for="payment in recentPayments" :key="payment.id" class="flex justify-between items-center p-3 border rounded-lg" :class="isDark ? 'border-gray-600 bg-gray-700' : 'border-gray-200 bg-gray-50'">
+        <div v-for="payment in recentPayments" :key="payment.id" class="flex justify-between items-center p-3 border rounded-lg" :class="payment.type === 'void' ? (isDark ? 'border-red-600 bg-red-900/20' : 'border-red-200 bg-red-50') : (isDark ? 'border-gray-600 bg-gray-700' : 'border-gray-200 bg-gray-50')">
           <div>
-            <p class="font-medium">Bill #{{ payment.bill_no }}</p>
+            <p class="font-medium">
+              Bill #{{ payment.bill_no }}
+              <span v-if="payment.type === 'void'" class="ml-2 px-2 py-1 text-xs font-medium rounded" :class="isDark ? 'bg-red-700 text-red-200' : 'bg-red-100 text-red-800'">Voided</span>
+            </p>
             <p class="text-sm" :class="isDark ? 'text-gray-400' : 'text-gray-600'">{{ formatDate(payment.created_at) }}</p>
+            <p v-if="payment.notes" class="text-sm" :class="isDark ? 'text-gray-500' : 'text-gray-500'">{{ payment.notes }}</p>
           </div>
           <div class="text-right">
-            <p class="font-bold text-green-600">₱{{ formatMoney(payment.amount_paid) }}</p>
-            <p class="text-sm" :class="isDark ? 'text-gray-400' : 'text-gray-600'">Cash</p>
+            <p :class="payment.type === 'void' ? 'font-bold text-red-600' : 'font-bold text-green-600'">₱{{ formatMoney(payment.amount_paid) }}</p>
+            <p class="text-sm" :class="isDark ? 'text-gray-400' : 'text-gray-600'">{{ payment.type === 'void' ? 'Voided' : 'Cash' }}</p>
           </div>
         </div>
       </div>

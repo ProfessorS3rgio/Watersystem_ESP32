@@ -16,27 +16,18 @@
               <option value="">All</option>
               <option value="pending">Pending</option>
               <option value="paid">Paid</option>
-              <option value="void">Void</option>
             </select>
           </div>
           <div class="flex items-center gap-2">
-            <label class="text-sm font-medium" :class="isDark ? 'text-gray-200' : 'text-gray-700'">Customer:</label>
+            <label class="text-sm font-medium" :class="isDark ? 'text-gray-200' : 'text-gray-700'">Search:</label>
             <input
-              v-model="localCustomerFilter"
-              type="text"
-              placeholder="Name or account"
+              v-model="localSearch"
+              type="search"
+              placeholder="Name, account, or bill no"
               class="px-2 py-1 text-sm border rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
               :class="isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'"
-              @keyup.enter="handleFilterChange"
             >
           </div>
-          <button
-            @click="handleFilterChange"
-            :disabled="loadingAllBills"
-            class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded text-sm font-medium disabled:opacity-50 transition-colors duration-200"
-          >
-            {{ loadingAllBills ? 'Loading...' : 'Filter' }}
-          </button>
         </div>
       </div>
     </div>
@@ -46,12 +37,12 @@
         <p class="mt-2 text-sm" :class="isDark ? 'text-gray-400' : 'text-gray-600'">Loading bills...</p>
       </div>
 
-      <div v-else-if="allBills.length === 0" class="text-center py-8">
+      <div v-else-if="filteredBills.length === 0" class="text-center py-8">
         <svg class="mx-auto h-12 w-12" :class="isDark ? 'text-gray-400' : 'text-gray-400'" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
         </svg>
         <h3 class="mt-2 text-sm font-medium" :class="isDark ? 'text-gray-300' : 'text-gray-900'">No bills found</h3>
-        <p class="mt-1 text-sm" :class="isDark ? 'text-gray-400' : 'text-gray-600'">Try adjusting your filters.</p>
+        <p class="mt-1 text-sm" :class="isDark ? 'text-gray-400' : 'text-gray-600'">Try adjusting your filters or search.</p>
       </div>
 
       <div v-else class="overflow-x-auto">
@@ -67,7 +58,7 @@
             </tr>
           </thead>
           <tbody class="divide-y" :class="isDark ? 'divide-gray-600' : 'divide-gray-200'">
-            <tr v-for="bill in allBills" :key="bill.id" class="hover:bg-gray-50" :class="isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'">
+            <tr v-for="bill in filteredBills" :key="bill.id" class="hover:bg-gray-50" :class="isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'">
               <td class="py-2 px-2">
                 <span :class="isDark ? 'text-gray-300' : 'text-gray-900'">{{ bill.customer?.customer_name || 'N/A' }}</span>
               </td>
@@ -101,13 +92,6 @@
                     class="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded text-xs font-medium transition-colors duration-200"
                   >
                     Void
-                  </button>
-                  <button
-                    v-if="bill.status === 'void'"
-                    disabled
-                    class="bg-gray-400 text-white px-2 py-1 rounded text-xs font-medium cursor-not-allowed"
-                  >
-                    Voided
                   </button>
                 </div>
               </td>
@@ -179,7 +163,21 @@ export default {
   data() {
     return {
       localStatusFilter: this.statusFilter,
-      localCustomerFilter: this.customerFilter
+      localCustomerFilter: this.customerFilter,
+      localSearch: ''
+    }
+  },
+  computed: {
+    filteredBills() {
+      const q = (this.localSearch || '').trim().toLowerCase()
+      if (!q) return this.allBills
+      return this.allBills.filter(bill => {
+        return (
+          String(bill.customer?.customer_name || '').toLowerCase().includes(q) ||
+          String(bill.customer?.account_no || '').toLowerCase().includes(q) ||
+          String(bill.bill_no || '').toLowerCase().includes(q)
+        )
+      })
     }
   },
   watch: {
@@ -197,12 +195,6 @@ export default {
         customerFilter: this.localCustomerFilter
       })
     },
-    handleFilterChange() {
-      this.$emit('filter-change', {
-        statusFilter: this.statusFilter,
-        customerFilter: this.customerFilter
-      })
-    },
     handlePayBill(bill) {
       this.$emit('pay-bill', bill)
     },
@@ -218,8 +210,6 @@ export default {
           return 'bg-green-100 text-green-800'
         case 'pending':
           return 'bg-yellow-100 text-yellow-800'
-        case 'void':
-          return 'bg-red-100 text-red-800'
         default:
           return 'bg-gray-100 text-gray-800'
       }

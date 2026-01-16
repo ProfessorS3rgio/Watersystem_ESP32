@@ -12,8 +12,21 @@ class CustomerController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
+        $accountNo = $request->query('account_no');
+        $name = $request->query('name');
+
+        $query = DB::table('customer');
+
+        if ($accountNo) {
+            $query->where('account_no', $accountNo);
+        }
+
+        if ($name) {
+            $query->where('customer_name', 'like', '%' . $name . '%');
+        }
+
         $latestReadingAt = DB::table('reading')
             ->select('customer_id', DB::raw('MAX(reading_at) as latest_reading_at'))
             ->groupBy('customer_id');
@@ -22,7 +35,7 @@ class CustomerController extends Controller
             ->select('customer_id', DB::raw('MAX(bill_date) as latest_bill_date'))
             ->groupBy('customer_id');
 
-        $customers = DB::table('customer')
+        $customers = $query
             ->leftJoinSub($latestReadingAt, 'lr', function ($join) {
                 $join->on('lr.customer_id', '=', 'customer.id');
             })

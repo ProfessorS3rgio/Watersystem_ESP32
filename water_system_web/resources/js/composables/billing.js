@@ -45,6 +45,7 @@ export function useBilling() {
     const totalCollected = ref(0)
     const pendingBillsCount = ref(0)
     const overdueBillsCount = ref(0)
+    const transactions = ref([])
 
     const changeAmount = computed(() => {
       if (!selectedBill.value || cashReceived.value <= 0) return 0
@@ -57,11 +58,17 @@ export function useBilling() {
       searchRef.value = true
       try {
         let url = '/customers?'
+        const params = []
+
         if (accountNo.trim()) {
-          url += `account_no=${encodeURIComponent(accountNo.trim())}`
-        } else if (name.trim()) {
-          url += `name=${encodeURIComponent(name.trim())}`
+          params.push(`account_no=${encodeURIComponent(accountNo.trim())}`)
         }
+
+        if (name.trim()) {
+          params.push(`name=${encodeURIComponent(name.trim())}`)
+        }
+
+        url += params.join('&')
 
         const response = await fetch(url, {
           headers: { 'Accept': 'application/json' },
@@ -245,15 +252,24 @@ export function useBilling() {
 
     const loadBillingStats = async () => {
       try {
-        // Load today's payments count
+        // Load today's payments
         const todayResponse = await fetch('/bills/today-payments', {
           headers: { 'Accept': 'application/json' },
           credentials: 'same-origin'
         })
         if (todayResponse.ok) {
           const todayData = await todayResponse.json()
-          todaysPayments.value = todayData.count || 0
-          totalCollected.value = todayData.total || 0
+          todaysPayments.value = todayData.total || 0
+        }
+
+        // Load monthly payments
+        const monthlyResponse = await fetch('/bills/monthly-payments', {
+          headers: { 'Accept': 'application/json' },
+          credentials: 'same-origin'
+        })
+        if (monthlyResponse.ok) {
+          const monthlyData = await monthlyResponse.json()
+          totalCollected.value = monthlyData.total || 0
         }
 
         // Load pending bills count
@@ -265,6 +281,16 @@ export function useBilling() {
           const statsData = await pendingResponse.json()
           pendingBillsCount.value = statsData.pending || 0
           overdueBillsCount.value = statsData.overdue || 0
+        }
+
+        // Load recent transactions
+        const transactionsResponse = await fetch('/bills/transactions?limit=20', {
+          headers: { 'Accept': 'application/json' },
+          credentials: 'same-origin'
+        })
+        if (transactionsResponse.ok) {
+          const transactionsData = await transactionsResponse.json()
+          transactions.value = transactionsData.data || []
         }
       } catch (error) {
         console.error('Failed to load billing stats:', error)
@@ -282,7 +308,7 @@ export function useBilling() {
         }
 
         if (customerFilter.value.trim()) {
-          params.push(`customer_id=${encodeURIComponent(customerFilter.value.trim())}`)
+          params.push(`customer_search=${encodeURIComponent(customerFilter.value.trim())}`)
         }
 
         if (params.length > 0) {
@@ -487,6 +513,7 @@ export function useBilling() {
       totalCollected,
       pendingBillsCount,
       overdueBillsCount,
+      transactions,
       loadBillingStats
     }
 }
