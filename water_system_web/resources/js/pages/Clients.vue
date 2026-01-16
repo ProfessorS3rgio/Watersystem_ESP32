@@ -7,14 +7,7 @@
       </div>
 
       <!-- Add Client Button -->
-      <div class="mb-6">
-      <button @click="openAddModal" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-medium shadow-lg transition-all duration-200 flex items-center space-x-2">
-        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-        </svg>
-        <span>Add New Client</span>
-      </button>
-    </div>
+     
 
     <!-- Stats Cards -->
     <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
@@ -31,6 +24,8 @@
           </div>
         </div>
       </div>
+
+      
 
       <div class="bg-white rounded-lg shadow p-6">
         <div class="flex items-center">
@@ -54,7 +49,7 @@
             </svg>
           </div>
           <div class="ml-4">
-            <p class="text-sm text-gray-600">New (Prev = 0)</p>
+            <p class="text-sm text-gray-600">New</p>
             <p class="text-2xl font-bold text-gray-900">{{ newCount }}</p>
           </div>
         </div>
@@ -68,13 +63,21 @@
             </svg>
           </div>
           <div class="ml-4">
-            <p class="text-sm text-gray-600">Inactive</p>
+            <p class="text-sm text-gray-600">Disconnected</p>
             <p class="text-2xl font-bold text-gray-900">{{ inactiveCount }}</p>
           </div>
         </div>
       </div>
     </div>
 
+     <div class="mb-6">
+      <button @click="openAddModal" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-medium shadow-lg transition-all duration-200 flex items-center space-x-2">
+        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+        </svg>
+        <span>Add New Client</span>
+      </button>
+    </div>
     <!-- Clients Table -->
     <div class="bg-white rounded-lg shadow overflow-hidden">
       <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
@@ -100,7 +103,7 @@
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Latest Bill</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Usage</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-48">Actions</th>
             </tr>
           </thead>
           <tbody class="bg-white divide-y divide-gray-200">
@@ -136,7 +139,7 @@
               </td>
               <td class="px-6 py-4 whitespace-nowrap">
                 <span :class="customer.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'" class="px-3 py-1 rounded-full text-xs font-medium">
-                  {{ customer.is_active ? 'Active' : 'Inactive' }}
+                  {{ customer.is_active ? 'Active' : 'Disconnected' }}
                 </span>
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-sm">
@@ -145,11 +148,27 @@
                 </button>
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-sm">
-                <div class="flex space-x-2">
-                  <button @click="openEditModal(customer)" class="text-blue-600 hover:text-blue-900 font-medium">
+                <div class="flex flex-wrap gap-2">
+                  <button
+                    v-if="customer.is_active"
+                    @click="disconnectCustomer(customer)"
+                    class="text-white bg-red-500 box-border border border-transparent hover:bg-red-600 focus:ring-4 focus:ring-red-300 shadow-xs font-medium leading-5 rounded-full text-sm px-3 py-1.5 focus:outline-none"
+                    title="Disconnect this customer"
+                  >
+                    Disconnect
+                  </button>
+                  <button
+                    v-else
+                    @click="reconnectCustomer(customer)"
+                    class="text-white bg-green-500 box-border border border-transparent hover:bg-green-600 focus:ring-4 focus:ring-green-300 shadow-xs font-medium leading-5 rounded-full text-sm px-3 py-1.5 focus:outline-none"
+                    title="Reconnect this customer"
+                  >
+                    Reconnect
+                  </button>
+                  <button @click="openEditModal(customer)" class="text-white bg-blue-500 box-border border border-transparent hover:bg-blue-600 focus:ring-4 focus:ring-blue-300 shadow-xs font-medium leading-5 rounded-full text-sm px-3 py-1.5 focus:outline-none">
                     Edit
                   </button>
-                  <button @click="openDeleteModal(customer)" class="text-red-600 hover:text-red-900 font-medium">
+                  <button @click="openDeleteModal(customer)" class="text-white bg-red-500 box-border border border-transparent hover:bg-red-600 focus:ring-4 focus:ring-red-300 shadow-xs font-medium leading-5 rounded-full text-sm px-3 py-1.5 focus:outline-none">
                     Remove
                   </button>
                 </div>
@@ -161,75 +180,17 @@
     </div>
 
     <!-- Usage Modal -->
-    <div v-if="isUsageModalOpen" class="fixed inset-0 z-50">
-      <div class="absolute inset-0 bg-black/50" @click="closeUsageModal"></div>
-      <div class="absolute inset-0 flex items-center justify-center p-4">
-        <div class="w-full max-w-3xl rounded-lg shadow-lg" :class="isDark ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'">
-          <div class="px-6 py-4 border-b" :class="isDark ? 'border-gray-800' : 'border-gray-200'">
-            <div class="flex items-center justify-between">
-              <div>
-                <h3 class="text-lg font-semibold">Usage History</h3>
-                <p class="text-sm" :class="isDark ? 'text-gray-300' : 'text-gray-600'">
-                  {{ usageCustomer?.customer_name }} ({{ usageCustomer?.account_no }})
-                </p>
-              </div>
-              <button class="text-sm" :class="isDark ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'" @click="closeUsageModal">
-                Close
-              </button>
-            </div>
-          </div>
-
-          <div class="px-6 py-4">
-            <div v-if="usageLoading" class="text-sm" :class="isDark ? 'text-gray-300' : 'text-gray-600'">Loading readings...</div>
-            <div v-else-if="usageError" class="text-sm text-red-600">{{ usageError }}</div>
-            <div v-else-if="usageReadings.length === 0" class="text-sm" :class="isDark ? 'text-gray-300' : 'text-gray-600'">
-              No readings yet for this customer.
-            </div>
-            <div v-else class="overflow-x-auto">
-              <table class="w-full">
-                <thead :class="isDark ? 'bg-gray-800' : 'bg-gray-50'">
-                  <tr>
-                    <th class="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider" :class="isDark ? 'text-gray-200' : 'text-gray-500'">Date</th>
-                    <th class="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider" :class="isDark ? 'text-gray-200' : 'text-gray-500'">Previous</th>
-                    <th class="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider" :class="isDark ? 'text-gray-200' : 'text-gray-500'">Current</th>
-                    <th class="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider" :class="isDark ? 'text-gray-200' : 'text-gray-500'">Usage (m³)</th>
-                    <th class="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider" :class="isDark ? 'text-gray-200' : 'text-gray-500'">Bill</th>
-                    <th class="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider" :class="isDark ? 'text-gray-200' : 'text-gray-500'">Action</th>
-                  </tr>
-                </thead>
-                <tbody :class="isDark ? 'divide-y divide-gray-800' : 'divide-y divide-gray-200'">
-                  <tr v-for="r in usageReadings" :key="r.id" :class="isDark ? 'hover:bg-gray-800/60' : 'hover:bg-gray-50'">
-                    <td class="px-4 py-2 text-sm">{{ formatReadingAt(r.reading_at) }}</td>
-                    <td class="px-4 py-2 text-sm">{{ r.previous_reading }}</td>
-                    <td class="px-4 py-2 text-sm">{{ r.current_reading }}</td>
-                    <td class="px-4 py-2 text-sm font-medium">{{ r.usage_m3 }}</td>
-                    <td class="px-4 py-2 text-sm">
-                      <span v-if="!r.bill_id" class="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700">No Bill</span>
-                      <span v-else-if="String(r.status || '').toLowerCase() === 'paid'" class="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">Paid</span>
-                      <span v-else-if="isBillDue(r)" class="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">Due</span>
-                      <span v-else class="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">Pending</span>
-                      <span v-if="r.bill_id" class="ml-2 text-xs" :class="isDark ? 'text-gray-300' : 'text-gray-600'">
-                        ₱{{ formatMoney(r.total_due) }}
-                      </span>
-                    </td>
-                    <td class="px-4 py-2 text-sm">
-                      <button
-                        v-if="r.bill_id && String(r.status || '').toLowerCase() !== 'paid'"
-                        @click="markBillPaid(r)"
-                        class="text-indigo-600 hover:text-indigo-900 font-medium"
-                      >
-                        Mark Paid
-                      </button>
-                      <span v-else class="text-xs" :class="isDark ? 'text-gray-400' : 'text-gray-500'">-</span>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <UsageModal
+      :is-open="isUsageModalOpen"
+      :customer="usageCustomer"
+      :readings="usageReadings"
+      :loading="usageLoading"
+      :error="usageError"
+      :is-dark="isDark"
+      @close="closeUsageModal"
+      @mark-paid="markBillPaid"
+      @void-bill="voidBill"
+    />
 
     <!-- Add Client Modal -->
     <div v-if="isAddModalOpen" class="fixed inset-0 z-50">
@@ -383,11 +344,6 @@
               <p v-if="fieldError('previous_reading')" class="text-sm text-red-600 mt-1">{{ fieldError('previous_reading') }}</p>
             </div>
 
-            <div class="flex items-center gap-2">
-              <input id="edit_is_active" v-model="editCustomer.is_active" type="checkbox" class="h-4 w-4" />
-              <label for="edit_is_active" class="text-sm">Active</label>
-            </div>
-
             <p v-if="submitError" class="text-sm text-red-600">{{ submitError }}</p>
 
             <div class="pt-2 flex items-center justify-end gap-3">
@@ -432,383 +388,289 @@
 import AppSidebar from '../components/AppSidebar.vue'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
 import SuccessModal from '../components/SuccessModal.vue'
+import UsageModal from '../components/UsageModal.vue'
+import { useCustomers } from '../composables/useCustomers.js'
+import { useModals } from '../composables/useModals.js'
+import { useCustomerForm } from '../composables/useCustomerForm.js'
+import { useUsage } from '../composables/useUsage.js'
 
 export default {
   name: 'Clients',
   components: {
     AppSidebar,
     ConfirmDialog,
-    SuccessModal
+    SuccessModal,
+    UsageModal
   },
-  data() {
-    return {
-      customers: [],
-      isLoading: false,
-      errorMessage: '',
-      search: '',
+  setup() {
+    const customersComposable = useCustomers()
+    const modalsComposable = useModals()
+    const formComposable = useCustomerForm()
+    const usageComposable = useUsage()
 
-      isAddModalOpen: false,
-      isSubmitting: false,
-      submitError: '',
-      submitFieldErrors: {},
-      newCustomer: {
-        account_no: '',
-        customer_name: '',
-        address: '',
-        previous_reading: 0,
-        is_active: true,
-      },
-
-      isEditModalOpen: false,
-      editingCustomer: null,
-      editCustomer: {
-        account_no: '',
-        customer_name: '',
-        address: '',
-        previous_reading: 0,
-        is_active: true,
-      },
-
-      isDeleteModalOpen: false,
-      deletingCustomer: null,
-
-      isSuccessModalOpen: false,
-      successTitle: '',
-      successMessage: '',
-
-      isUsageModalOpen: false,
-      usageCustomer: null,
-      usageReadings: [],
-      usageLoading: false,
-      usageError: '',
+    // Modal handlers with form integration
+    const openAddModal = () => {
+      formComposable.resetNewCustomer()
+      modalsComposable.openAddModal()
     }
-  },
-  computed: {
-    activeCount() {
-      return this.customers.filter(c => !!c.is_active).length
-    },
-    inactiveCount() {
-      return this.customers.filter(c => !c.is_active).length
-    },
-    newCount() {
-      return this.customers.filter(c => Number(c.previous_reading) === 0).length
-    },
-    filteredCustomers() {
-      const q = (this.search || '').trim().toLowerCase()
-      if (!q) return this.customers
-      return this.customers.filter(c => {
-        return (
-          String(c.account_no || '').toLowerCase().includes(q) ||
-          String(c.customer_name || '').toLowerCase().includes(q) ||
-          String(c.address || '').toLowerCase().includes(q)
-        )
-      })
+
+    const closeAddModal = () => {
+      if (formComposable.isSubmitting.value) return
+      modalsComposable.closeAddModal()
     }
-  },
-  mounted() {
-    void this.fetchCustomers()
-  },
-  methods: {
-    inputClass(isDark) {
-      return isDark
-        ? 'bg-gray-800 border-gray-700 text-white placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500'
-        : 'bg-white border-gray-300 text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500'
-    },
-    async fetchCustomers() {
-      this.isLoading = true
-      this.errorMessage = ''
-      try {
-        const res = await fetch('/customers', {
-          headers: { 'Accept': 'application/json' },
-          credentials: 'same-origin',
-        })
 
-        if (!res.ok) {
-          if (res.status === 401) {
-            this.errorMessage = 'Unauthorized. Please login again.'
-            return
-          }
-          throw new Error('Failed to load customers')
-        }
-
-        const json = await res.json()
-        this.customers = Array.isArray(json?.data) ? json.data : []
-      } catch (e) {
-        this.errorMessage = e?.message || 'Failed to load customers'
-      } finally {
-        this.isLoading = false
-      }
-    },
-    openAddModal() {
-      this.isAddModalOpen = true
-      this.submitError = ''
-      this.submitFieldErrors = {}
-      this.newCustomer = {
-        account_no: '',
-        customer_name: '',
-        address: '',
-        previous_reading: 0,
-        is_active: true,
-      }
-    },
-    closeAddModal() {
-      if (this.isSubmitting) return
-      this.isAddModalOpen = false
-    },
-    openEditModal(customer) {
-      this.editingCustomer = customer
-      this.editCustomer = {
+    const openEditModal = (customer) => {
+      formComposable.resetEditCustomer()
+      Object.assign(formComposable.editCustomer, {
         account_no: customer.account_no || '',
         customer_name: customer.customer_name || '',
         address: customer.address || '',
         previous_reading: customer.previous_reading || 0,
-        is_active: !!customer.is_active,
-      }
-      this.isEditModalOpen = true
-      this.submitError = ''
-      this.submitFieldErrors = {}
-    },
-    closeEditModal() {
-      if (this.isSubmitting) return
-      this.isEditModalOpen = false
-      this.editingCustomer = null
-    },
-    openDeleteModal(customer) {
-      this.deletingCustomer = customer
-      this.isDeleteModalOpen = true
-    },
-    closeDeleteModal() {
-      if (this.isSubmitting) return
-      this.isDeleteModalOpen = false
-      this.deletingCustomer = null
-    },
-    async confirmDelete() {
-      if (!this.deletingCustomer) return
+        // Note: is_active is not editable in edit form
+      })
+      modalsComposable.openEditModal(customer)
+    }
 
-      this.isSubmitting = true
-      const customer = this.deletingCustomer
+    const closeEditModal = () => {
+      if (formComposable.isSubmitting.value) return
+      modalsComposable.closeEditModal()
+    }
 
-      const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+    const openDeleteModal = (customer) => {
+      modalsComposable.openDeleteModal(customer)
+    }
+
+    const closeDeleteModal = () => {
+      if (formComposable.isSubmitting.value) return
+      modalsComposable.closeDeleteModal()
+    }
+
+    const openUsageModal = async (customer) => {
+      modalsComposable.openUsageModal(customer)
+      await usageComposable.fetchUsageReadings(customer.id)
+    }
+
+    const closeUsageModal = () => {
+      if (usageComposable.usageLoading.value) return
+      modalsComposable.closeUsageModal()
+    }
+
+    // Customer operations
+    const disconnectCustomer = async (customer) => {
+      const confirmed = window.confirm(`Are you sure you want to disconnect ${customer.customer_name}? They will no longer be able to use the water service.`)
+      if (!confirmed) return
+
+      formComposable.isSubmitting.value = true
       try {
-        const res = await fetch(`/customers/${customer.id}`, {
-          method: 'DELETE',
-          headers: {
-            'Accept': 'application/json',
-            ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {}),
-          },
-          credentials: 'same-origin',
+        await customersComposable.updateCustomer(customer.id, {
+          account_no: customer.account_no,
+          customer_name: customer.customer_name,
+          address: customer.address,
+          previous_reading: customer.previous_reading,
+          is_active: false,
         })
 
-        if (!res.ok) {
-          if (res.status === 401) throw new Error('Unauthorized. Please login again.')
-          const text = await res.text()
-          throw new Error('Failed to delete customer: ' + text)
-        }
+        modalsComposable.showSuccess(
+          'Customer Disconnected',
+          `Customer <strong>${customer.customer_name}</strong> has been successfully disconnected from the water service.`
+        )
+      } catch (e) {
+        alert('Error: ' + (e?.message || 'Failed to disconnect customer'))
+      } finally {
+        formComposable.isSubmitting.value = false
+      }
+    }
 
-        this.isDeleteModalOpen = false
-        this.deletingCustomer = null
-        await this.fetchCustomers()
+    const reconnectCustomer = async (customer) => {
+      const confirmed = window.confirm(`Are you sure you want to reconnect ${customer.customer_name}? They will be able to use the water service again.`)
+      if (!confirmed) return
 
-        // Show success modal
-        this.successTitle = 'Client Deleted'
-        this.successMessage = `Client <strong>${customer.customer_name}</strong> has been successfully deleted.`
-        this.isSuccessModalOpen = true
+      formComposable.isSubmitting.value = true
+      try {
+        await customersComposable.updateCustomer(customer.id, {
+          account_no: customer.account_no,
+          customer_name: customer.customer_name,
+          address: customer.address,
+          previous_reading: customer.previous_reading,
+          is_active: true,
+        })
+
+        modalsComposable.showSuccess(
+          'Customer Reconnected',
+          `Customer <strong>${customer.customer_name}</strong> has been successfully reconnected to the water service.`
+        )
+      } catch (e) {
+        alert('Error: ' + (e?.message || 'Failed to reconnect customer'))
+      } finally {
+        formComposable.isSubmitting.value = false
+      }
+    }
+
+    const confirmDelete = async () => {
+      if (!modalsComposable.deletingCustomer.value) return
+
+      formComposable.isSubmitting.value = true
+      const customer = modalsComposable.deletingCustomer.value
+
+      try {
+        await customersComposable.deleteCustomer(customer.id)
+
+        modalsComposable.closeDeleteModal()
+        modalsComposable.showSuccess(
+          'Client Deleted',
+          `Client <strong>${customer.customer_name}</strong> has been successfully deleted.`
+        )
       } catch (e) {
         alert('Error: ' + (e?.message || 'Failed to delete customer'))
       } finally {
-        this.isSubmitting = false
-      }
-    },
-    async submitEditCustomer() {
-      if (!this.editingCustomer) return
-
-      this.isSubmitting = true
-      this.submitError = ''
-      this.submitFieldErrors = {}
-
-      const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-      try {
-        const res = await fetch(`/customers/${this.editingCustomer.id}`, {
-          method: 'PUT',
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-            ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {}),
-          },
-          credentials: 'same-origin',
-          body: JSON.stringify({
-            account_no: this.editCustomer.account_no,
-            customer_name: this.editCustomer.customer_name,
-            address: this.editCustomer.address,
-            previous_reading: this.editCustomer.previous_reading,
-            is_active: this.editCustomer.is_active,
-          })
-        })
-
-        if (res.status === 422) {
-          const json = await res.json()
-          this.submitFieldErrors = json?.errors || {}
-          return
-        }
-
-        if (!res.ok) {
-          throw new Error('Failed to update customer')
-        }
-
-        this.isEditModalOpen = false
-        this.editingCustomer = null
-        await this.fetchCustomers()
-
-        // Show success modal
-        this.successTitle = 'Client Updated'
-        this.successMessage = `Client <strong>${this.editCustomer.customer_name}</strong> has been successfully updated.`
-        this.isSuccessModalOpen = true
-      } catch (e) {
-        this.submitError = e?.message || 'Failed to update customer'
-      } finally {
-        this.isSubmitting = false
-      }
-    },
-    fieldError(field) {
-      const v = this.submitFieldErrors?.[field]
-      if (!v) return ''
-      return Array.isArray(v) ? v[0] : String(v)
-    },
-    async submitNewCustomer() {
-      this.isSubmitting = true
-      this.submitError = ''
-      this.submitFieldErrors = {}
-
-      const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-      try {
-        const res = await fetch('/customers', {
-          method: 'POST',
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-            ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {}),
-          },
-          credentials: 'same-origin',
-          body: JSON.stringify({
-            account_no: this.newCustomer.account_no,
-            customer_name: this.newCustomer.customer_name,
-            address: this.newCustomer.address,
-            previous_reading: this.newCustomer.previous_reading,
-            is_active: this.newCustomer.is_active,
-          })
-        })
-
-        if (res.status === 422) {
-          const json = await res.json()
-          this.submitFieldErrors = json?.errors || {}
-          return
-        }
-
-        if (!res.ok) {
-          throw new Error('Failed to save customer')
-        }
-
-        this.isAddModalOpen = false
-        await this.fetchCustomers()
-
-        // Show success modal
-        this.successTitle = 'Client Added'
-        this.successMessage = `Client <strong>${this.newCustomer.customer_name}</strong> has been successfully added.`
-        this.isSuccessModalOpen = true
-      } catch (e) {
-        this.submitError = e?.message || 'Failed to save customer'
-      } finally {
-        this.isSubmitting = false
+        formComposable.isSubmitting.value = false
       }
     }
-    ,
-    formatReadingAt(value) {
-      if (!value) return '-'
-      const d = new Date(value)
-      if (Number.isNaN(d.getTime())) return String(value)
-      return d.toLocaleString()
-    },
-    formatMoney(value) {
-      const n = Number(value)
-      if (Number.isNaN(n)) return '0.00'
-      return n.toFixed(2)
-    },
-    isBillDue(r) {
-      if (!r?.due_date) return false
-      const due = new Date(r.due_date)
-      if (Number.isNaN(due.getTime())) return false
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-      due.setHours(0, 0, 0, 0)
-      return due < today
-    },
-    async markBillPaid(readingRow) {
+
+    const submitEditCustomer = async () => {
+      if (!modalsComposable.editingCustomer.value) return
+
+      formComposable.isSubmitting.value = true
+      formComposable.clearErrors()
+
+      try {
+        await customersComposable.updateCustomer(modalsComposable.editingCustomer.value.id, {
+          account_no: formComposable.editCustomer.account_no,
+          customer_name: formComposable.editCustomer.customer_name,
+          address: formComposable.editCustomer.address,
+          previous_reading: formComposable.editCustomer.previous_reading,
+          // is_active is not updated in edit form - use disconnect/reconnect buttons instead
+          is_active: modalsComposable.editingCustomer.value.is_active,
+        })
+
+        modalsComposable.closeEditModal()
+        modalsComposable.showSuccess(
+          'Client Updated',
+          `Client <strong>${formComposable.editCustomer.customer_name}</strong> has been successfully updated.`
+        )
+      } catch (e) {
+        if (e.message.includes('Validation error')) {
+          formComposable.setFieldErrors(JSON.parse(e.message.replace('Validation error: ', '')))
+        } else {
+          formComposable.submitError.value = e?.message || 'Failed to update customer'
+        }
+      } finally {
+        formComposable.isSubmitting.value = false
+      }
+    }
+
+    const submitNewCustomer = async () => {
+      formComposable.isSubmitting.value = true
+      formComposable.clearErrors()
+
+      try {
+        await customersComposable.createCustomer({
+          account_no: formComposable.newCustomer.account_no,
+          customer_name: formComposable.newCustomer.customer_name,
+          address: formComposable.newCustomer.address,
+          previous_reading: formComposable.newCustomer.previous_reading,
+          is_active: formComposable.newCustomer.is_active,
+        })
+
+        modalsComposable.closeAddModal()
+        modalsComposable.showSuccess(
+          'Client Added',
+          `Client <strong>${formComposable.newCustomer.customer_name}</strong> has been successfully added.`
+        )
+      } catch (e) {
+        if (e.message.includes('Validation error')) {
+          formComposable.setFieldErrors(JSON.parse(e.message.replace('Validation error: ', '')))
+        } else {
+          formComposable.submitError.value = e?.message || 'Failed to save customer'
+        }
+      } finally {
+        formComposable.isSubmitting.value = false
+      }
+    }
+
+    const markBillPaid = async (readingRow) => {
       if (!readingRow?.bill_id) return
       const ok = window.confirm('Confirm payment? This will mark the bill as PAID.')
       if (!ok) return
 
-      const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
       try {
-        const res = await fetch(`/bills/${readingRow.bill_id}/mark-paid`, {
-          method: 'POST',
-          headers: {
-            'Accept': 'application/json',
-            ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {}),
-          },
-          credentials: 'same-origin',
-        })
+        await usageComposable.markBillPaid(readingRow.bill_id)
 
-        if (!res.ok) {
-          if (res.status === 401) throw new Error('Unauthorized. Please login again.')
-          const text = await res.text()
-          throw new Error('Failed to mark paid: ' + text)
+        // Refresh usage data and customer list
+        if (modalsComposable.usageCustomer.value) {
+          await usageComposable.fetchUsageReadings(modalsComposable.usageCustomer.value.id)
         }
+        await customersComposable.fetchCustomers()
 
-        // Refresh modal + list badges
-        if (this.usageCustomer) {
-          await this.openUsageModal(this.usageCustomer)
-        }
-        await this.fetchCustomers()
-
-        // Show success modal
-        this.successTitle = 'Bill Marked as Paid'
-        this.successMessage = `The bill has been successfully marked as paid.`
-        this.isSuccessModalOpen = true
+        modalsComposable.showSuccess(
+          'Bill Marked as Paid',
+          'The bill has been successfully marked as paid.'
+        )
       } catch (e) {
-        this.usageError = e?.message || 'Failed to mark bill as paid'
+        alert('Error: ' + (e?.message || 'Failed to mark bill as paid'))
       }
-    },
-    async openUsageModal(customer) {
-      this.isUsageModalOpen = true
-      this.usageCustomer = customer
-      this.usageReadings = []
-      this.usageError = ''
-      this.usageLoading = true
+    }
+
+    const voidBill = async (readingRow, reason) => {
+      if (!readingRow?.bill_id) return
 
       try {
-        const res = await fetch(`/customers/${customer.id}/readings`, {
-          headers: { 'Accept': 'application/json' },
-          credentials: 'same-origin',
-        })
+        await usageComposable.voidBill(readingRow.bill_id, reason)
 
-        if (!res.ok) {
-          if (res.status === 401) {
-            throw new Error('Unauthorized. Please login again.')
-          }
-          throw new Error('Failed to load readings')
+        // Refresh usage data and customer list
+        if (modalsComposable.usageCustomer.value) {
+          await usageComposable.fetchUsageReadings(modalsComposable.usageCustomer.value.id)
         }
+        await customersComposable.fetchCustomers()
 
-        const json = await res.json()
-        this.usageReadings = Array.isArray(json?.data) ? json.data : []
+        modalsComposable.showSuccess(
+          'Bill Voided',
+          'The bill has been successfully voided.'
+        )
       } catch (e) {
-        this.usageError = e?.message || 'Failed to load readings'
-      } finally {
-        this.usageLoading = false
+        alert('Error: ' + (e?.message || 'Failed to void bill'))
       }
-    },
-    closeUsageModal() {
-      if (this.usageLoading) return
-      this.isUsageModalOpen = false
+    }
+
+    const inputClass = (isDark) => {
+      return isDark
+        ? 'bg-gray-800 border-gray-700 text-white placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500'
+        : 'bg-white border-gray-300 text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500'
+    }
+
+    // Initialize data
+    customersComposable.fetchCustomers()
+
+    return {
+      // Customers composable
+      ...customersComposable,
+
+      // Modals composable
+      ...modalsComposable,
+
+      // Form composable
+      ...formComposable,
+
+      // Usage composable
+      ...usageComposable,
+
+      // Methods
+      openAddModal,
+      closeAddModal,
+      openEditModal,
+      closeEditModal,
+      openDeleteModal,
+      closeDeleteModal,
+      openUsageModal,
+      closeUsageModal,
+      disconnectCustomer,
+      reconnectCustomer,
+      confirmDelete,
+      submitEditCustomer,
+      submitNewCustomer,
+      markBillPaid,
+      voidBill,
+      inputClass,
     }
   }
 }

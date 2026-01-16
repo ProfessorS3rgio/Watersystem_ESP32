@@ -19,6 +19,7 @@ class Bill extends Model
         'total_due',
         'due_date',
         'status',
+        'void_reason',
     ];
 
     protected $casts = [
@@ -29,4 +30,14 @@ class Bill extends Model
         'penalty' => 'decimal:2',
         'total_due' => 'decimal:2',
     ];
+
+    public function customer()
+    {
+        return $this->belongsTo(Customer::class);
+    }
+
+    public function reading()
+    {
+        return $this->belongsTo(Reading::class);
+    }
 }

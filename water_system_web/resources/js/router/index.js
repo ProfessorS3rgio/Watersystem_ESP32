@@ -2,6 +2,7 @@ import { createRouter, createWebHashHistory } from 'vue-router';
 import Home from '../pages/Home.vue';
 import Login from '../pages/Login.vue';
 import Clients from '../pages/Clients.vue';
+import Billing from '../pages/Billing.vue';
 import SyncDevice from '../pages/SyncDevice.vue';
 import Settings from '../pages/Settings.vue';
 
@@ -36,6 +37,12 @@ export const router = createRouter({
       path: '/clients',
       name: 'clients',
       component: Clients,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/billing',
+      name: 'billing',
+      component: Billing,
       meta: { requiresAuth: true }
     },
     {

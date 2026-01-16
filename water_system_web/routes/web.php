@@ -29,9 +29,17 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/customers/{customer}/readings', [ReadingController::class, 'indexByCustomer']);
 
+    Route::get('/customers/{customer}/bills', [BillController::class, 'indexByCustomer']);
+    Route::get('/customers/{customer}/payments', [BillController::class, 'paymentsByCustomer']);
+    Route::get('/bills', [BillController::class, 'index']);
+    Route::post('/bills/{bill}/pay', [BillController::class, 'pay']);
+    Route::get('/bills/today-payments', [BillController::class, 'todayPayments']);
+    Route::get('/bills/stats', [BillController::class, 'stats']);
+
     Route::post('/readings/sync', [ReadingController::class, 'sync']);
 
     Route::post('/bills/{bill}/mark-paid', [BillController::class, 'markPaid']);
+    Route::post('/bills/{bill}/void', [BillController::class, 'void']);
 
     Route::get('/settings', [SettingsController::class, 'show']);
     Route::put('/settings', [SettingsController::class, 'update']);
