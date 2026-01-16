@@ -41,16 +41,74 @@
           <span class="font-medium">Clients</span>
         </router-link>
 
-        <router-link
-          to="/billing"
-          class="flex items-center space-x-3 px-4 py-3 rounded-lg transition-all duration-200"
-          :class="isActive('/billing') ? (isDark ? 'bg-indigo-600 text-white shadow-lg' : 'bg-indigo-600 text-white shadow-lg') : (isDark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100')"
-        >
-          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
-          </svg>
-          <span class="font-medium">Billing</span>
-        </router-link>
+        <!-- Billing Section -->
+        <div class="space-y-1">
+          <button
+            @click="toggleBilling"
+            class="flex items-center justify-between px-4 py-3 pr-16 rounded-lg transition-all duration-200"
+            :class="isActive('/billing') ? (isDark ? 'bg-indigo-600 text-white shadow-lg' : 'bg-indigo-600 text-white shadow-lg') : (isDark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100')"
+          >
+            <div class="flex items-center space-x-3">
+              <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+              <span class="font-medium whitespace-nowrap">Billing Section</span>
+            </div>
+            <svg
+              class="h-4 w-4 transition-transform duration-200 ml-12"
+              :class="isBillingOpen ? 'rotate-90' : ''"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+          
+          <transition
+            enter-active-class="transition-all duration-300 ease-out"
+            leave-active-class="transition-all duration-200 ease-in"
+            enter-from-class="opacity-0 max-h-0 overflow-hidden"
+            enter-to-class="opacity-100 max-h-96 overflow-hidden"
+            leave-from-class="opacity-100 max-h-96 overflow-hidden"
+            leave-to-class="opacity-0 max-h-0 overflow-hidden"
+          >
+            <div v-if="isBillingOpen" class="space-y-1">
+              <router-link
+                to="/billing/summary"
+                class="flex items-center space-x-3 px-4 py-2 rounded-lg transition-all duration-200 ml-6"
+                :class="isActive('/billing/summary') ? (isDark ? 'bg-indigo-600 text-white shadow-lg' : 'bg-indigo-600 text-white shadow-lg') : (isDark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100')"
+              >
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+                <span class="font-medium text-sm">Summary</span>
+              </router-link>
+
+              <router-link
+                to="/billing/customer"
+                class="flex items-center space-x-3 px-4 py-2 rounded-lg transition-all duration-200 ml-6"
+                :class="isActive('/billing/customer') ? (isDark ? 'bg-indigo-600 text-white shadow-lg' : 'bg-indigo-600 text-white shadow-lg') : (isDark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100')"
+              >
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                </svg>
+                <span class="font-medium text-sm">Customer Billing</span>
+              </router-link>
+
+              <router-link
+                to="/billing/all-bills"
+                class="flex items-center space-x-3 px-4 py-2 rounded-lg transition-all duration-200 ml-6"
+                :class="isActive('/billing/all-bills') ? (isDark ? 'bg-indigo-600 text-white shadow-lg' : 'bg-indigo-600 text-white shadow-lg') : (isDark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100')"
+              >
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <span class="font-medium text-sm">All Bills</span>
+              </router-link>
+            </div>
+          </transition>
+        </div>
 
         <router-link
           to="/sync"
@@ -135,6 +193,7 @@ export default {
     const router = useRouter()
     const user = ref(null)
     const isDark = ref(localStorage.getItem('theme') === 'dark')
+    const isBillingOpen = ref(route.path.startsWith('/billing'))
 
     const isActive = (path) => {
       return route.path === path
@@ -155,6 +214,10 @@ export default {
     const toggleTheme = () => {
       isDark.value = !isDark.value
       localStorage.setItem('theme', isDark.value ? 'dark' : 'light')
+    }
+
+    const toggleBilling = () => {
+      isBillingOpen.value = !isBillingOpen.value
     }
 
     const logout = async () => {
@@ -180,7 +243,9 @@ export default {
       logout,
       user,
       isDark,
-      toggleTheme
+      toggleTheme,
+      isBillingOpen,
+      toggleBilling
     }
   }
 }

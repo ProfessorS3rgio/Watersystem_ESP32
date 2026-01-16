@@ -3,6 +3,9 @@ import Home from '../pages/Home.vue';
 import Login from '../pages/Login.vue';
 import Clients from '../pages/Clients.vue';
 import Billing from '../pages/Billing.vue';
+import BillingSummary from '../components/billing/BillingSummary.vue';
+import CustomerBilling from '../components/billing/CustomerBilling.vue';
+import AllBills from '../components/billing/AllBills.vue';
 import SyncDevice from '../pages/SyncDevice.vue';
 import Settings from '../pages/Settings.vue';
 
@@ -43,7 +46,24 @@ export const router = createRouter({
       path: '/billing',
       name: 'billing',
       component: Billing,
-      meta: { requiresAuth: true }
+      meta: { requiresAuth: true },
+      children: [
+        {
+          path: 'summary',
+          name: 'billing-summary',
+          component: BillingSummary
+        },
+        {
+          path: 'customer',
+          name: 'billing-customer',
+          component: CustomerBilling
+        },
+        {
+          path: 'all-bills',
+          name: 'billing-all-bills',
+          component: AllBills
+        }
+      ]
     },
     {
       path: '/sync',
