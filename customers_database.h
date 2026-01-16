@@ -124,7 +124,7 @@ static bool saveCustomersToSD() {
   return true;
 }
 
-// ===== INITIALIZE DATABASE WITH SAMPLE DATA =====
+// ===== INITIALIZE DATABASE =====
 void initCustomersDatabase() {
 #if WS_SERIAL_VERBOSE
   Serial.println(F("Initializing Customers Database..."));
@@ -145,47 +145,11 @@ void initCustomersDatabase() {
     return;
   }
   
-  // Customer 1
-  customers[0].id = 1;
-  customers[0].account_no = "001";
-  customers[0].customer_name = "Theodore Romero";
-  customers[0].address = "Purok 2 Makilas";
-  customers[0].previous_reading = 1250;
-  customers[0].is_active = true;
-  customers[0].created_at = 0;
-  customers[0].updated_at = 0;
-  
-  // Customer 2
-  customers[1].id = 2;
-  customers[1].account_no = "002";
-  customers[1].customer_name = "Billy Mamaril";
-  customers[1].address = "Purok 2 Makilas";
-  customers[1].previous_reading = 1220;
-  customers[1].is_active = true;
-  customers[1].created_at = 0;
-  customers[1].updated_at = 0;
-  
-  // Customer 3
-  customers[2].id = 3;
-  customers[2].account_no = "003";
-  customers[2].customer_name = "John Doe";
-  customers[2].address = "Purok 2 Makilas";
-  customers[2].previous_reading = 1210;
-  customers[2].is_active = true;
-  customers[2].created_at = 0;
-  customers[2].updated_at = 0;
-  
-  customerCount = 3;
-
-  // Persist the initial sample set to SD so the next boot reads from SD.
-  if (SD.cardType() != CARD_NONE) {
-    (void)saveCustomersToSD();
-  }
+  // Start with empty database - customers will be synced from web
+  customerCount = 0;
   
 #if WS_SERIAL_VERBOSE
-  Serial.print(F("Loaded "));
-  Serial.print(customerCount);
-  Serial.println(F(" customers from database."));
+  Serial.println(F("Initialized empty customer database."));
 #endif
 }
 
@@ -316,6 +280,35 @@ static bool upsertCustomerFromSync(const String& accountNo, const String& name, 
     (void)saveCustomersToSD();
   }
   return true;
+}
+
+// ===== REMOVE CUSTOMER BY ACCOUNT =====
+static bool removeCustomerByAccount(const String& accountNo) {
+  String acct = accountNo;
+  acct.trim();
+  if (acct.length() == 0) return false;
+
+  int idx = findCustomerByAccount(acct);
+  if (idx == -1) return false;  // Not found
+
+  // Shift all customers after this one down by one
+  for (int i = idx; i < customerCount - 1; i++) {
+    customers[i] = customers[i + 1];
+  }
+  customerCount--;
+
+  if (SD.cardType() != CARD_NONE) {
+    (void)saveCustomersToSD();
+  }
+  return true;
+}
+
+// ===== CLEAR ALL CUSTOMERS ON SD =====
+void clearCustomersOnSD() {
+  customerCount = 0;
+  if (SD.cardType() != CARD_NONE) {
+    SD.remove(CUSTOMERS_SYNC_FILE);
+  }
 }
 
 // ===== PRINT ALL CUSTOMERS =====

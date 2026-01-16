@@ -15,6 +15,7 @@ void displayEnterAccountScreen();
 void displayCustomerInfo();
 void displayEnterReadingScreen();
 void displayBillCalculated();
+void displayReadingAlreadyDoneScreen();
 void processAccountNumberEntry();
 void processReadingEntry();
 void resetWorkflow();
@@ -164,11 +165,30 @@ void handleKeypadInput(char key) {
   else if (currentState == STATE_ACCOUNT_FOUND) {
     // Customer info displayed
     if (key == 'D') {  // Proceed to reading
+      // If this account already has a reading for the current month, warn first.
+      if (hasReadingForAccountThisMonth(customers[selectedCustomerIndex].account_no)) {
+        currentState = STATE_READING_ALREADY_DONE;
+        displayReadingAlreadyDoneScreen();
+      } else {
+        currentState = STATE_ENTER_READING;
+        inputBuffer = "";
+        displayEnterReadingScreen();
+      }
+    }
+    else if (key == 'C') {  // Cancel and go back
+      resetWorkflow();
+    }
+  }
+  else if (currentState == STATE_READING_ALREADY_DONE) {
+    // Reading already done screen
+    if (key == 'D') {
+      // Continue anyway
       currentState = STATE_ENTER_READING;
       inputBuffer = "";
       displayEnterReadingScreen();
     }
-    else if (key == 'C') {  // Cancel and go back
+    else if (key == 'C') {
+      // Cancel
       resetWorkflow();
     }
   }

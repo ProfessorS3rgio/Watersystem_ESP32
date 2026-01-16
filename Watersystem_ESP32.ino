@@ -280,6 +280,48 @@ void loop() {
       return;
     }
 
+    if (raw.startsWith("SET_WATER_RATE|")) {
+      // SET_WATER_RATE|<rate>
+      String payload = raw.substring(String("SET_WATER_RATE|").length());
+      payload.trim();
+      float rate = payload.toFloat();
+      if (rate > 0) {
+        saveWaterRate(rate);
+        Serial.print(F("ACK|SET_WATER_RATE|"));
+        Serial.println(rate, 2);
+      } else {
+        Serial.println(F("ERR|BAD_RATE"));
+      }
+      return;
+    }
+
+    if (raw == "RELOAD_SD") {
+      Serial.println(F("Reloading SD card and settings..."));
+      initSDCard();
+      waterRate = loadWaterRate();
+      Serial.print(F("New water rate: PHP "));
+      Serial.println(waterRate, 2);
+      Serial.println(F("SD reloaded successfully"));
+      return;
+    }
+
+    if (raw.startsWith("REMOVE_CUSTOMER|")) {
+      // REMOVE_CUSTOMER|<account_no>
+      String payload = raw.substring(String("REMOVE_CUSTOMER|").length());
+      payload.trim();
+      if (payload.length() > 0) {
+        if (removeCustomerByAccount(payload)) {
+          Serial.print(F("ACK|REMOVE_CUSTOMER|"));
+          Serial.println(payload);
+        } else {
+          Serial.println(F("ERR|CUSTOMER_NOT_FOUND"));
+        }
+      } else {
+        Serial.println(F("ERR|BAD_ACCOUNT_NO"));
+      }
+      return;
+    }
+
     // ---- Existing console commands ----
     String cmd = raw;
     cmd.toUpperCase();

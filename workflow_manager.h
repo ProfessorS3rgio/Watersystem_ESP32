@@ -20,6 +20,7 @@ enum WorkflowState {
   STATE_ABOUT,             // About screen
   STATE_ENTER_ACCOUNT,     // Waiting for account number entry
   STATE_ACCOUNT_FOUND,     // Account found, showing customer info
+  STATE_READING_ALREADY_DONE, // Reading already done this month
   STATE_ENTER_READING,     // Waiting for current meter reading entry
   STATE_BILL_CALCULATED,   // Bill calculated, ready to print
   STATE_PRINTING,          // Printing bill
@@ -250,11 +251,20 @@ void displayEnterReadingScreen() {
   tft.setTextColor(COLOR_LABEL);
   tft.setCursor(2, 48);
   tft.println(F("Enter current reading:"));
-  
+
+  // Input box
+  tft.drawRect(10, 58, 140, 30, COLOR_LINE);
+
   tft.setTextColor(COLOR_AMOUNT);
   tft.setTextSize(2);
-  tft.setCursor(30, 65);
-  tft.println(inputBuffer);
+  tft.setCursor(20, 66);
+  if (inputBuffer.length() > 0) {
+    tft.println(inputBuffer);
+  } else {
+    // Placeholder
+    tft.setTextColor(COLOR_LABEL);
+    tft.println(F("___"));
+  }
   tft.setTextSize(1);
   
   tft.setTextColor(COLOR_LABEL);
@@ -263,6 +273,42 @@ void displayEnterReadingScreen() {
   tft.setCursor(32, 107);
   tft.println(F("B - Clear"));
   tft.setCursor(28, 119);
+  tft.println(F("C - Cancel"));
+}
+
+void displayReadingAlreadyDoneScreen() {
+  tft.fillScreen(COLOR_BG);
+
+  Customer* cust = getCustomerAt(selectedCustomerIndex);
+
+  tft.setTextColor(COLOR_HEADER);
+  tft.setTextSize(1);
+  tft.setCursor(12, 10);
+  tft.println(F("READING ALREADY DONE"));
+
+  tft.drawLine(0, 22, 160, 22, COLOR_LINE);
+
+  if (cust != nullptr) {
+    tft.setTextColor(COLOR_TEXT);
+    tft.setCursor(2, 30);
+    tft.print(F("Acct: "));
+    tft.println(cust->account_no);
+
+    tft.setCursor(2, 42);
+    tft.print(F("Name: "));
+    tft.println(cust->customer_name);
+  }
+
+  tft.setTextColor(ST77XX_RED);
+  tft.setCursor(10, 62);
+  tft.println(F("This month already"));
+  tft.setCursor(10, 74);
+  tft.println(F("has a reading."));
+
+  tft.setTextColor(COLOR_LABEL);
+  tft.setCursor(2, 100);
+  tft.println(F("D - Continue"));
+  tft.setCursor(2, 112);
   tft.println(F("C - Cancel"));
 }
 
