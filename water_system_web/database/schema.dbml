@@ -1,0 +1,109 @@
+// Water System Web - Data Structure (DBML)
+// Note: This is documentation/blueprint only (no migrations).
+
+// Laravel authentication users table
+Table users {
+  id integer [primary key]
+  name varchar
+  email varchar [unique]
+  email_verified_at datetime [null]
+  password varchar
+  remember_token varchar [null]
+  created_at datetime
+  updated_at datetime
+}
+
+Table customer {
+  id integer [primary key]
+
+  // Account number shown/entered on the device (e.g., "001")
+  account_no varchar
+
+  customer_name varchar
+  address varchar
+
+  // Latest known previous meter reading (integer)
+  previous_reading integer
+
+  is_active boolean
+  created_at datetime
+  updated_at datetime
+
+  indexes {
+    account_no [unique]
+  }
+}
+
+Table reading {
+  id integer [primary key]
+  customer_id integer
+
+  previous_reading integer
+  current_reading integer
+  usage_m3 integer
+
+  // When the reading was taken/recorded
+  reading_at datetime
+
+  // Optional: who encoded/collected it (Laravel users.id)
+  read_by_user_id integer [null]
+
+  // Optional: "DEVICE", "WEB", "IMPORT"
+  source varchar
+  paid boolean
+
+  created_at datetime
+  updated_at datetime
+}
+
+Table bill {
+  id integer [primary key]
+  customer_id integer
+  reading_id integer
+
+  bill_no varchar
+  bill_date date
+
+  rate_per_m3 decimal
+  charges decimal
+  penalty decimal
+  total_due decimal
+
+  due_date date [null]
+
+  // Optional: "DRAFT", "ISSUED", "PAID", "VOID"
+  status varchar
+
+  created_at datetime
+  updated_at datetime
+
+  indexes {
+    bill_no [unique]
+  }
+}
+
+
+// Optional: track devices that sync readings/bills
+Table device {
+  id integer [primary key]
+
+  // ESP32 identifier (MAC/serial/device code)
+  device_uid varchar
+  device_name varchar [null]
+  
+
+  
+  created_at datetime
+  updated_at datetime
+
+  indexes {
+    device_uid [unique]
+  }
+}
+
+Ref: reading.customer_id > customer.id
+Ref: bill.customer_id > customer.id
+Ref: bill.reading_id > reading.id
+
+// References to Laravel's existing users table
+Ref: reading.read_by_user_id > users.id
