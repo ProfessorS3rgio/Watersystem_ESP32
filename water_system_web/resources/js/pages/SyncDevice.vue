@@ -167,6 +167,7 @@
 <script>
 import AppSidebar from '../components/AppSidebar.vue'
 import { serialService } from '../services/serialService'
+import { databaseService } from '../services/databaseService'
 
 export default {
   name: 'SyncDevice',
@@ -291,7 +292,7 @@ export default {
 
         // 2) Get customers from web database
         this.addLog('Fetching customers from database...')
-        var dbCustomers = await this.fetchCustomersFromDatabase()
+        var dbCustomers = await databaseService.fetchCustomersFromDatabase()
         this.addLog(`Database has ${dbCustomers.length} customers`)
 
         // 3) Find customers to remove (on device but not in web)
@@ -314,7 +315,7 @@ export default {
 
         // 5) Sync water rate from DB to device
         this.addLog('Fetching water rate from database...')
-        var settings = await this.fetchSettingsFromDatabase()
+        var settings = await databaseService.fetchSettingsFromDatabase()
         var rate = settings?.rate_per_m3 || 15.00
         this.addLog(`Sending water rate ${rate} to ESP32...`)
         await this.sendLine('SET_WATER_RATE|' + String(rate))
@@ -395,7 +396,7 @@ export default {
       }
 
       this.addLog('Saving readings into database...')
-      const processed = await this.upsertReadingsToDatabase(deviceReadings)
+      const processed = await databaseService.upsertReadingsToDatabase(deviceReadings)
       this.addLog(`Database processed ${processed} readings`)
 
       // Mark device readings as synced (so next export is incremental)
@@ -593,77 +594,6 @@ export default {
         })
       }
       return readings
-    },
-
-    async upsertCustomersToDatabase(customers) {
-      const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-      const res = await fetch('/customers/sync', {
-        method: 'POST',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {}),
-        },
-        credentials: 'same-origin',
-        body: JSON.stringify({ customers }),
-      })
-
-      if (!res.ok) {
-        if (res.status === 401) throw new Error('Unauthorized (login required)')
-        const text = await res.text()
-        throw new Error('Database sync failed: ' + text)
-      }
-      const json = await res.json()
-      return Number(json?.processed || 0)
-    },
-
-    async fetchCustomersFromDatabase() {
-      const res = await fetch('/customers', {
-        headers: { 'Accept': 'application/json' },
-        credentials: 'same-origin',
-      })
-      if (!res.ok) {
-        if (res.status === 401) throw new Error('Unauthorized (login required)')
-        throw new Error('Failed to fetch customers from database')
-      }
-      const json = await res.json()
-      return Array.isArray(json?.data) ? json.data : []
-    },
-
-    async fetchSettingsFromDatabase() {
-      const res = await fetch('/settings', {
-        headers: { 'Accept': 'application/json' },
-        credentials: 'same-origin',
-      })
-      if (!res.ok) {
-        if (res.status === 401) throw new Error('Unauthorized (login required)')
-        throw new Error('Failed to fetch settings from database')
-      }
-      const json = await res.json()
-      return json?.data || {}
-    },
-
-    async upsertReadingsToDatabase(readings) {
-      const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-      const res = await fetch('/readings/sync', {
-        method: 'POST',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {}),
-        },
-        credentials: 'same-origin',
-        body: JSON.stringify({ readings }),
-      })
-
-      if (!res.ok) {
-        if (res.status === 401) throw new Error('Unauthorized (login required)')
-        const text = await res.text()
-        throw new Error('Readings sync failed: ' + text)
-      }
-
-      const json = await res.json()
-      return Number(json?.processed || 0)
     },
 
     async pushCustomersToDevice(dbCustomers) {

@@ -10,65 +10,10 @@
      
 
     <!-- Stats Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-      <div class="bg-white rounded-lg shadow p-6">
-        <div class="flex items-center">
-          <div class="h-12 w-12 bg-blue-100 rounded-lg flex items-center justify-center">
-            <svg class="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-            </svg>
-          </div>
-          <div class="ml-4">
-            <p class="text-sm text-gray-600">Total Clients</p>
-            <p class="text-2xl font-bold text-gray-900">{{ customers.length }}</p>
-          </div>
-        </div>
-      </div>
-
-      
-
-      <div class="bg-white rounded-lg shadow p-6">
-        <div class="flex items-center">
-          <div class="h-12 w-12 bg-green-100 rounded-lg flex items-center justify-center">
-            <svg class="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </div>
-          <div class="ml-4">
-            <p class="text-sm text-gray-600">Active</p>
-            <p class="text-2xl font-bold text-gray-900">{{ activeCount }}</p>
-          </div>
-        </div>
-      </div>
-
-      <div class="bg-white rounded-lg shadow p-6">
-        <div class="flex items-center">
-          <div class="h-12 w-12 bg-yellow-100 rounded-lg flex items-center justify-center">
-            <svg class="h-6 w-6 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </div>
-          <div class="ml-4">
-            <p class="text-sm text-gray-600">New</p>
-            <p class="text-2xl font-bold text-gray-900">{{ newCount }}</p>
-          </div>
-        </div>
-      </div>
-
-      <div class="bg-white rounded-lg shadow p-6">
-        <div class="flex items-center">
-          <div class="h-12 w-12 bg-red-100 rounded-lg flex items-center justify-center">
-            <svg class="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-            </svg>
-          </div>
-          <div class="ml-4">
-            <p class="text-sm text-gray-600">Disconnected</p>
-            <p class="text-2xl font-bold text-gray-900">{{ inactiveCount }}</p>
-          </div>
-        </div>
-      </div>
-    </div>
+    <StatsCards
+      :customers="customers"
+      :barangays="barangays"
+    />
 
      <div class="mb-6">
       <button @click="openAddModal" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-medium shadow-lg transition-all duration-200 flex items-center space-x-2">
@@ -196,315 +141,25 @@
       @void-bill="voidBill"
     />
 
-    <!-- Add Client Modal -->
-    <div v-if="isAddModalOpen" class="fixed inset-0 z-50">
-      <div class="absolute inset-0 bg-black/50" @click="closeAddModal"></div>
-      <div class="absolute inset-0 flex items-center justify-center p-4">
-        <div class="w-full max-w-4xl rounded-lg shadow-lg" :class="isDark ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'">
-          <div class="px-6 py-4 border-b" :class="isDark ? 'border-gray-800' : 'border-gray-200'">
-            <div class="flex items-center justify-between">
-              <h3 class="text-lg font-semibold">Add New Client</h3>
-              <button class="text-sm" :class="isDark ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'" @click="closeAddModal">
-                Close
-              </button>
-            </div>
-          </div>
-
-          <form class="px-6 py-4 space-y-6" @submit.prevent="submitNewCustomer">
-            <!-- Row 1: Customer Name -->
-            <div class="grid grid-cols-1 gap-4">
-              <div>
-                <label class="block text-sm font-medium mb-1">Customer Name</label>
-                <input
-                  v-model.trim="newCustomer.customer_name"
-                  type="text"
-                  class="w-full px-4 py-2 rounded-lg border"
-                  :class="inputClass(isDark)"
-                  placeholder="Full name"
-                  required
-                />
-                <p v-if="fieldError('customer_name')" class="text-sm text-red-600 mt-1">{{ fieldError('customer_name') }}</p>
-              
-                <div class="mt-3">
-                  <label class="block text-sm font-medium mb-1">Account No (preview)</label>
-                  <input type="text" :value="previewAccountNoNew" readonly class="w-full px-4 py-2 rounded-lg border bg-gray-50 text-gray-700" :class="isDark ? 'bg-gray-800 text-white' : ''" />
-                </div>
-              </div>
-            </div>
-
-            <!-- Row 2: Type and Barangay -->
-            <div class="grid grid-cols-2 gap-4">
-              <div>
-                <label class="block text-sm font-medium mb-1">Type</label>
-                <select
-                  v-model="newCustomer.type_id"
-                  class="w-full px-4 py-2 rounded-lg border"
-                  :class="inputClass(isDark)"
-                  required
-                >
-                  <option :value="null">Select Type</option>
-                  <option v-for="type in customerTypes" :key="type.type_id" :value="type.type_id">
-                    {{ type.type_name }}
-                  </option>
-                </select>
-                <p v-if="fieldError('type_id')" class="text-sm text-red-600 mt-1">{{ fieldError('type_id') }}</p>
-              </div>
-
-              <div>
-                <label class="block text-sm font-medium mb-1">Barangay</label>
-                <select
-                  v-model="newCustomer.brgy_id"
-                  class="w-full px-4 py-2 rounded-lg border"
-                  :class="inputClass(isDark)"
-                  required
-                >
-                  <option :value="null">Select Barangay</option>
-                  <option v-for="brgy in barangays" :key="brgy.brgy_id" :value="brgy.brgy_id">
-                    {{ brgy.barangay }}
-                  </option>
-                </select>
-                <p v-if="fieldError('brgy_id')" class="text-sm text-red-600 mt-1">{{ fieldError('brgy_id') }}</p>
-              </div>
-            </div>
-
-            <!-- Row 3: Address (full width) -->
-            <div>
-              <label class="block text-sm font-medium mb-1">Address</label>
-              <input
-                v-model.trim="newCustomer.address"
-                type="text"
-                class="w-full px-4 py-2 rounded-lg border"
-                :class="inputClass(isDark)"
-                placeholder="Customer address"
-                required
-              />
-              <p v-if="fieldError('address')" class="text-sm text-red-600 mt-1">{{ fieldError('address') }}</p>
-            </div>
-
-            <!-- Row 4: Previous Reading and Status -->
-            <div class="grid grid-cols-2 gap-4">
-              <div>
-                <label class="block text-sm font-medium mb-1">Previous Reading</label>
-                <input
-                  v-model.number="newCustomer.previous_reading"
-                  type="number"
-                  min="0"
-                  class="w-full px-4 py-2 rounded-lg border"
-                  :class="inputClass(isDark)"
-                />
-                <p v-if="fieldError('previous_reading')" class="text-sm text-red-600 mt-1">{{ fieldError('previous_reading') }}</p>
-              </div>
-
-              <div>
-                <label class="block text-sm font-medium mb-1">Status</label>
-                <select
-                  v-model="newCustomer.status"
-                  class="w-full px-4 py-2 rounded-lg border"
-                  :class="inputClass(isDark)"
-                  required
-                >
-                  <option value="active">Active</option>
-                  <option value="disconnected">Disconnected</option>
-                </select>
-                <p v-if="fieldError('status')" class="text-sm text-red-600 mt-1">{{ fieldError('status') }}</p>
-              </div>
-            </div>
-
-            <!-- Row 5: Benefits (custom dropdown) -->
-            <div>
-              <label class="block text-sm font-medium mb-1">Benefits</label>
-              <div class="relative">
-                <button type="button" @click="toggleBenefitsNew" class="w-full text-left px-4 py-2 rounded-lg border flex items-center justify-between" :class="inputClass(isDark)">
-                  <span class="truncate">
-                    <template v-if="newCustomer.benefits.length">{{ getDeductionNames(newCustomer.benefits).join(', ') }}</template>
-                    <template v-else class="text-gray-400">Select benefits</template>
-                  </span>
-                  <svg class="h-4 w-4 text-gray-600 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                </button>
-
-                <div v-if="showBenefitsNew" class="absolute mt-1 w-full bg-white border rounded shadow max-h-48 overflow-auto z-40">
-                  <div v-for="deduction in deductions" :key="deduction.deduction_id" class="px-3 py-2 hover:bg-gray-50 flex items-center">
-                    <input type="checkbox" :id="`new-benefit-${deduction.deduction_id}`" class="mr-2" :checked="newCustomer.benefits.includes(deduction.deduction_id)" @change="toggleBenefit(newCustomer.benefits, deduction.deduction_id)" />
-                    <label :for="`new-benefit-${deduction.deduction_id}`" class="flex-1">{{ deduction.name }}</label>
-                  </div>
-                </div>
-              </div>
-              <p v-if="fieldError('benefits')" class="text-sm text-red-600 mt-1">{{ fieldError('benefits') }}</p>
-            </div>
-
-            <p v-if="submitError" class="text-sm text-red-600">{{ submitError }}</p>
-
-            <div class="pt-2 flex items-center justify-end gap-3">
-              <button type="button" @click="closeAddModal" class="px-4 py-2 rounded-lg" :class="isDark ? 'bg-gray-800 hover:bg-gray-700 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-900'">
-                Cancel
-              </button>
-              <button type="submit" :disabled="isSubmitting" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium disabled:opacity-50">
-                {{ isSubmitting ? 'Saving...' : 'Save Client' }}
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
-
-    <!-- Edit Client Modal -->
-    <div v-if="isEditModalOpen" class="fixed inset-0 z-50">
-      <div class="absolute inset-0 bg-black/50" @click="closeEditModal"></div>
-      <div class="absolute inset-0 flex items-center justify-center p-4">
-        <div class="w-full max-w-4xl rounded-lg shadow-lg" :class="isDark ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'">
-          <div class="px-6 py-4 border-b" :class="isDark ? 'border-gray-800' : 'border-gray-200'">
-            <div class="flex items-center justify-between">
-              <h3 class="text-lg font-semibold">Edit Client</h3>
-              <button class="text-sm" :class="isDark ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'" @click="closeEditModal">
-                Close
-              </button>
-            </div>
-          </div>
-
-          <form class="px-6 py-4 space-y-6" @submit.prevent="submitEditCustomer">
-            <!-- Row 1: Account No and Customer Name -->
-            <div class="grid grid-cols-2 gap-4">
-              <div>
-                <label class="block text-sm font-medium mb-1">Account No</label>
-                <input
-                  v-model.trim="editCustomer.account_no"
-                  type="text"
-                  class="w-full px-4 py-2 rounded-lg border"
-                  :class="inputClass(isDark)"
-                  placeholder="e.g. ACC-2026-001"
-                  required
-                />
-                <p v-if="fieldError('account_no')" class="text-sm text-red-600 mt-1">{{ fieldError('account_no') }}</p>
-              </div>
-
-              <div>
-                <label class="block text-sm font-medium mb-1">Customer Name</label>
-                <input
-                  v-model.trim="editCustomer.customer_name"
-                  type="text"
-                  class="w-full px-4 py-2 rounded-lg border"
-                  :class="inputClass(isDark)"
-                  placeholder="Full name"
-                  required
-                />
-                <p v-if="fieldError('customer_name')" class="text-sm text-red-600 mt-1">{{ fieldError('customer_name') }}</p>
-              </div>
-            </div>
-
-            <!-- Row 2: Type and Barangay -->
-            <div class="grid grid-cols-2 gap-4">
-              <div>
-                <label class="block text-sm font-medium mb-1">Type</label>
-                <select
-                  v-model="editCustomer.type_id"
-                  class="w-full px-4 py-2 rounded-lg border"
-                  :class="inputClass(isDark)"
-                  required
-                >
-                  <option :value="null">Select Type</option>
-                  <option v-for="type in customerTypes" :key="type.type_id" :value="type.type_id">
-                    {{ type.type_name }}
-                  </option>
-                </select>
-                <p v-if="fieldError('type_id')" class="text-sm text-red-600 mt-1">{{ fieldError('type_id') }}</p>
-              </div>
-
-              <div>
-                <label class="block text-sm font-medium mb-1">Barangay</label>
-                <select
-                  v-model="editCustomer.brgy_id"
-                  class="w-full px-4 py-2 rounded-lg border"
-                  :class="inputClass(isDark)"
-                  required
-                >
-                  <option :value="null">Select Barangay</option>
-                  <option v-for="brgy in barangays" :key="brgy.brgy_id" :value="brgy.brgy_id">
-                    {{ brgy.barangay }}
-                  </option>
-                </select>
-                <p v-if="fieldError('brgy_id')" class="text-sm text-red-600 mt-1">{{ fieldError('brgy_id') }}</p>
-              </div>
-            </div>
-
-            <!-- Row 3: Address (full width) -->
-            <div>
-              <label class="block text-sm font-medium mb-1">Address</label>
-              <input
-                v-model.trim="editCustomer.address"
-                type="text"
-                class="w-full px-4 py-2 rounded-lg border"
-                :class="inputClass(isDark)"
-                placeholder="Customer address"
-                required
-              />
-              <p v-if="fieldError('address')" class="text-sm text-red-600 mt-1">{{ fieldError('address') }}</p>
-            </div>
-
-            <!-- Row 4: Previous Reading and Status -->
-            <div class="grid grid-cols-2 gap-4">
-              <div>
-                <label class="block text-sm font-medium mb-1">Previous Reading</label>
-                <input
-                  v-model.number="editCustomer.previous_reading"
-                  type="number"
-                  min="0"
-                  class="w-full px-4 py-2 rounded-lg border"
-                  :class="inputClass(isDark)"
-                />
-                <p v-if="fieldError('previous_reading')" class="text-sm text-red-600 mt-1">{{ fieldError('previous_reading') }}</p>
-              </div>
-
-              <div>
-                <label class="block text-sm font-medium mb-1">Status</label>
-                <select
-                  v-model="editCustomer.status"
-                  class="w-full px-4 py-2 rounded-lg border"
-                  :class="inputClass(isDark)"
-                  required
-                >
-                  <option value="active">Active</option>
-                  <option value="disconnected">Disconnected</option>
-                </select>
-                <p v-if="fieldError('status')" class="text-sm text-red-600 mt-1">{{ fieldError('status') }}</p>
-              </div>
-            </div>
-
-            <!-- Row 5: Benefits (custom dropdown) -->
-            <div>
-              <label class="block text-sm font-medium mb-1">Benefits</label>
-              <div class="relative">
-                <button type="button" @click="toggleBenefitsEdit" class="w-full text-left px-4 py-2 rounded-lg border flex items-center justify-between" :class="inputClass(isDark)">
-                  <span class="truncate">
-                    <template v-if="editCustomer.benefits.length">{{ getDeductionNames(editCustomer.benefits).join(', ') }}</template>
-                    <template v-else class="text-gray-400">Select benefits</template>
-                  </span>
-                  <svg class="h-4 w-4 text-gray-600 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                </button>
-
-                <div v-if="showBenefitsEdit" class="absolute mt-1 w-full bg-white border rounded shadow max-h-48 overflow-auto z-40">
-                  <div v-for="deduction in deductions" :key="deduction.deduction_id" class="px-3 py-2 hover:bg-gray-50 flex items-center">
-                    <input type="checkbox" :id="`edit-benefit-${deduction.deduction_id}`" class="mr-2" :checked="editCustomer.benefits.includes(deduction.deduction_id)" @change="toggleBenefit(editCustomer.benefits, deduction.deduction_id)" />
-                    <label :for="`edit-benefit-${deduction.deduction_id}`" class="flex-1">{{ deduction.name }}</label>
-                  </div>
-                </div>
-              </div>
-              <p v-if="fieldError('benefits')" class="text-sm text-red-600 mt-1">{{ fieldError('benefits') }}</p>
-            </div>
-
-            <p v-if="submitError" class="text-sm text-red-600">{{ submitError }}</p>
-
-            <div class="pt-2 flex items-center justify-end gap-3">
-              <button type="button" @click="closeEditModal" class="px-4 py-2 rounded-lg" :class="isDark ? 'bg-gray-800 hover:bg-gray-700 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-900'">
-                Cancel
-              </button>
-              <button type="submit" :disabled="isSubmitting" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium disabled:opacity-50">
-                {{ isSubmitting ? 'Saving...' : 'Update Client' }}
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
+    <!-- Client Form -->
+    <ClientForm
+      :is-add-modal-open="isAddModalOpen"
+      :is-edit-modal-open="isEditModalOpen"
+      :is-dark="isDark"
+      :new-customer="newCustomer"
+      :edit-customer="editCustomer"
+      :customer-types="customerTypes"
+      :barangays="barangays"
+      :deductions="deductions"
+      :is-submitting="isSubmitting"
+      :submit-error="submitError"
+      :preview-account-no-new="previewAccountNoNew"
+      :field-error="fieldError"
+      @close-add-modal="closeAddModal"
+      @close-edit-modal="closeEditModal"
+      @submit-new-customer="submitNewCustomer"
+      @submit-edit-customer="submitEditCustomer"
+    />
 
     <!-- Delete Confirmation Dialog -->
     <ConfirmDialog
@@ -537,6 +192,8 @@ import AppSidebar from '../components/AppSidebar.vue'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
 import SuccessModal from '../components/SuccessModal.vue'
 import UsageModal from '../components/UsageModal.vue'
+import StatsCards from '../components/StatsCards.vue'
+import ClientForm from '../components/ClientForm.vue'
 import { useCustomers } from '../composables/useCustomers.js'
 import { useModals } from '../composables/useModals.js'
 import { useCustomerForm } from '../composables/useCustomerForm.js'
@@ -548,7 +205,9 @@ export default {
     AppSidebar,
     ConfirmDialog,
     SuccessModal,
-    UsageModal
+    UsageModal,
+    StatsCards,
+    ClientForm
   },
   setup() {
     const customersComposable = useCustomers()
@@ -807,33 +466,6 @@ export default {
       return brgy ? brgy.barangay : 'Unknown'
     }
 
-    // Benefits dropdown state & helpers
-    const showBenefitsNew = ref(false)
-    const showBenefitsEdit = ref(false)
-
-    const toggleBenefitsNew = () => {
-      showBenefitsNew.value = !showBenefitsNew.value
-      if (showBenefitsNew.value) showBenefitsEdit.value = false
-    }
-
-    const toggleBenefitsEdit = () => {
-      showBenefitsEdit.value = !showBenefitsEdit.value
-      if (showBenefitsEdit.value) showBenefitsNew.value = false
-    }
-
-    const toggleBenefit = (list, id) => {
-      const idx = list.indexOf(id)
-      if (idx === -1) list.push(id)
-      else list.splice(idx, 1)
-    }
-
-    const getDeductionNames = (ids) => {
-      return ids.map(i => {
-        const d = customersComposable.deductions.value.find(x => x.deduction_id === i)
-        return d ? d.name : ''
-      }).filter(Boolean)
-    }
-
     const previewAccountNoNew = computed(() => {
       const brgyId = formComposable.newCustomer.brgy_id
       if (!brgyId) return ''
@@ -881,13 +513,6 @@ export default {
       inputClass,
       getTypeName,
       getBarangayName,
-      // Benefits dropdown state & handlers
-      showBenefitsNew,
-      showBenefitsEdit,
-      toggleBenefitsNew,
-      toggleBenefitsEdit,
-      toggleBenefit,
-      getDeductionNames,
       previewAccountNoNew,
     }
   }

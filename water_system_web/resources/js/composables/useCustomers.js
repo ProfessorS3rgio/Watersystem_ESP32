@@ -42,7 +42,24 @@ export function useCustomers() {
         throw new Error('Failed to load customers')
       }
 
-      const json = await res.json()
+      // Ensure server returned JSON (otherwise it's likely an HTML login/error page)
+      const contentType = res.headers.get('content-type') || ''
+      if (!contentType.includes('application/json')) {
+        const text = await res.text().catch(() => null)
+        errorMessage.value = 'Unexpected response from server. Likely unauthenticated or an HTML error page returned.'
+        console.error('Non-JSON response for /customers:', res.status, contentType, text)
+        return
+      }
+
+      let json
+      try {
+        json = await res.json()
+      } catch (e) {
+        errorMessage.value = 'Failed to parse server response as JSON'
+        console.error('JSON parse error for /customers:', e)
+        return
+      }
+
       customers.value = Array.isArray(json?.data) ? json.data : []
     } catch (e) {
       errorMessage.value = e?.message || 'Failed to load customers'

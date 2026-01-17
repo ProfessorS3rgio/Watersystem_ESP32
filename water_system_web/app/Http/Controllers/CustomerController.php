@@ -38,22 +38,23 @@ class CustomerController extends Controller
 
         $customers = $query
             ->leftJoinSub($latestReadingAt, 'lr', function ($join) {
-                $join->on('lr.customer_id', '=', 'customer.id');
+                $join->on('lr.customer_id', '=', 'customer.customer_id');
             })
             ->leftJoin('reading as r', function ($join) {
-                $join->on('r.customer_id', '=', 'customer.id')
+                $join->on('r.customer_id', '=', 'customer.customer_id')
                     ->on('r.reading_at', '=', 'lr.latest_reading_at');
             })
             ->leftJoinSub($latestBillDate, 'lb', function ($join) {
-                $join->on('lb.customer_id', '=', 'customer.id');
+                $join->on('lb.customer_id', '=', 'customer.customer_id');
             })
             ->leftJoin('bill as b', function ($join) {
-                $join->on('b.customer_id', '=', 'customer.id')
+                $join->on('b.customer_id', '=', 'customer.customer_id')
                     ->on('b.bill_date', '=', 'lb.latest_bill_date');
             })
             ->orderBy('customer.customer_name')
             ->get([
-                'customer.id',
+                // alias primary key to `id` for frontend compatibility
+                'customer.customer_id as id',
                 'customer.account_no',
                 'customer.customer_name',
                 'customer.type_id',
@@ -66,7 +67,7 @@ class CustomerController extends Controller
                 DB::raw('r.current_reading as current_reading'),
                 DB::raw('r.usage_m3 as last_usage_m3'),
                 DB::raw('r.reading_at as last_reading_at'),
-                DB::raw('b.id as latest_bill_id'),
+                DB::raw('b.bill_id as latest_bill_id'),
                 DB::raw('b.bill_no as latest_bill_no'),
                 DB::raw('b.bill_date as latest_bill_date'),
                 DB::raw('b.due_date as latest_bill_due_date'),

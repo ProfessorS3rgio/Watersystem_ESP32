@@ -10,6 +10,9 @@ class BarangaySequence extends Model
     use HasFactory;
 
     protected $table = 'barangay_sequence';
+    protected $primaryKey = 'brgy_id';
+    public $incrementing = true;
+    protected $keyType = 'int';
 
     protected $fillable = [
         'barangay',
