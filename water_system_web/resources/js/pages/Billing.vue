@@ -47,18 +47,19 @@
         @filter-change="handleFilterChange"
         @pay-bill="payBill"
         @void-bill="voidBill"
+        @print-bill="printBill"
         @go-to-page="goToPage"
       />
     </div>
 
     <!-- Payment Success Modal -->
-    <SuccessModal
-      :isOpen="showPaymentSuccess"
-      title="Payment Successful!"
-      :message="`Payment of ₱${formatMoney(paymentReceipt?.cash_received || 0)} has been processed successfully for ${selectedCustomer?.customer_name || 'customer'}.<br><br>Bill: ${paymentReceipt?.bill_no}<br>Change: ₱${formatMoney(paymentReceipt?.change || 0)}`"
-      buttonText="Continue"
+    <PaymentReceipt
       :isDark="isDark"
+      :showModal="showPaymentSuccess"
+      :customerName="selectedCustomer?.customer_name || 'Customer'"
+      :receipt="paymentReceipt"
       @close="closePaymentSuccess"
+      @print="printReceipt"
     />
 
     <!-- Payment Modal for All Bills -->
@@ -154,6 +155,7 @@ import BillingSummary from '../components/billing/BillingSummary.vue'
 import CustomerBilling from '../components/billing/CustomerBilling.vue'
 import AllBills from '../components/billing/AllBills.vue'
 import SuccessModal from '../components/SuccessModal.vue'
+import PaymentReceipt from '../components/billing/PaymentReceipt.vue'
 import VoidBillDialog from '../components/VoidBillDialog.vue'
 import { useBilling } from '../composables/billing.js'
 import { useRoute, useRouter } from 'vue-router'
@@ -167,6 +169,7 @@ export default {
     CustomerBilling,
     AllBills,
     SuccessModal,
+    PaymentReceipt,
     VoidBillDialog
   },
   setup() {

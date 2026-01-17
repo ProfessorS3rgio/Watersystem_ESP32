@@ -93,6 +93,13 @@
                   >
                     Void
                   </button>
+                  <button
+                    v-if="bill.status === 'paid'"
+                    @click="handlePrintBill(bill)"
+                    class="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs font-medium transition-colors duration-200"
+                  >
+                    Print
+                  </button>
                 </div>
               </td>
             </tr>
@@ -159,7 +166,7 @@ export default {
       default: null
     }
   },
-  emits: ['filter-change', 'pay-bill', 'void-bill', 'go-to-page'],
+  emits: ['filter-change', 'pay-bill', 'void-bill', 'go-to-page', 'print-bill'],
   data() {
     return {
       localStatusFilter: this.statusFilter,
@@ -200,6 +207,9 @@ export default {
     },
     handleVoidBill(bill) {
       this.$emit('void-bill', bill)
+    },
+    handlePrintBill(bill) {
+      this.$emit('print-bill', bill)
     },
     handleGoToPage(page) {
       this.$emit('go-to-page', page)

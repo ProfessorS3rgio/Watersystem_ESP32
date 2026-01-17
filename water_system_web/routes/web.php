@@ -33,6 +33,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/customers/{customer}/payments', [BillController::class, 'paymentsByCustomer']);
     Route::get('/bills', [BillController::class, 'index']);
     Route::post('/bills/{bill}/pay', [BillController::class, 'pay']);
+    Route::get('/bills/{bill}/payment', [BillController::class, 'getPayment']);
     Route::get('/bills/today-payments', [BillController::class, 'todayPayments']);
     Route::get('/bills/monthly-payments', [BillController::class, 'monthlyPayments']);
     Route::get('/bills/stats', [BillController::class, 'stats']);

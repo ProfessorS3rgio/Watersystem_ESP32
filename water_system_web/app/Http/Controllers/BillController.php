@@ -257,5 +257,20 @@ class BillController extends Controller
             'data' => $transactions,
         ]);
     }
+
+    public function getPayment(Request $request, Bill $bill)
+    {
+        $transaction = BillTransaction::where('bill_id', $bill->id)
+            ->where('type', 'payment')
+            ->first();
+
+        if (!$transaction) {
+            return response()->json([
+                'message' => 'No payment found for this bill.'
+            ], 404);
+        }
+
+        return response()->json($transaction);
+    }
 }
     

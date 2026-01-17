@@ -245,9 +245,43 @@ export function useBilling() {
       cashReceived.value = 0
     }
 
-    const printReceipt = () => {
-      // For now, just show an alert. In a real implementation, this would open a print dialog
-      alert('Print functionality would be implemented here with receipt formatting')
+    const printReceipt = async () => {
+      if (!paymentReceipt.value) return
+
+      await printToThermal(paymentReceipt.value, selectedCustomer.value?.customer_name)
+    }
+
+    const printBill = async (bill) => {
+      try {
+        // Fetch payment transaction for this bill
+        const response = await fetch(`/bills/${bill.id}/payment`, {
+          headers: { 'Accept': 'application/json' },
+          credentials: 'same-origin'
+        })
+
+        if (!response.ok) {
+          alert('No payment found for this bill')
+          return
+        }
+
+        const paymentData = await response.json()
+
+        // Create receipt data from bill and payment
+        const receiptData = {
+          bill_no: bill.bill_no,
+          amount_paid: bill.total_due,
+          cash_received: paymentData.cash_received,
+          change: paymentData.change_amount || paymentData.change,
+          created_at: paymentData.created_at || paymentData.transaction_date
+        }
+
+        // Print to thermal printer
+        await printToThermal(receiptData, bill.customer?.customer_name)
+
+      } catch (error) {
+        console.error('Error printing bill:', error)
+        alert('Failed to print receipt')
+      }
     }
 
     const loadBillingStats = async () => {
@@ -442,6 +476,37 @@ export function useBilling() {
       voidLoading.value = false
     }
 
+    const printToThermal = async (receiptData, customerName) => {
+      try {
+        // Send print request to local Node.js print server
+        const response = await fetch('http://localhost:3000/print', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            bill_no: receiptData.bill_no,
+            customer_name: customerName,
+            amount_paid: receiptData.amount_paid,
+            cash_received: receiptData.cash_received,
+            change: receiptData.change,
+            created_at: receiptData.created_at
+          })
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          alert(result.message || 'Receipt printed successfully');
+        } else {
+          const error = await response.json();
+          throw new Error(error.error || 'Print failed');
+        }
+      } catch (error) {
+        console.error('Print failed:', error);
+        alert('Failed to print receipt. Make sure the local print server is running on port 3000.');
+      }
+    }
+
     // Load initial stats
     onMounted(() => {
       loadBillingStats()
@@ -496,6 +561,7 @@ export function useBilling() {
       handleFilterChange,
       payBill,
       voidBill,
+      printBill,
       confirmVoid,
       cancelVoid,
       goToPage,
