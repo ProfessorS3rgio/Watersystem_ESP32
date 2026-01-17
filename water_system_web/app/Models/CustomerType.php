@@ -1,0 +1,26 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class CustomerType extends Model
+{
+    use HasFactory;
+
+    protected $table = 'customer_type';
+
+    protected $fillable = [
+        'type_name',
+        'rate_per_m3',
+        'min_m3',
+        'min_charge',
+    ];
+
+    protected $casts = [
+        'rate_per_m3' => 'decimal:2',
+        'min_m3' => 'integer',
+        'min_charge' => 'decimal:2',
+    ];
+}

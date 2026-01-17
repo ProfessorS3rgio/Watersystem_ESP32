@@ -5,9 +5,12 @@ export function useCustomers() {
   const isLoading = ref(false)
   const errorMessage = ref('')
   const search = ref('')
+  const customerTypes = ref([])
+  const barangays = ref([])
+  const deductions = ref([])
 
-  const activeCount = computed(() => customers.value.filter(c => !!c.is_active).length)
-  const inactiveCount = computed(() => customers.value.filter(c => !c.is_active).length)
+  const activeCount = computed(() => customers.value.filter(c => c.status === 'active').length)
+  const inactiveCount = computed(() => customers.value.filter(c => c.status === 'disconnected').length)
   const newCount = computed(() => customers.value.filter(c => Number(c.previous_reading) === 0).length)
 
   const filteredCustomers = computed(() => {
@@ -113,12 +116,55 @@ export function useCustomers() {
     })
 
     if (!res.ok) {
-      if (res.status === 401) throw new Error('Unauthorized. Please login again.')
-      const text = await res.text()
-      throw new Error('Failed to delete customer: ' + text)
+      throw new Error('Failed to delete customer')
     }
 
     await fetchCustomers()
+  }
+
+  const fetchCustomerTypes = async () => {
+    try {
+      const res = await fetch('/customer-types', {
+        headers: { 'Accept': 'application/json' },
+        credentials: 'same-origin',
+      })
+      if (res.ok) {
+        const json = await res.json()
+        customerTypes.value = Array.isArray(json?.data) ? json.data : []
+      }
+    } catch (e) {
+      console.error('Failed to fetch customer types', e)
+    }
+  }
+
+  const fetchBarangays = async () => {
+    try {
+      const res = await fetch('/barangays', {
+        headers: { 'Accept': 'application/json' },
+        credentials: 'same-origin',
+      })
+      if (res.ok) {
+        const json = await res.json()
+        barangays.value = Array.isArray(json?.data) ? json.data : []
+      }
+    } catch (e) {
+      console.error('Failed to fetch barangays', e)
+    }
+  }
+
+  const fetchDeductions = async () => {
+    try {
+      const res = await fetch('/deductions', {
+        headers: { 'Accept': 'application/json' },
+        credentials: 'same-origin',
+      })
+      if (res.ok) {
+        const json = await res.json()
+        deductions.value = Array.isArray(json?.data) ? json.data : []
+      }
+    } catch (e) {
+      console.error('Failed to fetch deductions', e)
+    }
   }
 
   return {
@@ -130,7 +176,13 @@ export function useCustomers() {
     inactiveCount,
     newCount,
     filteredCustomers,
+    customerTypes,
+    barangays,
+    deductions,
     fetchCustomers,
+    fetchCustomerTypes,
+    fetchBarangays,
+    fetchDeductions,
     updateCustomer,
     createCustomer,
     deleteCustomer

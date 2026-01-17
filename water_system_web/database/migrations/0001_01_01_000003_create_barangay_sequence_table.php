@@ -11,8 +11,12 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('bill', function (Blueprint $table) {
-            $table->text('void_reason')->nullable()->after('status');
+        Schema::create('barangay_sequence', function (Blueprint $table) {
+            $table->id('brgy_id');
+            $table->string('barangay')->unique();
+            $table->char('prefix', 1);
+            $table->integer('next_number');
+            $table->timestamp('updated_at');
         });
     }
 
@@ -21,8 +25,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('bill', function (Blueprint $table) {
-            $table->dropColumn('void_reason');
-        });
+        Schema::dropIfExists('barangay_sequence');
     }
 };

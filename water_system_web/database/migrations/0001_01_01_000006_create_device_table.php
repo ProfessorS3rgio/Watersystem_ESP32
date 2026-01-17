@@ -11,14 +11,14 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('customer', function (Blueprint $table) {
-            $table->id();
-            $table->string('account_no')->unique();
-            $table->string('customer_name');
-            $table->string('address');
-            $table->integer('previous_reading');
-            $table->boolean('is_active')->default(true);
+        Schema::create('device', function (Blueprint $table) {
+            $table->id('device_id');
+            $table->unsignedBigInteger('brgy_id');
+            $table->string('device_uid')->unique();
+            $table->string('device_name')->nullable();
             $table->timestamps();
+
+            $table->foreign('brgy_id')->references('brgy_id')->on('barangay_sequence');
         });
     }
 
@@ -27,6 +27,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('customer');
+        Schema::dropIfExists('device');
     }
 };

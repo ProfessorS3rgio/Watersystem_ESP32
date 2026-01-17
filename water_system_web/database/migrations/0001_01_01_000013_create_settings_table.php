@@ -15,11 +15,11 @@ return new class extends Migration
             $table->id();
 
             $table->decimal('rate_per_m3', 10, 2)->default(15.00);
-            $table->unsignedInteger('bill_due_days')->default(15);
+            $table->integer('bill_due_days')->default(15);
 
             // Penalty rule:
             // if today > due_date + penalty_after_days, then apply penalty_amount.
-            $table->unsignedInteger('penalty_after_days')->default(0);
+            $table->integer('penalty_after_days')->default(0);
             $table->decimal('penalty_amount', 10, 2)->default(0.00);
 
             $table->timestamps();

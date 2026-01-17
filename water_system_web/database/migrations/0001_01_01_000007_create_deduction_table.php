@@ -11,10 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('device', function (Blueprint $table) {
-            $table->id();
-            $table->string('device_uid')->unique();
-            $table->string('device_name')->nullable();
+        Schema::create('deduction', function (Blueprint $table) {
+            $table->id('deduction_id');
+            $table->string('name')->unique();
+            $table->enum('type', ['percentage', 'fixed']);
+            $table->decimal('value', 10, 2);
             $table->timestamps();
         });
     }
@@ -24,6 +25,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('device');
+        Schema::dropIfExists('deduction');
     }
 };

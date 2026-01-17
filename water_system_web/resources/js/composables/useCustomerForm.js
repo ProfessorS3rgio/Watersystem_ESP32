@@ -6,28 +6,35 @@ export function useCustomerForm() {
   const submitFieldErrors = ref({})
 
   const newCustomer = reactive({
-    account_no: '',
+    type_id: null,
     customer_name: '',
+    brgy_id: null,
     address: '',
     previous_reading: 0,
-    is_active: true,
+    status: 'active',
+    benefits: [], // array of deduction_ids
   })
 
   const editCustomer = reactive({
     account_no: '',
+    type_id: null,
     customer_name: '',
+    brgy_id: null,
     address: '',
     previous_reading: 0,
-    is_active: true,
+    status: 'active',
+    benefits: [], // array of deduction_ids
   })
 
   const resetNewCustomer = () => {
     Object.assign(newCustomer, {
-      account_no: '',
+      type_id: null,
       customer_name: '',
+      brgy_id: null,
       address: '',
       previous_reading: 0,
-      is_active: true,
+      status: 'active',
+      benefits: [],
     })
     submitError.value = ''
     submitFieldErrors.value = {}
@@ -36,10 +43,13 @@ export function useCustomerForm() {
   const resetEditCustomer = () => {
     Object.assign(editCustomer, {
       account_no: '',
+      type_id: null,
       customer_name: '',
+      brgy_id: null,
       address: '',
       previous_reading: 0,
-      is_active: true,
+      status: 'active',
+      benefits: [],
     })
     submitError.value = ''
     submitFieldErrors.value = {}

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Customer;
+use App\Models\BarangaySequence;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -55,9 +56,11 @@ class CustomerController extends Controller
                 'customer.id',
                 'customer.account_no',
                 'customer.customer_name',
+                'customer.type_id',
+                'customer.brgy_id',
                 'customer.address',
                 'customer.previous_reading',
-                'customer.is_active',
+                'customer.status',
                 'customer.created_at',
                 'customer.updated_at',
                 DB::raw('r.current_reading as current_reading'),
@@ -108,22 +111,50 @@ class CustomerController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'account_no' => ['required', 'string', 'max:255', 'unique:customer,account_no'],
             'customer_name' => ['required', 'string', 'max:255'],
+            'type_id' => ['required', 'integer', 'exists:customer_type,type_id'],
+            'brgy_id' => ['required', 'integer', 'exists:barangay_sequence,brgy_id'],
             'address' => ['required', 'string', 'max:255'],
             'previous_reading' => ['nullable', 'integer', 'min:0'],
-            'is_active' => ['nullable', 'boolean'],
+            'status' => ['required', 'in:active,disconnected'],
+            'benefits' => ['nullable', 'array'],
+            'benefits.*' => ['integer', 'exists:deduction,deduction_id'],
         ]);
 
-        $customer = Customer::create([
-            'account_no' => $validated['account_no'],
-            'customer_name' => $validated['customer_name'],
-            'address' => $validated['address'],
-            'previous_reading' => array_key_exists('previous_reading', $validated) && $validated['previous_reading'] !== null
-                ? $validated['previous_reading']
-                : 0,
-            'is_active' => array_key_exists('is_active', $validated) ? (bool) $validated['is_active'] : true,
-        ]);
+        $customer = DB::transaction(function () use ($validated) {
+            // Get barangay sequence and generate account number
+            $barangay = BarangaySequence::findOrFail($validated['brgy_id']);
+            $accountNo = $barangay->generateAccountNumber();
+
+            $customer = Customer::create([
+                'account_no' => $accountNo,
+                'customer_name' => $validated['customer_name'],
+                'type_id' => $validated['type_id'],
+                'brgy_id' => $validated['brgy_id'],
+                'address' => $validated['address'],
+                'previous_reading' => array_key_exists('previous_reading', $validated) && $validated['previous_reading'] !== null
+                    ? $validated['previous_reading']
+                    : 0,
+                'status' => $validated['status'],
+            ]);
+
+            // Increment the sequence
+            $barangay->incrementSequence();
+
+            // Handle benefits
+            if (isset($validated['benefits']) && is_array($validated['benefits'])) {
+                foreach ($validated['benefits'] as $deductionId) {
+                    DB::table('customer_deduction')->insert([
+                        'customer_id' => $customer->id,
+                        'deduction_id' => $deductionId,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                }
+            }
+
+            return $customer;
+        });
 
         return response()->json([
             'data' => $customer,
@@ -192,20 +223,41 @@ class CustomerController extends Controller
         $validated = $request->validate([
             'account_no' => ['required', 'string', 'max:255', 'unique:customer,account_no,' . $customer->id],
             'customer_name' => ['required', 'string', 'max:255'],
+            'type_id' => ['required', 'integer', 'exists:customer_type,type_id'],
+            'brgy_id' => ['required', 'integer', 'exists:barangay_sequence,brgy_id'],
             'address' => ['required', 'string', 'max:255'],
             'previous_reading' => ['nullable', 'integer', 'min:0'],
-            'is_active' => ['nullable', 'boolean'],
+            'status' => ['required', 'in:active,disconnected'],
+            'benefits' => ['nullable', 'array'],
+            'benefits.*' => ['integer', 'exists:deduction,deduction_id'],
         ]);
 
-        $customer->update([
-            'account_no' => $validated['account_no'],
-            'customer_name' => $validated['customer_name'],
-            'address' => $validated['address'],
-            'previous_reading' => array_key_exists('previous_reading', $validated) && $validated['previous_reading'] !== null
-                ? $validated['previous_reading']
-                : $customer->previous_reading,
-            'is_active' => array_key_exists('is_active', $validated) ? (bool) $validated['is_active'] : $customer->is_active,
-        ]);
+        DB::transaction(function () use ($customer, $validated) {
+            $customer->update([
+                'account_no' => $validated['account_no'],
+                'customer_name' => $validated['customer_name'],
+                'type_id' => $validated['type_id'],
+                'brgy_id' => $validated['brgy_id'],
+                'address' => $validated['address'],
+                'previous_reading' => array_key_exists('previous_reading', $validated) && $validated['previous_reading'] !== null
+                    ? $validated['previous_reading']
+                    : $customer->previous_reading,
+                'status' => $validated['status'],
+            ]);
+
+            // Handle benefits - delete existing and add new
+            DB::table('customer_deduction')->where('customer_id', $customer->id)->delete();
+            if (isset($validated['benefits']) && is_array($validated['benefits'])) {
+                foreach ($validated['benefits'] as $deductionId) {
+                    DB::table('customer_deduction')->insert([
+                        'customer_id' => $customer->id,
+                        'deduction_id' => $deductionId,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                }
+            }
+        });
 
         return response()->json([
             'data' => $customer,

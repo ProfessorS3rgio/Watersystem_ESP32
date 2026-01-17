@@ -11,13 +11,16 @@ class Customer extends Model
     protected $fillable = [
         'account_no',
         'customer_name',
+        'type_id',
+        'brgy_id',
         'address',
         'previous_reading',
-        'is_active',
+        'status',
     ];
 
     protected $casts = [
         'previous_reading' => 'integer',
-        'is_active' => 'boolean',
+        'type_id' => 'integer',
+        'brgy_id' => 'integer',
     ];
 }
