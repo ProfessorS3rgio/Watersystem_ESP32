@@ -35,7 +35,7 @@ BillData currentBill = {
   "",
   "",
   "",
-  "A. MACASLING",
+  "AURELIO MACASLING",
   "Jan 15, 2026",
   0,
   0,

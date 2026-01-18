@@ -240,7 +240,7 @@ void printBill() {
   YIELD_WDT();
 
   unsigned long used = currentBill.currReading - currentBill.prevReading;
-  float total = used * currentBill.rate + currentBill.penalty - currentBill.deductions;
+  float total = currentBill.total;
 
   customFeed(1);
   YIELD_WDT();
@@ -285,14 +285,17 @@ void printBill() {
   printer.println(currentBill.customerType);
   printer.print(F("Address  : "));
   printer.println(currentBill.address);
+  printer.print(F("Barangay : "));
+  printer.println(F("Makilas"));
   printer.println(F("--------------------------------"));
   YIELD_WDT();
 
-  // Collector and penalty
-  printer.print(F("Collector: "));
+  // Collector
+  printer.justify('C');
+  printer.println(F("Collector"));
   printer.println(currentBill.collector);
-  printer.print(F("Penalty  : PHP "));
-  printer.println(currentBill.penalty, 2);
+  printer.println(F(""));
+  YIELD_WDT();
   printer.println(F("--------------------------------"));
   YIELD_WDT();
 
@@ -321,15 +324,28 @@ void printBill() {
   printer.println(F("--------------------------------"));
   YIELD_WDT();
 // %10lu%8lu%7lu
-  // Rate and deduction
+  // Rate , deduction & Penalty
+  printer.justify('C');
+  printer.boldOn();
+  printer.println(F("BILLING"));
+  printer.boldOff();
+  printer.println(F(""));
+  YIELD_WDT();
   printer.justify('L');
   printer.print(F("Rate/m3  : PHP "));
   printer.println(currentBill.rate, 2);
+  printer.print(F("Water Charge : PHP "));
+  printer.println(currentBill.subtotal, 2);
   if (currentBill.deductions > 0) {
     printer.print(currentBill.deductionName);
     printer.print(F(" : PHP -"));
     printer.println(currentBill.deductions, 2);
   }
+  if (currentBill.penalty > 0) {
+    printer.print(F("Penalty  : PHP "));
+    printer.println(currentBill.penalty, 2);
+  }
+  printer.println(F(""));
   printer.println(F("================================"));
   YIELD_WDT();
 
@@ -347,6 +363,7 @@ void printBill() {
   YIELD_WDT();
 
   // Due and Disconnect dates
+  printer.println(F(""));
   printer.justify('L');
   printer.boldOn();
   printer.print(F("Due Date     : "));
@@ -363,7 +380,7 @@ void printBill() {
   printer.println(F("- Please pay by the due date to avoid disconnection."));
   printer.println(F("- Bring this bill when paying."));
   printer.println(F("- For inquiries, contact the office."));
-  printer.println(F("--------------------------------"));
+ 
   YIELD_WDT();
 
   // Footer
@@ -373,6 +390,7 @@ void printBill() {
   printer.println(F("to avoid penalties."));
   printer.println(F(""));
   printer.println(F("Thank you!"));
+  printer.println(F("Save Water, Save Life!"));
   printer.justify('L');
   YIELD_WDT();
 
