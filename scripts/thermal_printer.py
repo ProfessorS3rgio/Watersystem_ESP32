@@ -233,28 +233,31 @@ class ThermalPrinter:
             b'Water & Sanitation Assoc.\n' +
             b'Bulu-an, IPIL, Zambo. Sibugay\n' +
             b'TIN: 464-252-005-000\n' +
-            line
+            b'\n' +
+            self.CENTER + line +
+            self.CENTER + self.BOLD_ON + b'STATEMENT OF ACCOUNT\n' + self.BOLD_OFF +
+            self.CENTER + line
         )
+        # Keep `title` defined (no visible title requested) to satisfy return concatenation
+        title = self.LEFT + line
         
-        # Bill title and metadata
-        title = (
-            self.LEFT + self.BOLD_ON + b'WATER BILL\n' + self.BOLD_OFF +
-            f'Bill No: {bill_data.get("bill_no", "N/A")}\n'.encode() +
-            line
-        )
+        
 
         # Additional metadata lines: Ref No, Date/Time, Classification, Period Covered,
         # Due Date and Disconnection Date. For narrow paper (58mm) place long
         # values on the following indented line to avoid overflow.
+        ref = bill_data.get("reference_no", "N/A")
+        # Short datetime for single-line display: MM/DD/YY HH:MMAM/PM
+        dt = datetime.now().strftime("%m/%d/%y %I:%M%p")
+        classification = bill_data.get("classification", "N/A")
+        period = bill_data.get("period_covered", "N/A")
+        due = bill_data.get("due_date", "N/A")
+        disc = bill_data.get("disconnection_date", "N/A")
+
+        # For narrow (58mm) paper prefer simple multi-line metadata (no boxes)
         meta = (
-            f'Ref No       : {bill_data.get("reference_no", "N/A")}\n'.encode() +
-            b'Date/Time    :\n' +
-            f'  {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}\n'.encode() +
-            f'Classification: {bill_data.get("classification", "N/A")}\n'.encode() +
-            b'Period Covered:\n' +
-            f'  {bill_data.get("period_covered", "N/A")}\n'.encode() +
-            f'Due Date     : {bill_data.get("due_date", "N/A")}\n'.encode() +
-            f'Disconnect On: {bill_data.get("disconnection_date", "N/A")}\n'.encode() +
+            f'Ref No       : {ref}\n'.encode() +
+            f'Date/Time    : {dt}\n'.encode() +
             line
         )
         
@@ -262,6 +265,7 @@ class ThermalPrinter:
         customer_info = (
             f'Customer : {bill_data["customer_name"]}\n'.encode() +
             f'Account  : {bill_data["account_no"]}\n'.encode() +
+            f'Classification: {classification}\n'.encode() +
             f'Address  : {bill_data.get("address", "N/A")}\n'.encode() +
             line
         )
@@ -270,15 +274,25 @@ class ThermalPrinter:
         collector_info = (
             f'Collector: {bill_data.get("collector", "N/A")}\n'.encode() +
             f'Penalty  : PHP {bill_data.get("penalty", 0):.2f}\n'.encode() +
-            f'Due Date : {bill_data.get("due_date", "N/A")}\n'.encode() +
+            # Due Date moved below total
             line
         )
         
-        # Meter readings section formatted in columns for narrow paper
+        # Period covered (centered block) placed before meter readings
+        period_section = (
+            self.CENTER + b'Period Covered\n' +
+            self.CENTER + f'{period}\n'.encode() +
+            b'\n'
+        )
+
+        # Meter readings section formatted in fixed-width centered columns (total width ~32)
+        prev_w, present_w, usage_w = 10, 12, 10
+        header_cols = f'{"Prev":^{prev_w}}{"Present":^{present_w}}{"Usage":^{usage_w}}\n'
+        values_cols = f'{bill_data["prev_reading"]:^{prev_w}}{bill_data["curr_reading"]:^{present_w}}{used:^{usage_w}}\n'
         readings_section = (
-            self.BOLD_ON + b'METER READINGS\n' + self.BOLD_OFF +
-            b'  Prev   Present   Usage\n' +
-            f'  {bill_data["prev_reading"]:>6}   {bill_data["curr_reading"]:>7}   {used} m3\n'.encode() +
+            self.CENTER + self.BOLD_ON + b'METER READINGS\n' + self.BOLD_OFF +
+            self.CENTER + header_cols.encode() +
+            self.CENTER + values_cols.encode() +
             line
         )
         
@@ -289,6 +303,25 @@ class ThermalPrinter:
             self.CENTER + self.BOLD_ON + b'*** TOTAL AMOUNT DUE ***\n' + self.BOLD_OFF +
             f'PHP {total:.2f}\n'.encode() +
             double_line
+        )
+
+        # Format Due/Disconnect dates as DD/MM/YYYY if possible
+        def _fmt_short_date(s):
+            try:
+                # Accept ISO-like strings 'YYYY-MM-DD' or with time
+                ds = s.split('T')[0]
+                dtobj = datetime.fromisoformat(ds)
+                return dtobj.strftime('%d/%m/%Y')
+            except Exception:
+                return s
+
+        due_fmt = _fmt_short_date(due) if due else 'N/A'
+        disc_fmt = _fmt_short_date(disc) if disc else 'N/A'
+
+        due_block = (
+            self.LEFT + f'Due Date     : {due_fmt}\n'.encode() +
+            f'Disconnect On: {disc_fmt}\n'.encode() +
+            line
         )
         
         # Reminders under total due
@@ -324,9 +357,9 @@ class ThermalPrinter:
                 self.LEFT
             )
         
-        # Combine all sections (no automatic cut)
+        # Combine all sections (no automatic cut). Place due/disconnect after total.
         return (header + title + meta + customer_info + collector_info + 
-            readings_section + calculation_section + reminders + footer + 
+            period_section + readings_section + calculation_section + due_block + reminders + footer + 
             cutting_and_barcode)
     
     def _format_datetime(self, datetime_str):
@@ -372,7 +405,7 @@ def _sample_bill():
         'barangay': 'Makilas',
         'collector': random.choice(collectors),
         'classification': 'Residential',
-        'period_covered': '2026-01-01 to 2026-01-31',
+        'period_covered': 'Jan 2026 - Feb 2026',
         'disconnection_date': '2026-02-10',
         'penalty': 0,
         'due_date': '2026-02-01',
