@@ -2,8 +2,8 @@
 #define DEVICE_INFO_H
 
 #include <SD.h>
-#include "config.h"
-#include "sdcard_manager.h"
+#include "../configuration/config.h"
+#include "../managers/sdcard_manager.h"
 
 // Stored at SD so the website can show persistent device info.
 // Format (key=value lines):

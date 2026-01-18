@@ -2,8 +2,9 @@
 #define CUSTOMERS_DATABASE_H
 
 #include <SD.h>
-#include "config.h"
+#include "../configuration/config.h"
 #include "device_info.h"
+#include "sync_utils.h"
 
 // Forward declarations
 void printCustomersList();
@@ -30,14 +31,6 @@ Customer customers[MAX_CUSTOMERS];
 int customerCount = 0;
 
 static const char* CUSTOMERS_SYNC_FILE = "/WATER_DB/CUSTOMERS/customers.psv"; // pipe-separated values
-
-static String sanitizeSyncField(const String& s) {
-  String out = s;
-  out.replace("\r", " ");
-  out.replace("\n", " ");
-  out.replace("|", " ");
-  return out;
-}
 
 static bool parseBoolToken(const String& s) {
   String v = s;
@@ -141,9 +134,9 @@ static bool saveCustomersToSD() {
 
 // ===== INITIALIZE DATABASE =====
 void initCustomersDatabase() {
-#if WS_SERIAL_VERBOSE
-  Serial.println(F("Initializing Customers Database..."));
-#endif
+  #if WS_SERIAL_VERBOSE
+    Serial.println(F("Initializing Customers Database..."));
+  #endif
 
   // Prefer SD-backed customer file (so the device really uses SD as its database).
   bool loadedFromSd = false;
@@ -152,20 +145,20 @@ void initCustomersDatabase() {
   }
 
   if (loadedFromSd) {
-#if WS_SERIAL_VERBOSE
-    Serial.print(F("Loaded "));
-    Serial.print(customerCount);
-    Serial.println(F(" customers from SD card."));
-#endif
+  #if WS_SERIAL_VERBOSE
+      Serial.print(F("Loaded "));
+      Serial.print(customerCount);
+      Serial.println(F(" customers from SD card."));
+  #endif
     return;
   }
   
   // Start with empty database - customers will be synced from web
   customerCount = 0;
   
-#if WS_SERIAL_VERBOSE
-  Serial.println(F("Initialized empty customer database."));
-#endif
+  #if WS_SERIAL_VERBOSE
+    Serial.println(F("Initialized empty customer database."));
+  #endif
 }
 
 // ===== FIND CUSTOMER BY ACCOUNT NUMBER =====

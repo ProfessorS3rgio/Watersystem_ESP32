@@ -2,7 +2,7 @@
 #define SDCARD_MANAGER_H
 
 #include <SD.h>
-#include "config.h"
+#include "../configuration/config.h"
 
 // Global SD card status
 bool sdCardPresent = false;
@@ -119,7 +119,9 @@ void initSDCardDatabase() {
     DB_BILLS,
     DB_READINGS,
     DB_LOGS,
-    DB_SETTINGS
+    DB_SETTINGS,
+    DB_DEDUCTIONS,
+    DB_CUSTOMER_TYPES
   };
   
   const int numDirs = sizeof(dbDirs) / sizeof(dbDirs[0]);

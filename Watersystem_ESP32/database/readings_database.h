@@ -3,8 +3,8 @@
 
 #include <SD.h>
 #include <time.h>
-#include "config.h"
-#include "sdcard_manager.h"
+#include "../configuration/config.h"
+#include "../managers/sdcard_manager.h"
 #include "customers_database.h"
 
 // SD-backed, append-only readings log.

@@ -1,7 +1,7 @@
-#ifndef WATER_SYSTEM_H
-#define WATER_SYSTEM_H
+#ifndef BILL_DATABASE_H
+#define BILL_DATABASE_H
 
-#include "config.h"
+#include "../configuration/config.h"
 
 // ===== BILL DATA STRUCTURE =====
 struct BillData {
@@ -72,4 +72,4 @@ String getBillSummary() {
   return summary;
 }
 
-#endif  // WATER_SYSTEM_H
+#endif  // BILL_DATABASE_H

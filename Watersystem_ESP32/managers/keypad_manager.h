@@ -2,9 +2,10 @@
 #define KEYPAD_MANAGER_H
 
 #include <Keypad.h>
-#include "config.h"
+#include "configuration/config.h"
 #include "Adafruit_Thermal.h"
-#include "readings_database.h"
+#include "../database/readings_database.h"
+#include "../database/customers_database.h"
 
 // Forward declarations for workflow and display functions (defined in main .ino and workflow_manager.h)
 void handleKeypadInput(char key);

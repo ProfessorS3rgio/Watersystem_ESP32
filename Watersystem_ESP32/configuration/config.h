@@ -58,5 +58,7 @@
 #define DB_READINGS     "/WATER_DB/READINGS"
 #define DB_LOGS         "/WATER_DB/LOGS"
 #define DB_SETTINGS     "/WATER_DB/SETTINGS"
+#define DB_DEDUCTIONS   "/WATER_DB/DEDUCTIONS"
+#define DB_CUSTOMER_TYPES "/WATER_DB/CUSTOMER_TYPES"
 #define YIELD_WDT() vTaskDelay(1)
 #endif  // CONFIG_H

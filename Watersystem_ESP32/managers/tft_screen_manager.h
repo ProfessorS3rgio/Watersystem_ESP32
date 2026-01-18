@@ -1,9 +1,11 @@
-#ifndef WORKFLOW_MANAGER_H
-#define WORKFLOW_MANAGER_H
+#ifndef TFT_SCREEN_MANAGER_H
+#define TFT_SCREEN_MANAGER_H
 
-#include "config.h"
-#include "customers_database.h"
-#include "water_system.h"
+#include "../configuration/config.h"
+#include "../database/customers_database.h"
+#include "../database/bill_database.h"
+#include "components/bmp_display.h"
+#include "components/battery_display.h"
 
 // ===== EXTERNAL OBJECTS FROM MAIN .INO =====
 extern Adafruit_ST7735 tft;
@@ -435,4 +437,124 @@ void resetWorkflow() {
   showWelcomeScreen();
 }
 
-#endif  // WORKFLOW_MANAGER_H
+// ===== GENERAL TFT DISPLAY FUNCTIONS =====
+
+void showWelcomeScreen() {
+  tft.fillScreen(COLOR_BG);
+  
+  // ===== TOP BORDER =====
+  tft.fillRect(0, 0, 160, 3, COLOR_HEADER);
+  
+  // ===== DISPLAY LOGO FROM SD CARD =====
+  // Draw logo from BMP file on the left side
+  int logoX = 10;  // Left side
+  int logoY = 15;
+  drawBMP("/WATER_DB/ASSETS/water_logo3.bmp", logoX, logoY);
+  
+  // ===== SERVICE DESCRIPTION (Next to logo) =====
+  tft.setTextColor(COLOR_TEXT);
+  tft.setTextSize(1);
+  tft.setCursor(80, 20);
+  tft.println(F("Water &"));
+  tft.setCursor(80, 30);
+  tft.println(F("Sanitation"));
+  tft.setCursor(80, 40);
+  tft.println(F("Association"));
+  
+  // ===== DECORATIVE SEPARATOR =====
+  // tft.fillRect(20, 105, 120, 1, COLOR_LINE);
+  // tft.fillRect(30, 107, 100, 1, COLOR_LINE);
+  
+  // ===== STATUS INDICATOR =====
+  tft.setTextColor(COLOR_LABEL);
+  tft.setCursor(44, 70);  // Centered
+  tft.println(F("System Ready"));
+  
+  // ===== BATTERY INDICATOR =====
+  drawBattery(50, 88, 100);  // x, y, battery level (0-100)
+  
+  // ===== INSTRUCTIONS =====
+  tft.setTextColor(ST77XX_MAGENTA);
+  tft.setTextSize(1);
+  tft.setCursor(20, 115);  // Moved to bottom
+  tft.println(F("A-Menu  D/B-Billing"));
+  
+  // ===== BOTTOM BORDER =====
+  tft.fillRect(0, 125, 160, 3, COLOR_HEADER);
+}
+
+void displayBillOnTFT() {
+  tft.fillScreen(COLOR_BG);
+  
+  // Calculate used and total
+  unsigned long used = currentBill.currReading - currentBill.prevReading;
+  float total = used * currentBill.rate + currentBill.penalty;
+  
+  // Header
+  tft.setTextColor(COLOR_HEADER);
+  tft.setTextSize(1);
+  tft.setCursor(35, 5);
+  tft.println(F("WATER BILL"));
+  
+  tft.drawLine(0, 16, 160, 16, COLOR_LINE);
+  
+  // Customer info
+  tft.setTextColor(COLOR_LABEL);
+  tft.setCursor(2, 22);
+  tft.print(F("Name: "));
+  tft.setTextColor(COLOR_TEXT);
+  tft.println(currentBill.customerName);
+  
+  tft.setTextColor(COLOR_LABEL);
+  tft.setCursor(2, 34);
+  tft.print(F("Acct: "));
+  tft.setTextColor(COLOR_TEXT);
+  tft.println(currentBill.accountNo);
+  
+  tft.drawLine(0, 46, 160, 46, COLOR_LINE);
+  
+  // Meter readings
+  tft.setTextColor(COLOR_LABEL);
+  tft.setCursor(2, 52);
+  tft.print(F("Prev: "));
+  tft.setTextColor(COLOR_TEXT);
+  tft.print(currentBill.prevReading);
+  
+  tft.setTextColor(COLOR_LABEL);
+  tft.setCursor(85, 52);
+  tft.print(F("Cur: "));
+  tft.setTextColor(COLOR_TEXT);
+  tft.println(currentBill.currReading);
+  
+  tft.setTextColor(COLOR_LABEL);
+  tft.setCursor(2, 64);
+  tft.print(F("Used: "));
+  tft.setTextColor(COLOR_AMOUNT);
+  tft.print(used);
+  tft.println(F(" m3"));
+  
+  tft.drawLine(0, 76, 160, 76, COLOR_LINE);
+  
+  // Due date
+  tft.setTextColor(COLOR_LABEL);
+  tft.setCursor(2, 82);
+  tft.print(F("Due: "));
+  tft.setTextColor(ST77XX_RED);
+  tft.println(currentBill.dueDate);
+  
+  tft.drawLine(0, 94, 160, 94, COLOR_LINE);
+  
+  // Total amount - big and prominent
+  tft.setTextColor(COLOR_HEADER);
+  tft.setCursor(25, 100);
+  tft.println(F("TOTAL DUE:"));
+  
+  tft.setTextColor(COLOR_AMOUNT);
+  tft.setTextSize(2);
+  tft.setCursor(20, 112);
+  tft.print(F("P"));
+  tft.println(total, 2);
+  tft.setTextSize(1);
+}
+
+#endif  // TFT_SCREEN_MANAGER_H

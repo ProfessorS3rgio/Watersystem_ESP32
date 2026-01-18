@@ -1,7 +1,7 @@
 #ifndef PRINT_MANAGER_H
 #define PRINT_MANAGER_H
 
-#include "config.h"
+#include "../configuration/config.h"
 #include <esp_task_wdt.h>
 
 // ===== EXTERNAL OBJECTS FROM MAIN .INO =====
