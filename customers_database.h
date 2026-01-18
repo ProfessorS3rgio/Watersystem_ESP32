@@ -170,11 +170,33 @@ void initCustomersDatabase() {
 
 // ===== FIND CUSTOMER BY ACCOUNT NUMBER =====
 int findCustomerByAccount(String accountNumber) {
+  Serial.print(F("Searching for account: "));
+  Serial.println(accountNumber);
+  
+  // First, try exact match
   for (int i = 0; i < customerCount; i++) {
     if (customers[i].account_no == accountNumber) {
+      Serial.print(F("Found exact match at index: "));
+      Serial.println(i);
       return i;  // Return index
     }
   }
+  
+  // If not found and accountNumber starts with a digit, try prepending "M-" for Makilas
+  if (accountNumber.length() > 0 && isDigit(accountNumber.charAt(0))) {
+    String prefixed = "M-" + accountNumber;
+    Serial.print(F("Trying prefixed: "));
+    Serial.println(prefixed);
+    for (int i = 0; i < customerCount; i++) {
+      if (customers[i].account_no == prefixed) {
+        Serial.print(F("Found prefixed match at index: "));
+        Serial.println(i);
+        return i;  // Return index
+      }
+    }
+  }
+  
+  Serial.println(F("Account not found"));
   return -1;  // Not found
 }
 
