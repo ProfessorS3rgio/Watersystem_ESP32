@@ -6,6 +6,7 @@
 #include "../database/bill_database.h"
 #include "components/bmp_display.h"
 #include "components/battery_display.h"
+#include <SD.h>
 
 // ===== EXTERNAL OBJECTS FROM MAIN .INO =====
 extern Adafruit_ST7735 tft;
@@ -287,6 +288,19 @@ void displayBillCalculated() {
     tft.setCursor(20, 50);
     tft.println(F("Bill generation failed!"));
     return;
+  }
+  
+  // Save temp reading date to SD
+  if (isSDCardReady()) {
+    deselectTftSelectSd();
+    File f = SD.open("/temp_reading_date.txt", FILE_WRITE);
+    if (f) {
+      f.println(currentBill.readingDateTime);
+      f.close();
+      Serial.println(F("Temp reading date saved to SD"));
+    } else {
+      Serial.println(F("Failed to save temp reading date"));
+    }
   }
   
   tft.setTextColor(COLOR_HEADER);

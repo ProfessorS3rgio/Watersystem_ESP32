@@ -6,6 +6,7 @@
 #include "Adafruit_Thermal.h"
 #include "../database/readings_database.h"
 #include "../database/customers_database.h"
+#include <SD.h>
 
 // Forward declarations for workflow and display functions (defined in main .ino and workflow_manager.h)
 void handleKeypadInput(char key);
@@ -229,6 +230,12 @@ void handleKeypadInput(char key) {
       waitForPrintCompletion();
       
       Serial.println(F("Print workflow complete."));
+      
+      // Remove temp reading date file
+      deselectTftSelectSd();
+      SD.remove("/temp_reading_date.txt");
+      Serial.println(F("Temp reading date removed from SD"));
+      
       delay(500);
       resetWorkflow();
     }

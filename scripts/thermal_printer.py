@@ -299,6 +299,7 @@ class ThermalPrinter:
         # Rate and total
         calculation_section = (
             f'Rate/m3  : PHP {bill_data["rate"]:.2f}\n'.encode() +
+            f'Seniors Citizen : PHP -20.00\n'.encode() +
             double_line +
             self.CENTER + self.BOLD_ON + b'*** TOTAL AMOUNT DUE ***\n' + self.BOLD_OFF +
             f'PHP {total:.2f}\n'.encode() +
@@ -320,7 +321,7 @@ class ThermalPrinter:
 
         due_block = (
             self.LEFT + f'Due Date     : {due_fmt}\n'.encode() +
-            f'Disconnect On: {disc_fmt}\n'.encode() +
+            f'Disconnection Date: {disc_fmt}\n'.encode() +
             line
         )
         

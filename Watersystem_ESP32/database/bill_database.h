@@ -5,6 +5,8 @@
 #include "customers_database.h"
 #include "customer_type_database.h"
 #include "deduction_database.h"
+#include "device_info.h"
+#include <time.h>
 
 // ===== BILL DATA STRUCTURE =====
 struct BillData {
@@ -24,6 +26,8 @@ struct BillData {
   String customerType;
   float minCharge;
   unsigned long minM3;
+  String deductionName;
+  String readingDateTime;
 };
 
 // Current bill (calculated data)
@@ -43,8 +47,36 @@ BillData currentBill = {
   0,
   "",
   0.00,
-  0
+  0,
+  "",
+  ""
 };
+
+// ===== DATE TIME FORMATTING =====
+
+String formatEpochToDateTime(uint32_t epoch) {
+  if (epoch == 0) return "01/01/70 12:00 AM"; // default if no sync
+
+  time_t t = (time_t)epoch;
+  struct tm *tm = localtime(&t);
+
+  char dateStr[12];
+  sprintf(dateStr, "%02d/%02d/%02d", tm->tm_mon + 1, tm->tm_mday, tm->tm_year % 100);
+
+  int hour = tm->tm_hour;
+  int min = tm->tm_min;
+  char ampm[3] = "AM";
+  if (hour >= 12) {
+    ampm[0] = 'P';
+    if (hour > 12) hour -= 12;
+  }
+  if (hour == 0) hour = 12;
+
+  char timeStr[9];
+  sprintf(timeStr, "%02d:%02d %s", hour, min, ampm);
+
+  return String(dateStr) + " " + String(timeStr);
+}
 
 // ===== WATER SYSTEM FUNCTIONS =====
 
@@ -87,20 +119,24 @@ float calculateBillAmount(unsigned long usage, unsigned long customerTypeId) {
 // Calculate deductions based on customer's specific deduction_id
 float calculateDeductions(float subtotal, unsigned long deductionId) {
   if (deductionId == 0) {
+    currentBill.deductionName = "";
     return 0.00;  // No deduction
   }
   
   // Find the specific deduction for this customer
   int deductionIndex = findDeductionById(deductionId);
   if (deductionIndex == -1) {
+    currentBill.deductionName = "";
     return 0.00;  // Deduction not found
   }
   
   Deduction* deduction = getDeductionAt(deductionIndex);
   if (!deduction) {
+    currentBill.deductionName = "";
     return 0.00;
   }
   
+  currentBill.deductionName = deduction->name;
   float totalDeduction = 0.00;
   if (deduction->type == "percentage") {
     totalDeduction = subtotal * (deduction->value / 100.0);
@@ -150,6 +186,9 @@ bool generateBillForCustomer(String accountNo, unsigned long currentReading) {
   
   // Calculate bill using customer type and deduction
   calculateTotalDue(customer->type_id, customer->deduction_id);
+  
+  // Set reading date and time from last sync epoch
+  currentBill.readingDateTime = formatEpochToDateTime(getLastSyncEpoch());
   
   Serial.print(F("Generated bill for "));
   Serial.print(customer->customer_name);

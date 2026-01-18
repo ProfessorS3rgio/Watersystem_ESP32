@@ -157,6 +157,10 @@ static void setLastSyncEpoch(uint32_t epoch) {
   writeDeviceInfoToSD();
 }
 
+static uint32_t getLastSyncEpoch() {
+  return g_lastSyncEpoch;
+}
+
 static uint32_t countPendingReadings() {
   if (!deviceInfoSdReady()) return 0;
   if (!SD.exists(DB_READINGS "/readings.psv")) return 0;

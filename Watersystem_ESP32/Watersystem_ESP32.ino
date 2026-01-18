@@ -4,6 +4,7 @@
 #include <SD.h>
 #include "Adafruit_Thermal.h"
 #include <Keypad.h>
+#include <time.h>
 
 // ===== REFACTORED HEADER FILES =====
 #include "configuration/config.h"
@@ -239,16 +240,18 @@ void printBill() {
   YIELD_WDT();
 
   unsigned long used = currentBill.currReading - currentBill.prevReading;
-  float total = used * currentBill.rate + currentBill.penalty;
+  float total = used * currentBill.rate + currentBill.penalty - currentBill.deductions;
 
   customFeed(1);
   YIELD_WDT();
 
   printer.justify('C');
-  printer.printBitmap(LOGO_WIDTH, LOGO_HEIGHT, logo);
-  YIELD_WDT();  // 🚨 REQUIRED
+  // printer.printBitmap(LOGO_WIDTH, LOGO_HEIGHT, logo);
+  // YIELD_WDT();  // 🚨 REQUIRED
 
-  customFeed(1);
+  // customFeed(1);
+  printer.println(F("[PLACEHOLDER]"));
+  printer.println(F(""));
   YIELD_WDT();
 
   printer.setSize('S');
@@ -256,73 +259,81 @@ void printBill() {
   printer.println(F("Water & Sanitation Assoc."));
   printer.println(F("Bulu-an, IPIL, Zambo. Sibugay"));
   printer.println(F("TIN: 464-252-005-000"));
+  printer.println(F(""));
+  printer.println(F("--------------------------------"));
+  printer.boldOn();
+  printer.println(F("STATEMENT OF ACCOUNT"));
+  printer.boldOff();
   printer.println(F("--------------------------------"));
   YIELD_WDT();
 
   printer.justify('L');
-  printer.boldOn();
-  printer.println(F("WATER BILL"));
-  printer.boldOff();
-  YIELD_WDT();
-
-  printer.print(F("Bill No: "));
-  printer.println((unsigned long)(millis() / 1000));
-  printer.print(F("Date   : "));
-  printer.println(F(__DATE__));
-  YIELD_WDT();
-
+  // Ref No and Date/Time
+  printer.print(F("Ref No       : "));
+  printer.println(F("REF123456"));  // Placeholder, can be dynamic
+  printer.print(F("Date/Time    : "));
+  printer.println(currentBill.readingDateTime);
   printer.println(F("--------------------------------"));
   YIELD_WDT();
 
+  // Customer info
   printer.print(F("Customer : "));
   printer.println(currentBill.customerName);
   printer.print(F("Account  : "));
   printer.println(currentBill.accountNo);
+  printer.print(F("Classification: "));
+  printer.println(currentBill.customerType);
   printer.print(F("Address  : "));
   printer.println(currentBill.address);
-  YIELD_WDT();
-
   printer.println(F("--------------------------------"));
   YIELD_WDT();
 
+  // Collector and penalty
   printer.print(F("Collector: "));
   printer.println(currentBill.collector);
-  printer.print(F("Penalty  : "));
-  if (currentBill.penalty > 0) {
-    printer.print(F("PHP "));
-    printer.println(currentBill.penalty, 2);
-  } else {
-    printer.println(F("None"));
-  }
-  YIELD_WDT();
-
-  printer.print(F("Due Date : "));
-  printer.println(currentBill.dueDate);
+  printer.print(F("Penalty  : PHP "));
+  printer.println(currentBill.penalty, 2);
   printer.println(F("--------------------------------"));
   YIELD_WDT();
 
+  // Period covered
+  printer.justify('C');
+  printer.boldOn();
+  printer.println(F("Period Covered"));
+  printer.boldOff();
+  printer.println(getPeriodCovered());
+  printer.println(F(""));
+  YIELD_WDT();
+
+  // Meter readings
+  printer.justify('C');
   printer.boldOn();
   printer.println(F("METER READINGS"));
   printer.boldOff();
-  YIELD_WDT();
-
-  printer.print(F("Previous : "));
-  printer.println(currentBill.prevReading);
-  printer.print(F("Current  : "));
-  printer.println(currentBill.currReading);
-  printer.print(F("Used     : "));
-  printer.print(used);
-  printer.println(F(" m3"));
-  YIELD_WDT();
-
+  // Replicate Python alignment: center in fields of 10,12,10
+  String prevStr = String(currentBill.prevReading);
+  String presStr = String(currentBill.currReading);
+  String usageStr = String(used);
+  String header_cols = centerString("Prev", 10) + centerString("Present", 12) + centerString("Usage", 10);
+  String values_cols = centerString(prevStr, 10) + centerString(presStr, 12) + centerString(usageStr, 10);
+  printer.println(header_cols);
+  printer.println(values_cols);
   printer.println(F("--------------------------------"));
   YIELD_WDT();
-
+// %10lu%8lu%7lu
+  // Rate and deduction
+  printer.justify('L');
   printer.print(F("Rate/m3  : PHP "));
   printer.println(currentBill.rate, 2);
+  if (currentBill.deductions > 0) {
+    printer.print(currentBill.deductionName);
+    printer.print(F(" : PHP -"));
+    printer.println(currentBill.deductions, 2);
+  }
   printer.println(F("================================"));
   YIELD_WDT();
 
+  // Total
   printer.justify('C');
   printer.setSize('M');
   printer.boldOn();
@@ -332,12 +343,30 @@ void printBill() {
   printer.println(total, 2);
   printer.boldOff();
   printer.setSize('S');
-  printer.justify('L');
-  YIELD_WDT();
-
   printer.println(F("================================"));
   YIELD_WDT();
 
+  // Due and Disconnect dates
+  printer.justify('L');
+  printer.boldOn();
+  printer.print(F("Due Date     : "));
+  printer.println(currentBill.dueDate);
+  printer.print(F("Disconnection Date: "));
+  printer.println(F("Feb 10, 2026"));  // Placeholder
+  printer.boldOff();
+  printer.println(F("--------------------------------"));
+  YIELD_WDT();
+
+  // Reminders
+  printer.println(F(""));
+  printer.println(F("REMAINDERS:"));
+  printer.println(F("- Please pay by the due date to avoid disconnection."));
+  printer.println(F("- Bring this bill when paying."));
+  printer.println(F("- For inquiries, contact the office."));
+  printer.println(F("--------------------------------"));
+  YIELD_WDT();
+
+  // Footer
   printer.justify('C');
   printer.println(F(""));
   printer.println(F("Please pay on or before due date"));
@@ -353,8 +382,38 @@ void printBill() {
   vTaskDelay(pdMS_TO_TICKS(500)); // ✅ replace delay()
 }
 
+String getPeriodCovered() {
+  String dateStr = __DATE__;
+  String monthStr = dateStr.substring(0,3);
+  String yearStr = dateStr.substring(7,11); // Full year
+  String months[12] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+  int monthIndex = -1;
+  for(int i = 0; i < 12; i++) {
+    if(months[i] == monthStr) {
+      monthIndex = i;
+      break;
+    }
+  }
+  if(monthIndex == -1) return "Unknown Period";
+  int nextMonthIndex = (monthIndex + 1) % 12;
+  String nextMonthStr = months[nextMonthIndex];
+  String nextYearStr = (nextMonthIndex == 0) ? String(yearStr.toInt() + 1) : yearStr;
+  return monthStr + " " + yearStr + " - " + nextMonthStr + " " + nextYearStr;
+}
 void customFeed(int lines) {
   for (int i = 0; i < lines; i++) {
     printer.write(0x0A);
   }
+}
+
+String centerString(String s, int width) {
+  int len = s.length();
+  int totalPad = width - len;
+  int leftPad = totalPad / 2;
+  int rightPad = totalPad - leftPad;
+  String result = "";
+  for (int i = 0; i < leftPad; i++) result += " ";
+  result += s;
+  for (int i = 0; i < rightPad; i++) result += " ";
+  return result;
 }
