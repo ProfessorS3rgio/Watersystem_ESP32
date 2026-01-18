@@ -232,11 +232,11 @@ export default {
         account_no: customer.account_no || '',
         customer_name: customer.customer_name || '',
         type_id: customer.type_id || null,
+        deduction_id: customer.deduction_id || null,
         brgy_id: customer.brgy_id || null,
         address: customer.address || '',
         previous_reading: customer.previous_reading || 0,
         status: customer.status || 'active',
-        benefits: customer.benefits || [],
       })
       modalsComposable.openEditModal(customer)
     }
@@ -352,11 +352,11 @@ export default {
           account_no: formComposable.editCustomer.account_no,
           customer_name: formComposable.editCustomer.customer_name,
           type_id: formComposable.editCustomer.type_id,
+          deduction_id: formComposable.editCustomer.deduction_id,
           brgy_id: formComposable.editCustomer.brgy_id,
           address: formComposable.editCustomer.address,
           previous_reading: formComposable.editCustomer.previous_reading,
           status: formComposable.editCustomer.status,
-          benefits: formComposable.editCustomer.benefits,
         })
 
         modalsComposable.closeEditModal()
@@ -387,7 +387,7 @@ export default {
           address: formComposable.newCustomer.address,
           previous_reading: formComposable.newCustomer.previous_reading,
           status: formComposable.newCustomer.status,
-          benefits: formComposable.newCustomer.benefits,
+          deduction_id: formComposable.newCustomer.deduction_id,
         })
 
         modalsComposable.closeAddModal()

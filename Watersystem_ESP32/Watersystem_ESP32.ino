@@ -84,16 +84,6 @@ static void showBootScreen() {
 
   y += 12;
   tft.setCursor(2, y);
-  tft.println(F("[CFG] Loading rate..."));
-  waterRate = loadWaterRate();
-
-  y += 12;
-  tft.setCursor(2, y);
-  tft.print(F("[CFG] Rate: PHP "));
-  tft.println(waterRate, 2);
-
-  y += 12;
-  tft.setCursor(2, y);
   tft.println(F("[CHK] Printer..."));
 
   // Initialize Printer

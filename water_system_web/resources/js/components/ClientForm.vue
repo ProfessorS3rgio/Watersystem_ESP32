@@ -113,26 +113,20 @@
             </div>
           </div>
 
-          <!-- Row 5: Benefits (custom dropdown) -->
+          <!-- Row 5: Deduction (single select) -->
           <div>
-            <label class="block text-sm font-medium mb-1">Benefits</label>
-            <div class="relative">
-              <button type="button" @click="toggleBenefitsNew" class="w-full text-left px-4 py-2 rounded-lg border flex items-center justify-between" :class="inputClass(isDark)">
-                <span class="truncate">
-                  <template v-if="newCustomer.benefits.length">{{ getDeductionNames(newCustomer.benefits).join(', ') }}</template>
-                  <template v-else class="text-gray-400">Select benefits</template>
-                </span>
-                <svg class="h-4 w-4 text-gray-600 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-              </button>
-
-              <div v-if="showBenefitsNew" class="absolute mt-1 w-full bg-white border rounded shadow max-h-48 overflow-auto z-40">
-                <div v-for="deduction in deductions" :key="deduction.deduction_id" class="px-3 py-2 hover:bg-gray-50 flex items-center">
-                  <input type="checkbox" :id="`new-benefit-${deduction.deduction_id}`" class="mr-2" :checked="newCustomer.benefits.includes(deduction.deduction_id)" @change="toggleBenefit(newCustomer.benefits, deduction.deduction_id)" />
-                  <label :for="`new-benefit-${deduction.deduction_id}`" class="flex-1">{{ deduction.name }}</label>
-                </div>
-              </div>
-            </div>
-            <p v-if="fieldError('benefits')" class="text-sm text-red-600 mt-1">{{ fieldError('benefits') }}</p>
+            <label class="block text-sm font-medium mb-1">Deduction/Benefit</label>
+            <select
+              v-model="newCustomer.deduction_id"
+              class="w-full px-4 py-2 rounded-lg border"
+              :class="inputClass(isDark)"
+            >
+              <option :value="null">No deduction</option>
+              <option v-for="deduction in deductions" :key="deduction.deduction_id" :value="deduction.deduction_id">
+                {{ deduction.name }} ({{ deduction.type === 'percentage' ? deduction.value + '%' : 'P' + deduction.value }})
+              </option>
+            </select>
+            <p v-if="fieldError('deduction_id')" class="text-sm text-red-600 mt-1">{{ fieldError('deduction_id') }}</p>
           </div>
 
           <p v-if="submitError" class="text-sm text-red-600">{{ submitError }}</p>
@@ -272,26 +266,20 @@
             </div>
           </div>
 
-          <!-- Row 5: Benefits (custom dropdown) -->
+          <!-- Row 5: Deduction (single select) -->
           <div>
-            <label class="block text-sm font-medium mb-1">Benefits</label>
-            <div class="relative">
-              <button type="button" @click="toggleBenefitsEdit" class="w-full text-left px-4 py-2 rounded-lg border flex items-center justify-between" :class="inputClass(isDark)">
-                <span class="truncate">
-                  <template v-if="editCustomer.benefits.length">{{ getDeductionNames(editCustomer.benefits).join(', ') }}</template>
-                  <template v-else class="text-gray-400">Select benefits</template>
-                </span>
-                <svg class="h-4 w-4 text-gray-600 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-              </button>
-
-              <div v-if="showBenefitsEdit" class="absolute mt-1 w-full bg-white border rounded shadow max-h-48 overflow-auto z-40">
-                <div v-for="deduction in deductions" :key="deduction.deduction_id" class="px-3 py-2 hover:bg-gray-50 flex items-center">
-                  <input type="checkbox" :id="`edit-benefit-${deduction.deduction_id}`" class="mr-2" :checked="editCustomer.benefits.includes(deduction.deduction_id)" @change="toggleBenefit(editCustomer.benefits, deduction.deduction_id)" />
-                  <label :for="`edit-benefit-${deduction.deduction_id}`" class="flex-1">{{ deduction.name }}</label>
-                </div>
-              </div>
-            </div>
-            <p v-if="fieldError('benefits')" class="text-sm text-red-600 mt-1">{{ fieldError('benefits') }}</p>
+            <label class="block text-sm font-medium mb-1">Deduction/Benefit</label>
+            <select
+              v-model="editCustomer.deduction_id"
+              class="w-full px-4 py-2 rounded-lg border"
+              :class="inputClass(isDark)"
+            >
+              <option :value="null">No deduction</option>
+              <option v-for="deduction in deductions" :key="deduction.deduction_id" :value="deduction.deduction_id">
+                {{ deduction.name }} ({{ deduction.type === 'percentage' ? deduction.value + '%' : 'P' + deduction.value }})
+              </option>
+            </select>
+            <p v-if="fieldError('deduction_id')" class="text-sm text-red-600 mt-1">{{ fieldError('deduction_id') }}</p>
           </div>
 
           <p v-if="submitError" class="text-sm text-red-600">{{ submitError }}</p>
@@ -367,32 +355,6 @@ export default {
   },
   emits: ['close-add-modal', 'close-edit-modal', 'submit-new-customer', 'submit-edit-customer'],
   setup(props) {
-    const showBenefitsNew = ref(false)
-    const showBenefitsEdit = ref(false)
-
-    const toggleBenefitsNew = () => {
-      showBenefitsNew.value = !showBenefitsNew.value
-      if (showBenefitsNew.value) showBenefitsEdit.value = false
-    }
-
-    const toggleBenefitsEdit = () => {
-      showBenefitsEdit.value = !showBenefitsEdit.value
-      if (showBenefitsEdit.value) showBenefitsNew.value = false
-    }
-
-    const toggleBenefit = (list, id) => {
-      const idx = list.indexOf(id)
-      if (idx === -1) list.push(id)
-      else list.splice(idx, 1)
-    }
-
-    const getDeductionNames = (ids) => {
-      return ids.map(i => {
-        const d = props.deductions.find(x => x.deduction_id === i)
-        return d ? d.name : ''
-      }).filter(Boolean)
-    }
-
     const inputClass = (isDark) => {
       return isDark
         ? 'bg-gray-800 border-gray-700 text-white placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500'
@@ -400,12 +362,6 @@ export default {
     }
 
     return {
-      showBenefitsNew,
-      showBenefitsEdit,
-      toggleBenefitsNew,
-      toggleBenefitsEdit,
-      toggleBenefit,
-      getDeductionNames,
       inputClass
     }
   }

@@ -21,16 +21,12 @@ void processAccountNumberEntry();
 void processReadingEntry();
 void resetWorkflow();
 void displayMenuScreen();
-void displayEditRateScreen();
 void displayViewRateScreen();
-void saveWaterRate(float rate);
-float loadWaterRate();
 
 // External variables from workflow_manager.h
 extern WorkflowState currentState;
 extern String inputBuffer;
 extern int selectedCustomerIndex;
-extern float waterRate;
 extern unsigned long currentReading;
 
 // External objects from main .ino
@@ -242,67 +238,9 @@ void handleKeypadInput(char key) {
   }
   else if (currentState == STATE_VIEW_RATE) {
     // Viewing current rate
-    if (key == 'B') {
-      // Change rate
-      currentState = STATE_EDIT_RATE;
-      inputBuffer = "";
-      displayEditRateScreen();
-    }
-    else if (key == 'C') {
+    if (key == 'C') {
       // Exit to menu
       currentState = STATE_MENU;
-      displayMenuScreen();
-    }
-  }
-  else if (currentState == STATE_EDIT_RATE) {
-    // Editing water rate
-    if (key >= '0' && key <= '9') {
-      inputBuffer += key;
-      displayEditRateScreen();
-    }
-    else if (key == '.') {
-      // Allow decimal point only once
-      if (inputBuffer.indexOf('.') == -1) {
-        inputBuffer += '.';
-        displayEditRateScreen();
-      }
-    }
-    else if (key == 'D') {
-      // Save new rate
-      float newRate = inputBuffer.toFloat();
-      if (newRate > 0 && newRate < 1000) {
-        waterRate = newRate;
-        saveWaterRate(waterRate);
-        
-        // Show confirmation
-        tft.fillScreen(COLOR_BG);
-        tft.setTextColor(COLOR_AMOUNT);
-        tft.setTextSize(1);
-        tft.setCursor(30, 50);
-        tft.println(F("Rate Updated!"));
-        tft.setTextColor(COLOR_TEXT);
-        tft.setCursor(35, 70);
-        tft.print(F("PHP "));
-        tft.print(waterRate, 2);
-        delay(2000);
-        
-        currentState = STATE_MENU;
-        displayMenuScreen();
-      } else {
-        // Invalid rate
-        tft.fillScreen(COLOR_BG);
-        tft.setTextColor(ST77XX_RED);
-        tft.setCursor(25, 50);
-        tft.println(F("Invalid Rate!"));
-        delay(1500);
-        inputBuffer = "";
-        displayEditRateScreen();
-      }
-    }
-    else if (key == 'C') {
-      // Cancel
-      currentState = STATE_MENU;
-      inputBuffer = "";
       displayMenuScreen();
     }
   }

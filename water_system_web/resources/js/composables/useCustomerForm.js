@@ -12,7 +12,7 @@ export function useCustomerForm() {
     address: '',
     previous_reading: 0,
     status: 'active',
-    benefits: [], // array of deduction_ids
+    deduction_id: null,
   })
 
   const editCustomer = reactive({
@@ -23,7 +23,7 @@ export function useCustomerForm() {
     address: '',
     previous_reading: 0,
     status: 'active',
-    benefits: [], // array of deduction_ids
+    deduction_id: null,
   })
 
   const resetNewCustomer = () => {
@@ -34,7 +34,7 @@ export function useCustomerForm() {
       address: '',
       previous_reading: 0,
       status: 'active',
-      benefits: [],
+      deduction_id: null,
     })
     submitError.value = ''
     submitFieldErrors.value = {}
@@ -49,7 +49,7 @@ export function useCustomerForm() {
       address: '',
       previous_reading: 0,
       status: 'active',
-      benefits: [],
+      deduction_id: null,
     })
     submitError.value = ''
     submitFieldErrors.value = {}

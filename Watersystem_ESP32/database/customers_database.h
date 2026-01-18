@@ -12,11 +12,12 @@ void printCustomersList();
 // ===== CUSTOMER DATA STRUCTURE =====
 struct Customer {
   // Match Laravel schema fields:
-  // customer_id, account_no, type_id, customer_name, brgy_id, address, previous_reading, status, timestamps
+  // customer_id, account_no, type_id, customer_name, deduction_id, brgy_id, address, previous_reading, status, timestamps
   unsigned long customer_id;
   String account_no;
   unsigned long type_id;
   String customer_name;
+  unsigned long deduction_id;
   unsigned long brgy_id;
   String address;
   unsigned long previous_reading;
@@ -62,7 +63,8 @@ static bool loadCustomersFromSD() {
     int p4 = (p3 >= 0) ? line.indexOf('|', p3 + 1) : -1;
     int p5 = (p4 >= 0) ? line.indexOf('|', p4 + 1) : -1;
     int p6 = (p5 >= 0) ? line.indexOf('|', p5 + 1) : -1;
-    if (p1 < 0 || p2 < 0 || p3 < 0 || p4 < 0 || p5 < 0 || p6 < 0) {
+    int p7 = (p6 >= 0) ? line.indexOf('|', p6 + 1) : -1;
+    if (p1 < 0 || p2 < 0 || p3 < 0 || p4 < 0 || p5 < 0 || p6 < 0 || p7 < 0) {
       continue;
     }
 
@@ -72,7 +74,8 @@ static bool loadCustomersFromSD() {
     String prev = line.substring(p3 + 1, p4);
     String status = line.substring(p4 + 1, p5);
     String typeId = line.substring(p5 + 1, p6);
-    String brgyId = line.substring(p6 + 1);
+    String deductionId = line.substring(p6 + 1, p7);
+    String brgyId = line.substring(p7 + 1);
 
     accountNo.trim();
     name.trim();
@@ -80,6 +83,7 @@ static bool loadCustomersFromSD() {
     prev.trim();
     status.trim();
     typeId.trim();
+    deductionId.trim();
     brgyId.trim();
     if (accountNo.length() == 0) continue;
 
@@ -90,6 +94,7 @@ static bool loadCustomersFromSD() {
     customers[customerCount].previous_reading = (unsigned long)prev.toInt();
     customers[customerCount].status = status;
     customers[customerCount].type_id = (unsigned long)typeId.toInt();
+    customers[customerCount].deduction_id = (unsigned long)deductionId.toInt();
     customers[customerCount].brgy_id = (unsigned long)brgyId.toInt();
     customers[customerCount].created_at = 0;
     customers[customerCount].updated_at = 0;
@@ -111,7 +116,7 @@ static bool saveCustomersToSD() {
     return false;
   }
 
-  f.println(F("# account_no|customer_name|address|previous_reading|status|type_id|brgy_id"));
+  f.println(F("# account_no|customer_name|address|previous_reading|status|type_id|deduction_id|brgy_id"));
   for (int i = 0; i < customerCount; i++) {
     f.print(sanitizeSyncField(customers[i].account_no));
     f.print('|');
@@ -124,6 +129,8 @@ static bool saveCustomersToSD() {
     f.print(sanitizeSyncField(customers[i].status));
     f.print('|');
     f.print(customers[i].type_id);
+    f.print('|');
+    f.print(customers[i].deduction_id);
     f.print('|');
     f.println(customers[i].brgy_id);
   }
@@ -307,6 +314,8 @@ void exportCustomersForSync() {
     Serial.print('|');
     Serial.print(customers[i].type_id);
     Serial.print('|');
+    Serial.print(customers[i].deduction_id);
+    Serial.print('|');
     Serial.println(customers[i].brgy_id);
     exportedCount++;
   }
@@ -320,7 +329,7 @@ void exportCustomersForSync() {
   Serial.println(exportedCount);
 }
 
-bool upsertCustomerFromSync(const String& accountNo, const String& name, const String& address, unsigned long prev, const String& status, unsigned long typeId, unsigned long brgyId) {
+bool upsertCustomerFromSync(const String& accountNo, const String& name, const String& address, unsigned long prev, const String& status, unsigned long typeId, unsigned long deductionId, unsigned long brgyId) {
   String acct = accountNo;
   acct.trim();
   if (acct.length() == 0) return false;
@@ -348,6 +357,7 @@ bool upsertCustomerFromSync(const String& accountNo, const String& name, const S
   customers[idx].previous_reading = prev;
   customers[idx].status = status;
   customers[idx].type_id = typeId;
+  customers[idx].deduction_id = deductionId;
   customers[idx].brgy_id = brgyId;
 
   if (SD.cardType() != CARD_NONE) {

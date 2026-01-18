@@ -16,6 +16,7 @@ return new class extends Migration
             $table->string('account_no')->unique();
             $table->unsignedBigInteger('type_id');
             $table->string('customer_name');
+            $table->unsignedBigInteger('deduction_id')->nullable();
             $table->unsignedBigInteger('brgy_id');
             $table->string('address');
             $table->integer('previous_reading');
@@ -23,6 +24,7 @@ return new class extends Migration
             $table->timestamps();
 
             $table->foreign('type_id')->references('type_id')->on('customer_type');
+            $table->foreign('deduction_id')->references('deduction_id')->on('deduction');
             $table->foreign('brgy_id')->references('brgy_id')->on('barangay_sequence');
         });
     }

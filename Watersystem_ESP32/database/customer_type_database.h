@@ -227,37 +227,8 @@ bool updateCustomerType(String typeName, float ratePerM3, unsigned long minM3, f
 }
 
 // ===== SYNC PROTOCOL (Web Serial) =====
-// EXPORT_CUSTOMER_TYPES
-//   -> prints BEGIN_CUSTOMER_TYPES, then TYPE|type_id|type_name|rate_per_m3|min_m3|min_charge|created_at|updated_at lines, then END_CUSTOMER_TYPES
 // UPSERT_CUSTOMER_TYPE|type_id|type_name|rate_per_m3|min_m3|min_charge|created_at|updated_at
 //   -> prints ACK|UPSERT|<type_name> or ERR|<message>
-
-void exportCustomerTypesForSync() {
-  uint32_t startMs = millis();
-  Serial.println(F("BEGIN_CUSTOMER_TYPES"));
-  for (int i = 0; i < customerTypeCount; i++) {
-    Serial.print(F("TYPE|"));
-    Serial.print(customerTypes[i].type_id);
-    Serial.print('|');
-    Serial.print(sanitizeSyncField(customerTypes[i].type_name));
-    Serial.print('|');
-    Serial.print(customerTypes[i].rate_per_m3, 2);
-    Serial.print('|');
-    Serial.print(customerTypes[i].min_m3);
-    Serial.print('|');
-    Serial.print(customerTypes[i].min_charge, 2);
-    Serial.print('|');
-    Serial.print(customerTypes[i].created_at);
-    Serial.print('|');
-    Serial.println(customerTypes[i].updated_at);
-  }
-  Serial.println(F("END_CUSTOMER_TYPES"));
-
-  uint32_t elapsedMs = millis() - startMs;
-  Serial.print(F("Done. ("));
-  Serial.print(elapsedMs);
-  Serial.println(F(" ms)"));
-}
 
 bool upsertCustomerTypeFromSync(unsigned long typeId, const String& typeName, float ratePerM3, unsigned long minM3, float minCharge, unsigned long createdAt, unsigned long updatedAt) {
   String n = typeName;

@@ -23,18 +23,6 @@ bool handleSyncCommands(String raw) {
     return true;
   }
 
-  if (raw == "EXPORT_DEDUCTIONS") {
-    Serial.println(F("Exporting deductions..."));
-    exportDeductionsForSync();
-    return true;
-  }
-
-  if (raw == "EXPORT_CUSTOMER_TYPES") {
-    Serial.println(F("Exporting customer types..."));
-    exportCustomerTypesForSync();
-    return true;
-  }
-
   if (raw.startsWith("SET_TIME|")) {
     // SET_TIME|<epoch_seconds>
     String payload = raw.substring(String("SET_TIME|").length());
@@ -83,7 +71,7 @@ bool handleSyncCommands(String raw) {
   }
 
   if (raw.startsWith("UPSERT_CUSTOMER|")) {
-    // UPSERT_CUSTOMER|account_no|customer_name|address|previous_reading|status|type_id|brgy_id
+    // UPSERT_CUSTOMER|account_no|customer_name|address|previous_reading|status|type_id|deduction_id|brgy_id
     String payload = raw.substring(String("UPSERT_CUSTOMER|").length());
 
     int p1 = payload.indexOf('|');
@@ -92,7 +80,8 @@ bool handleSyncCommands(String raw) {
     int p4 = (p3 >= 0) ? payload.indexOf('|', p3 + 1) : -1;
     int p5 = (p4 >= 0) ? payload.indexOf('|', p4 + 1) : -1;
     int p6 = (p5 >= 0) ? payload.indexOf('|', p5 + 1) : -1;
-    if (p1 < 0 || p2 < 0 || p3 < 0 || p4 < 0 || p5 < 0 || p6 < 0) {
+    int p7 = (p6 >= 0) ? payload.indexOf('|', p6 + 1) : -1;
+    if (p1 < 0 || p2 < 0 || p3 < 0 || p4 < 0 || p5 < 0 || p6 < 0 || p7 < 0) {
       Serial.println(F("ERR|BAD_FORMAT"));
       return true;
     }
@@ -103,7 +92,8 @@ bool handleSyncCommands(String raw) {
     String prevStr = payload.substring(p3 + 1, p4);
     String status = payload.substring(p4 + 1, p5);
     String typeIdStr = payload.substring(p5 + 1, p6);
-    String brgyIdStr = payload.substring(p6 + 1);
+    String deductionIdStr = payload.substring(p6 + 1, p7);
+    String brgyIdStr = payload.substring(p7 + 1);
 
     accountNo.trim();
     name.trim();
@@ -111,13 +101,15 @@ bool handleSyncCommands(String raw) {
     prevStr.trim();
     status.trim();
     typeIdStr.trim();
+    deductionIdStr.trim();
     brgyIdStr.trim();
 
     unsigned long prev = (unsigned long)prevStr.toInt();
     unsigned long typeId = (unsigned long)typeIdStr.toInt();
+    unsigned long deductionId = (unsigned long)deductionIdStr.toInt();
     unsigned long brgyId = (unsigned long)brgyIdStr.toInt();
 
-    if (upsertCustomerFromSync(accountNo, name, address, prev, status, typeId, brgyId)) {
+    if (upsertCustomerFromSync(accountNo, name, address, prev, status, typeId, deductionId, brgyId)) {
       Serial.print(F("ACK|UPSERT|"));
       Serial.println(accountNo);
     } else {
@@ -215,27 +207,9 @@ bool handleSyncCommands(String raw) {
     return true;
   }
 
-  if (raw.startsWith("SET_WATER_RATE|")) {
-    // SET_WATER_RATE|<rate>
-    String payload = raw.substring(String("SET_WATER_RATE|").length());
-    payload.trim();
-    float rate = payload.toFloat();
-    if (rate > 0) {
-      saveWaterRate(rate);
-      Serial.print(F("ACK|SET_WATER_RATE|"));
-      Serial.println(rate, 2);
-    } else {
-      Serial.println(F("ERR|BAD_RATE"));
-    }
-    return true;
-  }
-
   if (raw == "RELOAD_SD") {
     Serial.println(F("Reloading SD card and settings..."));
     initSDCard();
-    waterRate = loadWaterRate();
-    Serial.print(F("New water rate: PHP "));
-    Serial.println(waterRate, 2);
     Serial.println(F("SD reloaded successfully"));
     return true;
   }
@@ -254,6 +228,26 @@ bool handleSyncCommands(String raw) {
     } else {
       Serial.println(F("ERR|BAD_ACCOUNT_NO"));
     }
+    return true;
+  }
+
+  if (raw == "FORMAT_SD") {
+    Serial.println(F("Formatting SD card... This will delete all data!"));
+    if (formatSDCard()) {
+      Serial.println(F("ACK|FORMAT_SD"));
+      Serial.println(F("SD card formatted successfully. Reinitializing..."));
+      initSDCard();
+    } else {
+      Serial.println(F("ERR|FORMAT_FAILED"));
+    }
+    return true;
+  }
+
+  if (raw == "RESTART_DEVICE") {
+    Serial.println(F("Restarting device..."));
+    Serial.println(F("ACK|RESTART_DEVICE"));
+    delay(500);
+    ESP.restart();
     return true;
   }
 

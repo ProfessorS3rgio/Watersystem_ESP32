@@ -2,6 +2,9 @@
 #define BILL_DATABASE_H
 
 #include "../configuration/config.h"
+#include "customers_database.h"
+#include "customer_type_database.h"
+#include "deduction_database.h"
 
 // ===== BILL DATA STRUCTURE =====
 struct BillData {
@@ -14,33 +17,152 @@ struct BillData {
   unsigned long currReading;
   float rate;
   float penalty;
+  float subtotal;
+  float deductions;
+  float total;
+  unsigned long usage;
+  String customerType;
+  float minCharge;
+  unsigned long minM3;
 };
 
-// Current bill (sample data)
+// Current bill (calculated data)
 BillData currentBill = {
-  "Juan Dela Cruz",
-  "WSM-000123",
-  "Purok 2, Makilas",
+  "",
+  "",
+  "",
   "A. MACASLING",
   "Jan 15, 2026",
-  12345,
-  12357,
+  0,
+  0,
   15.00,
-  0.00
+  0.00,
+  0.00,
+  0.00,
+  0.00,
+  0,
+  "",
+  0.00,
+  0
 };
 
 // ===== WATER SYSTEM FUNCTIONS =====
 
 // Calculate water consumption
 unsigned long getWaterUsage() {
-  return currentBill.currReading - currentBill.prevReading;
+  if (currentBill.currReading >= currentBill.prevReading) {
+    return currentBill.currReading - currentBill.prevReading;
+  }
+  return 0;
+}
+
+// Calculate bill amount based on customer type
+float calculateBillAmount(unsigned long usage, unsigned long customerTypeId) {
+  // Find customer type
+  int typeIndex = findCustomerTypeById(customerTypeId);
+  if (typeIndex == -1) {
+    // Fallback to default rate if type not found
+    return usage * 15.00;
+  }
+  
+  CustomerType* type = getCustomerTypeAt(typeIndex);
+  float rate = type->rate_per_m3;
+  unsigned long minM3 = type->min_m3;
+  float minCharge = type->min_charge;
+  
+  // Store values for display
+  currentBill.rate = rate;
+  currentBill.minM3 = minM3;
+  currentBill.minCharge = minCharge;
+  currentBill.customerType = type->type_name;
+  
+  // Calculate bill
+  if (usage <= minM3) {
+    return minCharge;
+  } else {
+    return minCharge + (usage - minM3) * rate;
+  }
+}
+
+// Calculate deductions based on customer's specific deduction_id
+float calculateDeductions(float subtotal, unsigned long deductionId) {
+  if (deductionId == 0) {
+    return 0.00;  // No deduction
+  }
+  
+  // Find the specific deduction for this customer
+  int deductionIndex = findDeductionById(deductionId);
+  if (deductionIndex == -1) {
+    return 0.00;  // Deduction not found
+  }
+  
+  Deduction* deduction = getDeductionAt(deductionIndex);
+  if (!deduction) {
+    return 0.00;
+  }
+  
+  float totalDeduction = 0.00;
+  if (deduction->type == "percentage") {
+    totalDeduction = subtotal * (deduction->value / 100.0);
+  } else if (deduction->type == "fixed") {
+    totalDeduction = deduction->value;
+  }
+  
+  return totalDeduction;
 }
 
 // Calculate total amount due
-float calculateTotalDue() {
+float calculateTotalDue(unsigned long customerTypeId, unsigned long deductionId) {
   unsigned long usage = getWaterUsage();
-  float billAmount = usage * currentBill.rate;
-  return billAmount + currentBill.penalty;
+  currentBill.usage = usage;
+  
+  float subtotal = calculateBillAmount(usage, customerTypeId);
+  currentBill.subtotal = subtotal;
+  
+  float deductions = calculateDeductions(subtotal, deductionId);
+  currentBill.deductions = deductions;
+  
+  float total = subtotal - deductions + currentBill.penalty;
+  currentBill.total = total;
+  
+  return total;
+}
+
+// Generate bill for specific customer
+bool generateBillForCustomer(String accountNo, unsigned long currentReading) {
+  int customerIndex = findCustomerByAccount(accountNo);
+  if (customerIndex == -1) {
+    Serial.println(F("Customer not found for bill generation"));
+    return false;
+  }
+  
+  Customer* customer = getCustomerAt(customerIndex);
+  if (!customer) {
+    return false;
+  }
+  
+  // Update bill data
+  currentBill.customerName = customer->customer_name;
+  currentBill.accountNo = customer->account_no;
+  currentBill.address = customer->address;
+  currentBill.prevReading = customer->previous_reading;
+  currentBill.currReading = currentReading;
+  
+  // Calculate bill using customer type and deduction
+  calculateTotalDue(customer->type_id, customer->deduction_id);
+  
+  Serial.print(F("Generated bill for "));
+  Serial.print(customer->customer_name);
+  Serial.print(F(": Usage="));
+  Serial.print(currentBill.usage);
+  Serial.print(F(", Subtotal=P"));
+  Serial.print(currentBill.subtotal, 2);
+  Serial.print(F(", Deductions=P"));
+  Serial.print(currentBill.deductions, 2);
+  Serial.print(F(", Total=P"));
+  Serial.println(currentBill.total, 2);
+  
+  return true;
 }
 
 // Update meter readings
@@ -63,12 +185,38 @@ void setCustomerData(String name, String account, String address, float rate) {
 // Get bill summary as string
 String getBillSummary() {
   String summary = "";
+  summary += "WATER BILL\n";
+  summary += "================\n";
   summary += "Customer: " + currentBill.customerName + "\n";
   summary += "Account: " + currentBill.accountNo + "\n";
   summary += "Address: " + currentBill.address + "\n";
-  summary += "Usage: " + String(getWaterUsage()) + " cu.m\n";
+  summary += "Type: " + currentBill.customerType + "\n";
+  summary += "Due Date: " + currentBill.dueDate + "\n\n";
+  
+  summary += "METER READINGS\n";
+  summary += "Previous: " + String(currentBill.prevReading) + " cu.m\n";
+  summary += "Current: " + String(currentBill.currReading) + " cu.m\n";
+  summary += "Usage: " + String(currentBill.usage) + " cu.m\n\n";
+  
+  summary += "CHARGES\n";
   summary += "Rate: P" + String(currentBill.rate, 2) + "/cu.m\n";
-  summary += "Amount: P" + String(calculateTotalDue(), 2) + "\n";
+  if (currentBill.minM3 > 0) {
+    summary += "Min Usage: " + String(currentBill.minM3) + " cu.m\n";
+    summary += "Min Charge: P" + String(currentBill.minCharge, 2) + "\n";
+  }
+  summary += "Subtotal: P" + String(currentBill.subtotal, 2) + "\n";
+  
+  if (currentBill.deductions > 0) {
+    summary += "Deductions: P" + String(currentBill.deductions, 2) + "\n";
+  }
+  
+  if (currentBill.penalty > 0) {
+    summary += "Penalty: P" + String(currentBill.penalty, 2) + "\n";
+  }
+  
+  summary += "TOTAL: P" + String(currentBill.total, 2) + "\n\n";
+  summary += "Collector: " + currentBill.collector + "\n";
+  
   return summary;
 }
 

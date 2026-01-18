@@ -13,6 +13,32 @@ export const databaseService = {
     return Array.isArray(json?.data) ? json.data : []
   },
 
+  async fetchCustomerTypesFromDatabase() {
+    const res = await fetch('/customer-types', {
+      headers: { 'Accept': 'application/json' },
+      credentials: 'same-origin',
+    })
+    if (!res.ok) {
+      if (res.status === 401) throw new Error('Unauthorized (login required)')
+      throw new Error('Failed to fetch customer types from database')
+    }
+    const json = await res.json()
+    return Array.isArray(json?.data) ? json.data : []
+  },
+
+  async fetchDeductionsFromDatabase() {
+    const res = await fetch('/deductions', {
+      headers: { 'Accept': 'application/json' },
+      credentials: 'same-origin',
+    })
+    if (!res.ok) {
+      if (res.status === 401) throw new Error('Unauthorized (login required)')
+      throw new Error('Failed to fetch deductions from database')
+    }
+    const json = await res.json()
+    return Array.isArray(json?.data) ? json.data : []
+  },
+
   async fetchSettingsFromDatabase() {
     const res = await fetch('/settings', {
       headers: { 'Accept': 'application/json' },

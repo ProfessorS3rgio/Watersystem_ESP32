@@ -67,6 +67,26 @@
                 </svg>
                 <span>Send Command</span>
               </button>
+
+              <button
+                @click="showFormatConfirm = true"
+                class="bg-red-600 hover:bg-red-700 text-white px-4 py-3 rounded-lg font-medium shadow transition-all duration-200 flex items-center justify-center space-x-2"
+              >
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                <span>Format SD Card</span>
+              </button>
+
+              <button
+                @click="showRestartConfirm = true"
+                class="bg-orange-600 hover:bg-orange-700 text-white px-4 py-3 rounded-lg font-medium shadow transition-all duration-200 flex items-center justify-center space-x-2"
+              >
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15M4.75 4.75l.75.75m0 0l-.75.75M4.75 19.25l.75-.75m0 0l-.75-.75" />
+                </svg>
+                <span>Restart Device</span>
+              </button>
             </div>
           </div>
         </div>
@@ -168,19 +188,56 @@
         </button>
       </div>
     </div>
+
+    <!-- Format SD Card Confirmation -->
+    <ConfirmDialog
+      :is-open="showFormatConfirm"
+      title="Format SD Card"
+      :message="'This will permanently delete all data on the SD card including customers, readings, and settings. This action cannot be undone.<br><br>Are you sure you want to format the SD card?'"
+      confirm-text="Format SD Card"
+      cancel-text="Cancel"
+      :is-loading="isFormatting"
+      @confirm="formatSdCard"
+      @cancel="showFormatConfirm = false"
+    />
+
+    <!-- Restart Device Confirmation -->
+    <ConfirmDialog
+      :is-open="showRestartConfirm"
+      title="Restart Device"
+      :message="'This will restart the ESP32 device. Any unsaved data may be lost.<br><br>Are you sure you want to restart the device?'"
+      confirm-text="Restart Device"
+      cancel-text="Cancel"
+      :is-loading="isRestarting"
+      @confirm="restartDevice"
+      @cancel="showRestartConfirm = false"
+    />
+
+    <!-- Command Success Modal -->
+    <SuccessModal
+      :is-open="showCommandSuccess"
+      title="Command Executed"
+      :message="commandSuccessMessage"
+      button-text="OK"
+      @close="showCommandSuccess = false"
+    />
     </div>
   </AppSidebar>
 </template>
 
 <script>
 import AppSidebar from '../components/AppSidebar.vue'
+import ConfirmDialog from '../components/ConfirmDialog.vue'
+import SuccessModal from '../components/SuccessModal.vue'
 import { serialService } from '../services/serialService'
 import { databaseService } from '../services/databaseService'
 
 export default {
   name: 'SyncDevice',
   components: {
-    AppSidebar
+    AppSidebar,
+    ConfirmDialog,
+    SuccessModal
   },
   data() {
     return {
@@ -202,6 +259,14 @@ export default {
       syncLogs: [],
 
       showSuccessDialog: false,
+
+      // Command dialogs
+      showFormatConfirm: false,
+      showRestartConfirm: false,
+      showCommandSuccess: false,
+      commandSuccessMessage: '',
+      isFormatting: false,
+      isRestarting: false,
 
       // Serial connection lives in serialService (persists across tabs/pages)
       unlistenLine: null,
@@ -254,12 +319,14 @@ export default {
         t === 'BEGIN_READINGS' ||
         t === 'END_READINGS' ||
         t === 'BEGIN_DEVICE_INFO' ||
-        t === 'END_DEVICE_INFO'
+        t === 'END_DEVICE_INFO' ||
+        t === 'BEGIN_CUSTOMER_TYPES' ||
+        t === 'END_CUSTOMER_TYPES'
       ) {
         return false
       }
 
-      if (t.startsWith('CUST|') || t.startsWith('READ|') || t.startsWith('INFO|')) {
+      if (t.startsWith('CUST|') || t.startsWith('READ|') || t.startsWith('INFO|') || t.startsWith('TYPE|')) {
         return false
       }
 
@@ -333,6 +400,22 @@ export default {
         await this.pushCustomersToDevice(filteredDbCustomers)
 
         this.addLog('✓ Customer sync completed')
+
+        // 5.5) Sync customer types from DB to device
+        this.addLog('Fetching customer types from database...')
+        var dbCustomerTypes = await databaseService.fetchCustomerTypesFromDatabase()
+        this.addLog(`Database has ${dbCustomerTypes.length} customer types`)
+        this.addLog(`Pushing ${dbCustomerTypes.length} customer types to ESP32...`)
+        await this.pushCustomerTypesToDevice(dbCustomerTypes)
+        this.addLog('✓ Customer types sync completed')
+
+        // 5.6) Sync deductions from DB to device
+        this.addLog('Fetching deductions from database...')
+        var dbDeductions = await databaseService.fetchDeductionsFromDatabase()
+        this.addLog(`Database has ${dbDeductions.length} deductions`)
+        this.addLog(`Pushing ${dbDeductions.length} deductions to ESP32...`)
+        await this.pushDeductionsToDevice(dbDeductions)
+        this.addLog('✓ Deductions sync completed')
 
         // 5) Sync water rate from DB to device
         this.addLog('Fetching water rate from database...')
@@ -558,8 +641,8 @@ export default {
       for (const line of lines) {
         if (!line.startsWith('CUST|')) continue
         const parts = line.split('|')
-        // CUST|account_no|customer_name|address|previous_reading|status|type_id|brgy_id
-        if (parts.length < 8) continue
+        // CUST|account_no|customer_name|address|previous_reading|status|type_id|deduction_id|brgy_id
+        if (parts.length < 9) continue
         customers.push({
           account_no: parts[1],
           customer_name: parts[2],
@@ -567,7 +650,8 @@ export default {
           previous_reading: Number(parts[4] || 0),
           status: parts[5] || 'active',
           type_id: Number(parts[6] || 1),
-          brgy_id: Number(parts[7] || 1),
+          deduction_id: Number(parts[7] || null),
+          brgy_id: Number(parts[8] || 1),
         })
       }
       return customers
@@ -636,7 +720,50 @@ export default {
           String(Number(c.previous_reading || 0)),
           this.escapeDeviceField(c.status || 'active'),
           String(Number(c.type_id || 1)),
+          String(Number(c.deduction_id || 0)),
           String(Number(c.brgy_id || 1))
+        ].join('|')
+        await this.sendLine(line)
+        // tiny pacing helps avoid overwhelming the serial buffer
+        await new Promise(r => setTimeout(r, 10))
+      }
+    },
+    async pushCustomerTypesToDevice(dbCustomerTypes) {
+      // Send each upsert line-by-line (adds new customer types, updates existing ones)
+      for (var i = 0; i < dbCustomerTypes.length; i++) {
+        var ct = dbCustomerTypes[i]
+        var createdAt = ct.created_at ? Math.floor(new Date(ct.created_at).getTime() / 1000) : 0
+        var updatedAt = ct.updated_at ? Math.floor(new Date(ct.updated_at).getTime() / 1000) : 0
+        var line = [
+          'UPSERT_CUSTOMER_TYPE',
+          String(Number(ct.id || ct.type_id || 1)),
+          this.escapeDeviceField(ct.type_name || ct.name || ''),
+          String(Number(ct.rate_per_m3 || 0)),
+          String(Number(ct.min_m3 || 0)),
+          String(Number(ct.min_charge || 0)),
+          String(createdAt),
+          String(updatedAt)
+        ].join('|')
+        await this.sendLine(line)
+        // tiny pacing helps avoid overwhelming the serial buffer
+        await new Promise(r => setTimeout(r, 10))
+      }
+    },
+
+    async pushDeductionsToDevice(dbDeductions) {
+      // Send each upsert line-by-line (adds new deductions, updates existing ones)
+      for (var i = 0; i < dbDeductions.length; i++) {
+        var d = dbDeductions[i]
+        var createdAt = d.created_at ? Math.floor(new Date(d.created_at).getTime() / 1000) : 0
+        var updatedAt = d.updated_at ? Math.floor(new Date(d.updated_at).getTime() / 1000) : 0
+        var line = [
+          'UPSERT_DEDUCTION',
+          String(Number(d.id || d.deduction_id || 1)),
+          this.escapeDeviceField(d.name || ''),
+          this.escapeDeviceField(d.type || ''),
+          String(Number(d.value || 0)),
+          String(createdAt),
+          String(updatedAt)
         ].join('|')
         await this.sendLine(line)
         // tiny pacing helps avoid overwhelming the serial buffer
@@ -678,6 +805,65 @@ export default {
     },
 
     // Disconnect handling is handled by serialService now.
+
+    async formatSdCard() {
+      var st = serialService.getState()
+      if (!this.isConnected || !st.writer) {
+        this.addLog('Not connected. Connect a device first.')
+        this.showFormatConfirm = false
+        return
+      }
+
+      this.isFormatting = true
+      try {
+        this.addLog('Formatting SD card...')
+        await this.sendLine('FORMAT_SD')
+        
+        // Wait for acknowledgment
+        await new Promise(resolve => setTimeout(resolve, 2000))
+        
+        this.commandSuccessMessage = 'SD card has been formatted successfully. The device will reinitialize the file system.'
+        this.showCommandSuccess = true
+        this.addLog('✓ SD card formatted successfully')
+      } catch (error) {
+        this.addLog('Format failed: ' + (error?.message || String(error)))
+      } finally {
+        this.isFormatting = false
+        this.showFormatConfirm = false
+      }
+    },
+
+    async restartDevice() {
+      var st = serialService.getState()
+      if (!this.isConnected || !st.writer) {
+        this.addLog('Not connected. Connect a device first.')
+        this.showRestartConfirm = false
+        return
+      }
+
+      this.isRestarting = true
+      try {
+        this.addLog('Restarting device...')
+        await this.sendLine('RESTART_DEVICE')
+        
+        // Wait a moment for the command to be sent
+        await new Promise(resolve => setTimeout(resolve, 500))
+        
+        this.commandSuccessMessage = 'Device restart command sent. The device will restart momentarily.'
+        this.showCommandSuccess = true
+        this.addLog('✓ Restart command sent')
+        
+        // Disconnect after restart command
+        setTimeout(() => {
+          this.disconnectDevice()
+        }, 1000)
+      } catch (error) {
+        this.addLog('Restart failed: ' + (error?.message || String(error)))
+      } finally {
+        this.isRestarting = false
+        this.showRestartConfirm = false
+      }
+    },
 
     addLog(message) {
       const time = new Date().toLocaleTimeString()

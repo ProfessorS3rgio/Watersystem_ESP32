@@ -225,35 +225,8 @@ bool updateDeduction(String name, String type, float value) {
 }
 
 // ===== SYNC PROTOCOL (Web Serial) =====
-// EXPORT_DEDUCTIONS
-//   -> prints BEGIN_DEDUCTIONS, then DEDUCT|deduction_id|name|type|value|created_at|updated_at lines, then END_DEDUCTIONS
 // UPSERT_DEDUCTION|deduction_id|name|type|value|created_at|updated_at
 //   -> prints ACK|UPSERT|<name> or ERR|<message>
-
-void exportDeductionsForSync() {
-  uint32_t startMs = millis();
-  Serial.println(F("BEGIN_DEDUCTIONS"));
-  for (int i = 0; i < deductionCount; i++) {
-    Serial.print(F("DEDUCT|"));
-    Serial.print(deductions[i].deduction_id);
-    Serial.print('|');
-    Serial.print(sanitizeSyncField(deductions[i].name));
-    Serial.print('|');
-    Serial.print(sanitizeSyncField(deductions[i].type));
-    Serial.print('|');
-    Serial.print(deductions[i].value, 2);
-    Serial.print('|');
-    Serial.print(deductions[i].created_at);
-    Serial.print('|');
-    Serial.println(deductions[i].updated_at);
-  }
-  Serial.println(F("END_DEDUCTIONS"));
-
-  uint32_t elapsedMs = millis() - startMs;
-  Serial.print(F("Done. ("));
-  Serial.print(elapsedMs);
-  Serial.println(F(" ms)"));
-}
 
 bool upsertDeductionFromSync(unsigned long deductionId, const String& name, const String& type, float value, unsigned long createdAt, unsigned long updatedAt) {
   String n = name;

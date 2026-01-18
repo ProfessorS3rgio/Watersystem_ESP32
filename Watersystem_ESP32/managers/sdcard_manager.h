@@ -206,69 +206,99 @@ bool isSDCardReady() {
   return sdCardPresent;
 }
 
-// ===== WATER RATE SETTINGS =====
-void saveWaterRate(float rate) {
-  if (!sdCardPresent) {
-    Serial.println(F("Cannot save rate: SD card not available"));
-    return;
+// Recursive directory deletion helper
+bool deleteDirectoryRecursive(const char* path) {
+  File dir = SD.open(path);
+  if (!dir || !dir.isDirectory()) {
+    return SD.remove(path);
   }
   
-  digitalWrite(TFT_CS, HIGH);
-  
-  File rateFile = SD.open("/WATER_DB/SETTINGS/settings.txt", FILE_WRITE);
-  if (rateFile) {
-    rateFile.println(rate, 2);
-    rateFile.close();
-    Serial.print(F("Water rate saved: "));
-    Serial.println(rate, 2);
-  } else {
-    Serial.println(F("Failed to save water rate"));
+  File file = dir.openNextFile();
+  while (file) {
+    char filePath[256];
+    sprintf(filePath, "%s/%s", path, file.name());
+    
+    if (file.isDirectory()) {
+      if (!deleteDirectoryRecursive(filePath)) {
+        file.close();
+        dir.close();
+        return false;
+      }
+    } else {
+      if (!SD.remove(filePath)) {
+        Serial.print(F("Failed to delete file: "));
+        Serial.println(filePath);
+        file.close();
+        dir.close();
+        return false;
+      }
+    }
+    file = dir.openNextFile();
   }
   
-  digitalWrite(SD_CS, HIGH);
+  dir.close();
+  return SD.rmdir(path);
 }
 
-float loadWaterRate() {
-  float defaultRate = 15.00;
-  
-  if (!sdCardPresent) {
-#if WS_SERIAL_VERBOSE
-    Serial.println(F("SD card not available, using default rate"));
-#endif
-    return defaultRate;
+// ===== SD CARD FORMATTING =====
+bool formatSDCard() {
+  if (!isSDCardReady()) {
+    Serial.println(F("SD card not ready for formatting"));
+    return false;
   }
+
+  Serial.println(F("Starting SD card format..."));
+  Serial.println(F("WARNING: This will delete ALL data on the SD card!"));
   
-  digitalWrite(TFT_CS, HIGH);
+  // For Arduino SD library, we can't do a full filesystem format
+  // Instead, we delete all files and recreate directory structure
+  // This preserves the FAT32 filesystem while clearing all data
   
-  if (!SD.exists("/WATER_DB/SETTINGS/settings.txt")) {
-#if WS_SERIAL_VERBOSE
-    Serial.println(F("Settings file not found, using default rate"));
-#endif
-    digitalWrite(SD_CS, HIGH);
-    return defaultRate;
-  }
-  
-  File rateFile = SD.open("/WATER_DB/SETTINGS/settings.txt", FILE_READ);
-  if (rateFile) {
-    String rateStr = rateFile.readStringUntil('\n');
-    rateFile.close();
-    float loadedRate = rateStr.toFloat();
-    
-    if (loadedRate > 0) {
-#if WS_SERIAL_VERBOSE
-      Serial.print(F("Water rate loaded: "));
-      Serial.println(loadedRate, 2);
-#endif
-      digitalWrite(SD_CS, HIGH);
-      return loadedRate;
+  // Delete all files in WATER_DB directory recursively
+  if (SD.exists(DB_ROOT)) {
+    Serial.println(F("Deleting existing WATER_DB directory..."));
+    if (!deleteDirectoryRecursive(DB_ROOT)) {
+      Serial.println(F("Failed to delete WATER_DB directory"));
+      return false;
     }
   }
   
-#if WS_SERIAL_VERBOSE
-  Serial.println(F("Failed to load rate, using default"));
-#endif
-  digitalWrite(SD_CS, HIGH);
-  return defaultRate;
+  Serial.println(F("Recreating directory structure..."));
+  
+  // Recreate the directory structure
+  if (!SD.mkdir(DB_ROOT)) {
+    Serial.println(F("Failed to recreate WATER_DB directory"));
+    return false;
+  }
+  
+  if (!SD.mkdir(DB_CUSTOMERS)) {
+    Serial.println(F("Failed to recreate CUSTOMERS directory"));
+    return false;
+  }
+  
+  if (!SD.mkdir(DB_READINGS)) {
+    Serial.println(F("Failed to recreate READINGS directory"));
+    return false;
+  }
+  
+  if (!SD.mkdir(DB_SETTINGS)) {
+    Serial.println(F("Failed to recreate SETTINGS directory"));
+    return false;
+  }
+  
+  if (!SD.mkdir(DB_DEDUCTIONS)) {
+    Serial.println(F("Failed to recreate DEDUCTIONS directory"));
+    return false;
+  }
+  
+  if (!SD.mkdir(DB_CUSTOMER_TYPES)) {
+    Serial.println(F("Failed to recreate CUSTOMER_TYPES directory"));
+    return false;
+  }
+  
+  Serial.println(F("SD card formatted successfully"));
+  Serial.println(F("Note: Filesystem preserved, all application data cleared"));
+  return true;
 }
 
 

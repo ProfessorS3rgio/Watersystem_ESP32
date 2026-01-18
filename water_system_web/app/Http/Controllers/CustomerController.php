@@ -63,6 +63,7 @@ class CustomerController extends Controller
                 'customer.account_no',
                 'customer.customer_name',
                 'customer.type_id',
+                'customer.deduction_id',
                 'customer.brgy_id',
                 'customer.address',
                 'customer.previous_reading',
@@ -123,8 +124,7 @@ class CustomerController extends Controller
             'address' => ['required', 'string', 'max:255'],
             'previous_reading' => ['nullable', 'integer', 'min:0'],
             'status' => ['required', 'in:active,disconnected'],
-            'benefits' => ['nullable', 'array'],
-            'benefits.*' => ['integer', 'exists:deduction,deduction_id'],
+            'deduction_id' => ['nullable', 'integer', 'exists:deduction,deduction_id'],
         ]);
 
         $customer = DB::transaction(function () use ($validated) {
@@ -136,6 +136,7 @@ class CustomerController extends Controller
                 'account_no' => $accountNo,
                 'customer_name' => $validated['customer_name'],
                 'type_id' => $validated['type_id'],
+                'deduction_id' => $validated['deduction_id'] ?? null,
                 'brgy_id' => $validated['brgy_id'],
                 'address' => $validated['address'],
                 'previous_reading' => array_key_exists('previous_reading', $validated) && $validated['previous_reading'] !== null
@@ -147,16 +148,9 @@ class CustomerController extends Controller
             // Increment the sequence
             $barangay->incrementSequence();
 
-            // Handle benefits
-            if (isset($validated['benefits']) && is_array($validated['benefits'])) {
-                foreach ($validated['benefits'] as $deductionId) {
-                    DB::table('customer_deduction')->insert([
-                        'customer_id' => $customer->id,
-                        'deduction_id' => $deductionId,
-                        'created_at' => now(),
-                        'updated_at' => now(),
-                    ]);
-                }
+            // Attach deduction to customer_deduction table if provided
+            if ($validated['deduction_id']) {
+                $customer->deductions()->attach($validated['deduction_id']);
             }
 
             return $customer;
@@ -180,21 +174,35 @@ class CustomerController extends Controller
             'customers.*.address' => ['required', 'string', 'max:255'],
             'customers.*.previous_reading' => ['nullable', 'integer', 'min:0'],
             'customers.*.is_active' => ['nullable', 'boolean'],
+            'customers.*.type_id' => ['nullable', 'integer', 'exists:customer_type,type_id'],
+            'customers.*.deduction_id' => ['nullable', 'integer', 'exists:deduction,deduction_id'],
+            'customers.*.brgy_id' => ['nullable', 'integer', 'exists:barangay_sequence,brgy_id'],
         ]);
 
         $customers = $validated['customers'];
         $processed = 0;
 
         foreach ($customers as $row) {
-            Customer::updateOrCreate(
+            $customer = Customer::updateOrCreate(
                 ['account_no' => $row['account_no']],
                 [
                     'customer_name' => $row['customer_name'],
                     'address' => $row['address'],
                     'previous_reading' => array_key_exists('previous_reading', $row) && $row['previous_reading'] !== null ? (int) $row['previous_reading'] : 0,
-                    'is_active' => array_key_exists('is_active', $row) ? (bool) $row['is_active'] : true,
+                    'status' => array_key_exists('is_active', $row) ? ($row['is_active'] ? 'active' : 'disconnected') : 'active',
+                    'type_id' => $row['type_id'] ?? null,
+                    'deduction_id' => $row['deduction_id'] ?? null,
+                    'brgy_id' => $row['brgy_id'] ?? null,
                 ]
             );
+
+            // Sync deductions in customer_deduction table
+            if ($row['deduction_id']) {
+                $customer->deductions()->sync([$row['deduction_id']]);
+            } else {
+                $customer->deductions()->detach();
+            }
+
             $processed++;
         }
 
@@ -234,8 +242,7 @@ class CustomerController extends Controller
             'address' => ['required', 'string', 'max:255'],
             'previous_reading' => ['nullable', 'integer', 'min:0'],
             'status' => ['required', 'in:active,disconnected'],
-            'benefits' => ['nullable', 'array'],
-            'benefits.*' => ['integer', 'exists:deduction,deduction_id'],
+            'deduction_id' => ['nullable', 'integer', 'exists:deduction,deduction_id'],
         ]);
 
         DB::transaction(function () use ($customer, $validated) {
@@ -243,6 +250,7 @@ class CustomerController extends Controller
                 'account_no' => $validated['account_no'],
                 'customer_name' => $validated['customer_name'],
                 'type_id' => $validated['type_id'],
+                'deduction_id' => $validated['deduction_id'] ?? null,
                 'brgy_id' => $validated['brgy_id'],
                 'address' => $validated['address'],
                 'previous_reading' => array_key_exists('previous_reading', $validated) && $validated['previous_reading'] !== null
@@ -251,17 +259,11 @@ class CustomerController extends Controller
                 'status' => $validated['status'],
             ]);
 
-            // Handle benefits - delete existing and add new
-            DB::table('customer_deduction')->where('customer_id', $customer->id)->delete();
-            if (isset($validated['benefits']) && is_array($validated['benefits'])) {
-                foreach ($validated['benefits'] as $deductionId) {
-                    DB::table('customer_deduction')->insert([
-                        'customer_id' => $customer->id,
-                        'deduction_id' => $deductionId,
-                        'created_at' => now(),
-                        'updated_at' => now(),
-                    ]);
-                }
+            // Sync deductions in customer_deduction table
+            if ($validated['deduction_id']) {
+                $customer->deductions()->sync([$validated['deduction_id']]);
+            } else {
+                $customer->deductions()->detach();
             }
         });
 
