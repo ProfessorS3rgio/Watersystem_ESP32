@@ -81,6 +81,14 @@
             <span class="text-sm font-medium text-gray-900">ESP32 Water System</span>
           </div>
           <div class="flex items-center justify-between py-2 border-b border-gray-200">
+            <span class="text-sm text-gray-600">Device ID</span>
+            <span class="text-sm font-medium text-gray-900">{{ deviceId || '-' }}</span>
+          </div>
+          <div class="flex items-center justify-between py-2 border-b border-gray-200">
+            <span class="text-sm text-gray-600">Barangay ID</span>
+            <span class="text-sm font-medium text-gray-900">{{ brgyId || '-' }}</span>
+          </div>
+          <div class="flex items-center justify-between py-2 border-b border-gray-200">
             <span class="text-sm text-gray-600">Firmware Version</span>
             <span class="text-sm font-medium text-gray-900">{{ firmwareVersion }}</span>
           </div>
@@ -179,6 +187,8 @@ export default {
       isConnected: false,
       isSyncing: false,
       connectedPort: '',
+      deviceId: null,
+      brgyId: null,
       firmwareVersion: '-',
       lastSync: 'Never',
       pendingRecords: 0,
@@ -285,6 +295,13 @@ export default {
       try {
         this.addLog('Starting customer sync...')
 
+        // Get device info first to know which barangay this device belongs to
+        this.addLog('Getting device information...')
+        var deviceInfo = await this.exportDeviceInfoFromDevice()
+        var deviceBrgyId = deviceInfo?.brgy_id || 1
+        var deviceId = deviceInfo?.device_id || 1
+        this.addLog(`Device ID: ${deviceId}, Barangay ID: ${deviceBrgyId}`)
+
         // 1) Export customers from device for comparison
         this.addLog('Fetching customers from ESP32 (SD card)...')
         var deviceCustomers = await this.exportCustomersFromDevice()
@@ -295,9 +312,13 @@ export default {
         var dbCustomers = await databaseService.fetchCustomersFromDatabase()
         this.addLog(`Database has ${dbCustomers.length} customers`)
 
-        // 3) Find customers to remove (on device but not in web)
-        var dbAccountNos = new Set(dbCustomers.map(c => c.account_no))
-        var customersToRemove = deviceCustomers.filter(c => !dbAccountNos.has(c.account_no))
+        // 3) Filter database customers by device's barangay
+        var filteredDbCustomers = dbCustomers.filter(c => c.brgy_id == deviceBrgyId)
+        this.addLog(`Filtered to ${filteredDbCustomers.length} customers for barangay ${deviceBrgyId}`)
+
+        // 4) Find customers to remove (on device but not in filtered web DB)
+        var filteredDbAccountNos = new Set(filteredDbCustomers.map(c => c.account_no))
+        var customersToRemove = deviceCustomers.filter(c => !filteredDbAccountNos.has(c.account_no))
         
         if (customersToRemove.length > 0) {
           this.addLog(`Removing ${customersToRemove.length} customers from device that no longer exist in database...`)
@@ -307,9 +328,9 @@ export default {
           }
         }
 
-        // 4) Push all DB customers to device (adds new, updates existing)
-        this.addLog(`Pushing ${dbCustomers.length} customers to ESP32...`)
-        await this.pushCustomersToDevice(dbCustomers)
+        // 5) Push filtered DB customers to device (adds new, updates existing)
+        this.addLog(`Pushing ${filteredDbCustomers.length} customers to ESP32...`)
+        await this.pushCustomersToDevice(filteredDbCustomers)
 
         this.addLog('✓ Customer sync completed')
 
@@ -349,6 +370,8 @@ export default {
     async refreshDeviceInfo() {
       try {
         var info = await this.exportDeviceInfoFromDevice()
+        if (typeof info?.device_id === 'number') this.deviceId = info.device_id
+        if (typeof info?.brgy_id === 'number') this.brgyId = info.brgy_id
         if (info?.firmware_version) this.firmwareVersion = info.firmware_version
         if (typeof info?.pending_readings === 'number') this.pendingRecords = info.pending_readings
 
@@ -535,14 +558,16 @@ export default {
       for (const line of lines) {
         if (!line.startsWith('CUST|')) continue
         const parts = line.split('|')
-        // CUST|account_no|customer_name|address|previous_reading|is_active
-        if (parts.length < 6) continue
+        // CUST|account_no|customer_name|address|previous_reading|status|type_id|brgy_id
+        if (parts.length < 8) continue
         customers.push({
           account_no: parts[1],
           customer_name: parts[2],
           address: parts[3],
           previous_reading: Number(parts[4] || 0),
-          is_active: parts[5] === '1' || String(parts[5]).toLowerCase() === 'true',
+          status: parts[5] || 'active',
+          type_id: Number(parts[6] || 1),
+          brgy_id: Number(parts[7] || 1),
         })
       }
       return customers
@@ -561,6 +586,8 @@ export default {
           key === 'pending_readings' ||
           key === 'print_count' ||
           key === 'last_sync_epoch' ||
+          key === 'device_id' ||
+          key === 'brgy_id' ||
           key === 'sd_present' ||
           key === 'sd_total_bytes' ||
           key === 'sd_used_bytes' ||
@@ -583,14 +610,15 @@ export default {
       for (const line of lines) {
         if (!line.startsWith('READ|')) continue
         const parts = line.split('|')
-        // READ|account_no|previous_reading|current_reading|usage_m3|reading_at_epoch
-        if (parts.length < 6) continue
+        // READ|customer_id|device_id|previous_reading|current_reading|usage_m3|reading_at_epoch
+        if (parts.length < 7) continue
         readings.push({
-          account_no: parts[1],
-          previous_reading: Number(parts[2] || 0),
-          current_reading: Number(parts[3] || 0),
-          usage_m3: Number(parts[4] || 0),
-          reading_at: Number(parts[5] || 0),
+          customer_id: Number(parts[1] || 0),
+          device_id: Number(parts[2] || 1),
+          previous_reading: Number(parts[3] || 0),
+          current_reading: Number(parts[4] || 0),
+          usage_m3: Number(parts[5] || 0),
+          reading_at: Number(parts[6] || 0),
         })
       }
       return readings
@@ -606,7 +634,9 @@ export default {
           this.escapeDeviceField(c.customer_name),
           this.escapeDeviceField(c.address),
           String(Number(c.previous_reading || 0)),
-          (c.is_active ? '1' : '0')
+          this.escapeDeviceField(c.status || 'active'),
+          String(Number(c.type_id || 1)),
+          String(Number(c.brgy_id || 1))
         ].join('|')
         await this.sendLine(line)
         // tiny pacing helps avoid overwhelming the serial buffer

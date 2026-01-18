@@ -3,6 +3,7 @@
 
 #include <SD.h>
 #include "config.h"
+#include "device_info.h"
 
 // Forward declarations
 void printCustomersList();
@@ -10,13 +11,15 @@ void printCustomersList();
 // ===== CUSTOMER DATA STRUCTURE =====
 struct Customer {
   // Match Laravel schema fields:
-  // account_no, customer_name, address, previous_reading, is_active, timestamps
-  unsigned long id;
+  // customer_id, account_no, type_id, customer_name, brgy_id, address, previous_reading, status, timestamps
+  unsigned long customer_id;
   String account_no;
+  unsigned long type_id;
   String customer_name;
+  unsigned long brgy_id;
   String address;
   unsigned long previous_reading;
-  bool is_active;
+  String status;  // "active" or "disconnected"
   unsigned long created_at;  // epoch seconds if available, else 0
   unsigned long updated_at;  // epoch seconds if available, else 0
 };
@@ -64,7 +67,9 @@ static bool loadCustomersFromSD() {
     int p2 = (p1 >= 0) ? line.indexOf('|', p1 + 1) : -1;
     int p3 = (p2 >= 0) ? line.indexOf('|', p2 + 1) : -1;
     int p4 = (p3 >= 0) ? line.indexOf('|', p3 + 1) : -1;
-    if (p1 < 0 || p2 < 0 || p3 < 0 || p4 < 0) {
+    int p5 = (p4 >= 0) ? line.indexOf('|', p4 + 1) : -1;
+    int p6 = (p5 >= 0) ? line.indexOf('|', p5 + 1) : -1;
+    if (p1 < 0 || p2 < 0 || p3 < 0 || p4 < 0 || p5 < 0 || p6 < 0) {
       continue;
     }
 
@@ -72,21 +77,27 @@ static bool loadCustomersFromSD() {
     String name = line.substring(p1 + 1, p2);
     String address = line.substring(p2 + 1, p3);
     String prev = line.substring(p3 + 1, p4);
-    String active = line.substring(p4 + 1);
+    String status = line.substring(p4 + 1, p5);
+    String typeId = line.substring(p5 + 1, p6);
+    String brgyId = line.substring(p6 + 1);
 
     accountNo.trim();
     name.trim();
     address.trim();
     prev.trim();
-    active.trim();
+    status.trim();
+    typeId.trim();
+    brgyId.trim();
     if (accountNo.length() == 0) continue;
 
-    customers[customerCount].id = (unsigned long)(customerCount + 1);
+    customers[customerCount].customer_id = (unsigned long)(customerCount + 1);
     customers[customerCount].account_no = accountNo;
     customers[customerCount].customer_name = name;
     customers[customerCount].address = address;
     customers[customerCount].previous_reading = (unsigned long)prev.toInt();
-    customers[customerCount].is_active = parseBoolToken(active);
+    customers[customerCount].status = status;
+    customers[customerCount].type_id = (unsigned long)typeId.toInt();
+    customers[customerCount].brgy_id = (unsigned long)brgyId.toInt();
     customers[customerCount].created_at = 0;
     customers[customerCount].updated_at = 0;
     customerCount++;
@@ -107,7 +118,7 @@ static bool saveCustomersToSD() {
     return false;
   }
 
-  f.println(F("# account_no|customer_name|address|previous_reading|is_active"));
+  f.println(F("# account_no|customer_name|address|previous_reading|status|type_id|brgy_id"));
   for (int i = 0; i < customerCount; i++) {
     f.print(sanitizeSyncField(customers[i].account_no));
     f.print('|');
@@ -117,7 +128,11 @@ static bool saveCustomersToSD() {
     f.print('|');
     f.print(customers[i].previous_reading);
     f.print('|');
-    f.println(customers[i].is_active ? '1' : '0');
+    f.print(sanitizeSyncField(customers[i].status));
+    f.print('|');
+    f.print(customers[i].type_id);
+    f.print('|');
+    f.println(customers[i].brgy_id);
   }
 
   f.close();
@@ -163,6 +178,16 @@ int findCustomerByAccount(String accountNumber) {
   return -1;  // Not found
 }
 
+// ===== FIND CUSTOMER BY CUSTOMER ID =====
+int findCustomerById(unsigned long customerId) {
+  for (int i = 0; i < customerCount; i++) {
+    if (customers[i].customer_id == customerId) {
+      return i;  // Return index
+    }
+  }
+  return -1;  // Not found
+}
+
 // ===== GET CUSTOMER AT INDEX =====
 Customer* getCustomerAt(int index) {
   if (index >= 0 && index < customerCount) {
@@ -171,8 +196,22 @@ Customer* getCustomerAt(int index) {
   return nullptr;
 }
 
+// ===== CHECK IF CUSTOMER BELONGS TO DEVICE BARANGAY =====
+bool isCustomerInDeviceBarangay(unsigned long customerId) {
+  int index = findCustomerById(customerId);
+  if (index == -1) return false;
+  return customers[index].brgy_id == BRGY_ID_VALUE;
+}
+
+// ===== GET CUSTOMER ID BY ACCOUNT NUMBER =====
+unsigned long getCustomerIdByAccount(String accountNo) {
+  int index = findCustomerByAccount(accountNo);
+  if (index == -1) return 0;
+  return customers[index].customer_id;
+}
+
 // ===== ADD NEW CUSTOMER =====
-bool addCustomer(String accountNumber, String customerName, String address, unsigned long previousReading) {
+bool addCustomer(String accountNumber, String customerName, String address, unsigned long previousReading, unsigned long typeId, unsigned long brgyId, String status = "active") {
   if (customerCount >= MAX_CUSTOMERS) {
     Serial.println(F("Database is full!"));
     return false;
@@ -188,10 +227,12 @@ bool addCustomer(String accountNumber, String customerName, String address, unsi
   customers[customerCount].customer_name = customerName;
   customers[customerCount].address = address;
   customers[customerCount].previous_reading = previousReading;
-  customers[customerCount].is_active = true;
+  customers[customerCount].status = status;
+  customers[customerCount].type_id = typeId;
+  customers[customerCount].brgy_id = brgyId;
   customers[customerCount].created_at = 0;
   customers[customerCount].updated_at = 0;
-  customers[customerCount].id = (unsigned long)(customerCount + 1);
+  customers[customerCount].customer_id = (unsigned long)(customerCount + 1);
   
   customerCount++;
 
@@ -230,10 +271,14 @@ bool updateCustomerReading(String accountNumber, unsigned long newReading) {
 // UPSERT_CUSTOMER|account_no|customer_name|address|previous_reading|is_active
 //   -> prints ACK|UPSERT|<account_no> or ERR|<message>
 
-static void exportCustomersForSync() {
+void exportCustomersForSync() {
   uint32_t startMs = millis();
   Serial.println(F("BEGIN_CUSTOMERS"));
+  int exportedCount = 0;
   for (int i = 0; i < customerCount; i++) {
+    // Only export customers for this device's barangay
+    if (customers[i].brgy_id != BRGY_ID_VALUE) continue;
+    
     Serial.print(F("CUST|"));
     Serial.print(sanitizeSyncField(customers[i].account_no));
     Serial.print('|');
@@ -243,7 +288,12 @@ static void exportCustomersForSync() {
     Serial.print('|');
     Serial.print(customers[i].previous_reading);
     Serial.print('|');
-    Serial.println(customers[i].is_active ? '1' : '0');
+    Serial.print(sanitizeSyncField(customers[i].status));
+    Serial.print('|');
+    Serial.print(customers[i].type_id);
+    Serial.print('|');
+    Serial.println(customers[i].brgy_id);
+    exportedCount++;
   }
   Serial.println(F("END_CUSTOMERS"));
 
@@ -252,13 +302,20 @@ static void exportCustomersForSync() {
   Serial.print(elapsedMs);
   Serial.println(F(" ms)"));
   Serial.print(F("Total Customers exported: "));
-  Serial.println(customerCount);
+  Serial.println(exportedCount);
 }
 
-static bool upsertCustomerFromSync(const String& accountNo, const String& name, const String& address, unsigned long prev, bool active) {
+bool upsertCustomerFromSync(const String& accountNo, const String& name, const String& address, unsigned long prev, const String& status, unsigned long typeId, unsigned long brgyId) {
   String acct = accountNo;
   acct.trim();
   if (acct.length() == 0) return false;
+
+  // Only accept customers for this device's barangay
+  if (brgyId != BRGY_ID_VALUE) {
+    Serial.print(F("Skipping customer from different barangay: "));
+    Serial.println(brgyId);
+    return false;
+  }
 
   int idx = findCustomerByAccount(acct);
   if (idx == -1) {
@@ -266,7 +323,7 @@ static bool upsertCustomerFromSync(const String& accountNo, const String& name, 
       return false;
     }
     idx = customerCount;
-    customers[idx].id = (unsigned long)(idx + 1);
+    customers[idx].customer_id = (unsigned long)(idx + 1);
     customers[idx].account_no = acct;
     customerCount++;
   }
@@ -274,7 +331,9 @@ static bool upsertCustomerFromSync(const String& accountNo, const String& name, 
   customers[idx].customer_name = name;
   customers[idx].address = address;
   customers[idx].previous_reading = prev;
-  customers[idx].is_active = active;
+  customers[idx].status = status;
+  customers[idx].type_id = typeId;
+  customers[idx].brgy_id = brgyId;
 
   if (SD.cardType() != CARD_NONE) {
     (void)saveCustomersToSD();
@@ -283,7 +342,7 @@ static bool upsertCustomerFromSync(const String& accountNo, const String& name, 
 }
 
 // ===== REMOVE CUSTOMER BY ACCOUNT =====
-static bool removeCustomerByAccount(const String& accountNo) {
+bool removeCustomerByAccount(const String& accountNo) {
   String acct = accountNo;
   acct.trim();
   if (acct.length() == 0) return false;
@@ -314,8 +373,8 @@ void clearCustomersOnSD() {
 // ===== PRINT ALL CUSTOMERS =====
 void printCustomersList() {
   Serial.println(F("\n===== CUSTOMERS DATABASE ====="));
-  Serial.println(F("Account | Name              | Address         | Prev Read | Active"));
-  Serial.println(F("--------|-------------------|-----------------|----------|-------"));
+  Serial.println(F("Account | Name              | Address         | Prev Read | Status | Type | Brgy"));
+  Serial.println(F("--------|-------------------|-----------------|----------|--------|------|-----"));
   
   for (int i = 0; i < customerCount; i++) {
     Serial.print(customers[i].account_no);
@@ -326,7 +385,11 @@ void printCustomersList() {
     Serial.print(F(" | "));
     Serial.print(customers[i].previous_reading);
     Serial.print(F(" | "));
-    Serial.println(customers[i].is_active ? F("Y") : F("N"));
+    Serial.print(customers[i].status);
+    Serial.print(F(" | "));
+    Serial.print(customers[i].type_id);
+    Serial.print(F(" | "));
+    Serial.println(customers[i].brgy_id);
   }
   
   Serial.println(F("===============================\n"));

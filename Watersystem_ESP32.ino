@@ -244,14 +244,16 @@ void loop() {
     }
 
     if (raw.startsWith("UPSERT_CUSTOMER|")) {
-      // UPSERT_CUSTOMER|account_no|customer_name|address|previous_reading|is_active
+      // UPSERT_CUSTOMER|account_no|customer_name|address|previous_reading|status|type_id|brgy_id
       String payload = raw.substring(String("UPSERT_CUSTOMER|").length());
 
       int p1 = payload.indexOf('|');
       int p2 = (p1 >= 0) ? payload.indexOf('|', p1 + 1) : -1;
       int p3 = (p2 >= 0) ? payload.indexOf('|', p2 + 1) : -1;
       int p4 = (p3 >= 0) ? payload.indexOf('|', p3 + 1) : -1;
-      if (p1 < 0 || p2 < 0 || p3 < 0 || p4 < 0) {
+      int p5 = (p4 >= 0) ? payload.indexOf('|', p4 + 1) : -1;
+      int p6 = (p5 >= 0) ? payload.indexOf('|', p5 + 1) : -1;
+      if (p1 < 0 || p2 < 0 || p3 < 0 || p4 < 0 || p5 < 0 || p6 < 0) {
         Serial.println(F("ERR|BAD_FORMAT"));
         return;
       }
@@ -260,18 +262,23 @@ void loop() {
       String name = payload.substring(p1 + 1, p2);
       String address = payload.substring(p2 + 1, p3);
       String prevStr = payload.substring(p3 + 1, p4);
-      String activeStr = payload.substring(p4 + 1);
+      String status = payload.substring(p4 + 1, p5);
+      String typeIdStr = payload.substring(p5 + 1, p6);
+      String brgyIdStr = payload.substring(p6 + 1);
 
       accountNo.trim();
       name.trim();
       address.trim();
       prevStr.trim();
-      activeStr.trim();
+      status.trim();
+      typeIdStr.trim();
+      brgyIdStr.trim();
 
       unsigned long prev = (unsigned long)prevStr.toInt();
-      bool active = (activeStr == "1" || activeStr == "true" || activeStr == "TRUE" || activeStr == "Y" || activeStr == "y");
+      unsigned long typeId = (unsigned long)typeIdStr.toInt();
+      unsigned long brgyId = (unsigned long)brgyIdStr.toInt();
 
-      if (upsertCustomerFromSync(accountNo, name, address, prev, active)) {
+      if (upsertCustomerFromSync(accountNo, name, address, prev, status, typeId, brgyId)) {
         Serial.print(F("ACK|UPSERT|"));
         Serial.println(accountNo);
       } else {

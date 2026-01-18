@@ -4,27 +4,23 @@
 #include <SD.h>
 #include <time.h>
 #include "config.h"
+#include "sdcard_manager.h"
 #include "customers_database.h"
 
 // SD-backed, append-only readings log.
 // File format (pipe-separated):
-// account_no|previous_reading|current_reading|usage_m3|reading_at_epoch|synced
+// customer_id|device_id|previous_reading|current_reading|usage_m3|reading_at_epoch|synced
 
-static const char* READINGS_SYNC_FILE = "/WATER_DB/READINGS/readings.psv";
-static const char* TIME_OFFSET_FILE = "/WATER_DB/SETTINGS/time_offset.txt";
+static const char* READINGS_SYNC_FILE = DB_READINGS "/readings.psv";
+static const char* TIME_OFFSET_FILE = DB_SETTINGS "/time_offset.txt";
 
 static long g_timeOffsetSeconds = 0; // epochNow ~= millis()/1000 + offset
 
+// Device ID for this ESP32 device (Makilas barangay)
+static const unsigned long DEVICE_ID = 2;
+
 static bool isSdReadyForReadings() {
   return (SD.cardType() != CARD_NONE);
-}
-
-static void deselectTftSelectSd() {
-  pinMode(TFT_CS, OUTPUT);
-  pinMode(SD_CS, OUTPUT);
-  digitalWrite(TFT_CS, HIGH);
-  // SD library controls SD_CS during operations; keep it high when idle.
-  digitalWrite(SD_CS, HIGH);
 }
 
 static uint32_t deviceEpochNow() {
@@ -86,12 +82,12 @@ static bool ensureReadingsFileExists() {
   File f = SD.open(READINGS_SYNC_FILE, FILE_WRITE);
   if (!f) return false;
 
-  f.println(F("# account_no|previous_reading|current_reading|usage_m3|reading_at_epoch|synced"));
+  f.println(F("# customer_id|device_id|previous_reading|current_reading|usage_m3|reading_at_epoch|synced"));
   f.close();
   return true;
 }
 
-static bool appendReadingToSD(const String& accountNo, unsigned long prev, unsigned long curr, unsigned long usage, uint32_t readingAtEpoch) {
+bool appendReadingToSD(unsigned long customerId, unsigned long prev, unsigned long curr, unsigned long usage, uint32_t readingAtEpoch) {
   if (!isSdReadyForReadings()) return false;
 
   (void)ensureReadingsFileExists();
@@ -101,13 +97,9 @@ static bool appendReadingToSD(const String& accountNo, unsigned long prev, unsig
   File f = SD.open(READINGS_SYNC_FILE, FILE_WRITE);
   if (!f) return false;
 
-  String acct = accountNo;
-  acct.trim();
-  acct.replace("\r", "");
-  acct.replace("\n", "");
-  acct.replace("|", " ");
-
-  f.print(acct);
+  f.print(customerId);
+  f.print('|');
+  f.print(DEVICE_ID);
   f.print('|');
   f.print(prev);
   f.print('|');
@@ -139,13 +131,9 @@ static bool epochToYearMonth(uint32_t epoch, int& yearOut, int& monthOut) {
   return (yearOut >= 1970 && monthOut >= 1 && monthOut <= 12);
 }
 
-static bool hasReadingForAccountInYearMonth(const String& accountNo, int year, int month) {
+static bool hasReadingForCustomerInYearMonth(unsigned long customerId, int year, int month) {
   if (!isSdReadyForReadings()) return false;
   if (!SD.exists(READINGS_SYNC_FILE)) return false;
-
-  String target = accountNo;
-  target.trim();
-  if (target.length() == 0) return false;
 
   deselectTftSelectSd();
   File f = SD.open(READINGS_SYNC_FILE, FILE_READ);
@@ -157,19 +145,21 @@ static bool hasReadingForAccountInYearMonth(const String& accountNo, int year, i
     if (line.length() == 0) continue;
     if (line.startsWith("#")) continue;
 
-    // account|prev|curr|usage|epoch|synced
+    // customer_id|device_id|prev|curr|usage|epoch|synced
     int p1 = line.indexOf('|');
     int p2 = (p1 >= 0) ? line.indexOf('|', p1 + 1) : -1;
     int p3 = (p2 >= 0) ? line.indexOf('|', p2 + 1) : -1;
     int p4 = (p3 >= 0) ? line.indexOf('|', p3 + 1) : -1;
     int p5 = (p4 >= 0) ? line.indexOf('|', p4 + 1) : -1;
-    if (p1 < 0 || p2 < 0 || p3 < 0 || p4 < 0 || p5 < 0) continue;
+    int p6 = (p5 >= 0) ? line.indexOf('|', p5 + 1) : -1;
+    if (p1 < 0 || p2 < 0 || p3 < 0 || p4 < 0 || p5 < 0 || p6 < 0) continue;
 
-    String acct = line.substring(0, p1);
-    acct.trim();
-    if (acct != target) continue;
+    String custIdStr = line.substring(0, p1);
+    custIdStr.trim();
+    unsigned long custId = (unsigned long)custIdStr.toInt();
+    if (custId != customerId) continue;
 
-    String epochStr = line.substring(p4 + 1, p5);
+    String epochStr = line.substring(p5 + 1, p6);
     epochStr.trim();
     uint32_t epoch = (uint32_t)epochStr.toInt();
     if (epoch == 0) continue;
@@ -187,15 +177,21 @@ static bool hasReadingForAccountInYearMonth(const String& accountNo, int year, i
   return false;
 }
 
-static bool hasReadingForAccountThisMonth(const String& accountNo) {
+static bool hasReadingForCustomerThisMonth(unsigned long customerId) {
   int y = 0;
   int m = 0;
   uint32_t nowEpoch = deviceEpochNow();
   if (!epochToYearMonth(nowEpoch, y, m)) return false;
-  return hasReadingForAccountInYearMonth(accountNo, y, m);
+  return hasReadingForCustomerInYearMonth(customerId, y, m);
 }
 
-static bool markAllReadingsSynced() {
+bool hasReadingForAccountThisMonth(String accountNo) {
+  unsigned long customerId = getCustomerIdByAccount(accountNo);
+  if (customerId == 0) return false;
+  return hasReadingForCustomerThisMonth(customerId);
+}
+
+bool markAllReadingsSynced() {
   if (!isSdReadyForReadings()) return false;
   if (!SD.exists(READINGS_SYNC_FILE)) return true;
 
@@ -226,26 +222,27 @@ static bool markAllReadingsSynced() {
       continue;
     }
 
-    // account|prev|curr|usage|epoch|synced
+    // customer_id|device_id|prev|curr|usage|epoch|synced
     int p1 = line.indexOf('|');
     int p2 = (p1 >= 0) ? line.indexOf('|', p1 + 1) : -1;
     int p3 = (p2 >= 0) ? line.indexOf('|', p2 + 1) : -1;
     int p4 = (p3 >= 0) ? line.indexOf('|', p3 + 1) : -1;
     int p5 = (p4 >= 0) ? line.indexOf('|', p4 + 1) : -1;
-    if (p1 < 0 || p2 < 0 || p3 < 0 || p4 < 0 || p5 < 0) {
+    int p6 = (p5 >= 0) ? line.indexOf('|', p5 + 1) : -1;
+    if (p1 < 0 || p2 < 0 || p3 < 0 || p4 < 0 || p5 < 0 || p6 < 0) {
       // keep malformed line as-is
       out.println(line);
       continue;
     }
 
-    String synced = line.substring(p5 + 1);
+    String synced = line.substring(p6 + 1);
     synced.trim();
 
     if (synced == "1") {
       out.println(line);
     } else {
       // rewrite with synced=1
-      out.print(line.substring(0, p5 + 1));
+      out.print(line.substring(0, p6 + 1));
       out.println('1');
     }
   }
@@ -258,7 +255,7 @@ static bool markAllReadingsSynced() {
   return ok;
 }
 
-static void exportReadingsForSync() {
+void exportReadingsForSync() {
   uint32_t startMs = millis();
   Serial.println(F("BEGIN_READINGS"));
 
@@ -295,34 +292,45 @@ static void exportReadingsForSync() {
     if (line.length() == 0) continue;
     if (line.startsWith("#")) continue;
 
-    // account|prev|curr|usage|epoch|synced
+    // customer_id|device_id|prev|curr|usage|epoch|synced
     int p1 = line.indexOf('|');
     int p2 = (p1 >= 0) ? line.indexOf('|', p1 + 1) : -1;
     int p3 = (p2 >= 0) ? line.indexOf('|', p2 + 1) : -1;
     int p4 = (p3 >= 0) ? line.indexOf('|', p3 + 1) : -1;
     int p5 = (p4 >= 0) ? line.indexOf('|', p4 + 1) : -1;
-    if (p1 < 0 || p2 < 0 || p3 < 0 || p4 < 0 || p5 < 0) {
+    int p6 = (p5 >= 0) ? line.indexOf('|', p5 + 1) : -1;
+    if (p1 < 0 || p2 < 0 || p3 < 0 || p4 < 0 || p5 < 0 || p6 < 0) {
       continue;
     }
 
-    String synced = line.substring(p5 + 1);
+    String synced = line.substring(p6 + 1);
     synced.trim();
     if (synced == "1") continue;
 
-    String acct = line.substring(0, p1);
-    String prev = line.substring(p1 + 1, p2);
-    String curr = line.substring(p2 + 1, p3);
-    String usage = line.substring(p3 + 1, p4);
-    String epoch = line.substring(p4 + 1, p5);
+    String customerId = line.substring(0, p1);
+    String deviceId = line.substring(p1 + 1, p2);
+    String prev = line.substring(p2 + 1, p3);
+    String curr = line.substring(p3 + 1, p4);
+    String usage = line.substring(p4 + 1, p5);
+    String epoch = line.substring(p5 + 1, p6);
 
-    acct.trim();
+    customerId.trim();
+    deviceId.trim();
     prev.trim();
     curr.trim();
     usage.trim();
     epoch.trim();
 
+    // Only export readings for customers in this device's barangay
+    unsigned long custIdNum = (unsigned long)customerId.toInt();
+    if (!isCustomerInDeviceBarangay(custIdNum)) {
+      continue;
+    }
+
     Serial.print(F("READ|"));
-    Serial.print(acct);
+    Serial.print(customerId);
+    Serial.print('|');
+    Serial.print(deviceId);
     Serial.print('|');
     Serial.print(prev);
     Serial.print('|');
@@ -346,7 +354,7 @@ static void exportReadingsForSync() {
   Serial.println(exported);
 }
 
-static bool recordReadingForCustomerIndex(int customerIndex, unsigned long currReading) {
+bool recordReadingForCustomerIndex(int customerIndex, unsigned long currReading) {
   Customer* cust = getCustomerAt(customerIndex);
   if (cust == nullptr) return false;
 
@@ -356,7 +364,7 @@ static bool recordReadingForCustomerIndex(int customerIndex, unsigned long currR
   unsigned long usage = currReading - prev;
   uint32_t epoch = deviceEpochNow();
 
-  bool ok = appendReadingToSD(cust->account_no, prev, currReading, usage, epoch);
+  bool ok = appendReadingToSD(cust->customer_id, prev, currReading, usage, epoch);
 
   // Update the customer's last reading (even if SD append fails, keep in-memory consistent)
   (void)updateCustomerReading(cust->account_no, currReading);

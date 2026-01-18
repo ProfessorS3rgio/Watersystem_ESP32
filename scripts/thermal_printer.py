@@ -1,8 +1,81 @@
 import win32print
 from datetime import datetime
-from barcode import UPCA
-from escpos.printer import Dummy
 from PIL import Image
+import importlib
+import argparse
+import os
+import random
+
+
+def _bytes_to_text(data: bytes) -> str:
+    """Convert raw ESC/POS bytes to a readable plain-text preview.
+
+    This strips non-printable control bytes while preserving newlines and
+    printable ASCII so you can preview the human-readable receipt content.
+    """
+    out_chars = []
+    i = 0
+    L = len(data)
+    while i < L:
+        b = data[i]
+        # ESC (27) and GS (29) introduce control sequences; skip them and their
+        # immediate parameters to avoid leaving the command letters (e.g. 'a', 'E')
+        if b in (27, 29):
+            # skip the ESC/GS byte
+            i += 1
+            # skip up to 3 following parameter/command bytes (common ESC/GS lengths)
+            skip = 0
+            while i < L and skip < 3:
+                i += 1
+                skip += 1
+            continue
+
+        # Keep LF, CR and printable ASCII
+        if b in (10, 13, 9) or 32 <= b < 127:
+            out_chars.append(chr(b))
+        # otherwise ignore control bytes
+        i += 1
+
+    # Collapse excessive blank lines (more than 2)
+    text = ''.join(out_chars)
+    lines = text.splitlines()
+    cleaned_lines = []
+    blank_run = 0
+    for ln in lines:
+        if ln.strip() == '':
+            blank_run += 1
+            if blank_run <= 2:
+                cleaned_lines.append('')
+        else:
+            blank_run = 0
+            # Apply heuristic fixes to remove leftover control letters
+            s = ln
+            # Remove a leading 'a' or 'E' that precedes uppercase words or symbols
+            if len(s) > 1 and s[0] in ('a', 'E') and s[1].isupper():
+                s = s[1:].lstrip()
+
+            # Fix common truncated words
+            if s.startswith('TER READINGS') or s.startswith('ETER READINGS'):
+                s = 'METER READINGS'
+            if s.strip().startswith('ill No'):
+                s = s.replace('ill No', 'Bill No')
+
+            # Fix missing 'P' in 'PHP' -> 'HP ' or 'H P '
+            if s.strip().startswith('HP ') or s.strip().startswith('H P '):
+                s = s.replace('H P ', 'PHP ').replace('\n', '\n')
+                if not s.strip().startswith('PHP'):
+                    s = 'PHP ' + s.strip()[3:]
+
+            # If a line contains a REF with garbage prefix, extract only REF####
+            import re
+            m = re.search(r'(REF\d{4,})', s)
+            if m and (s.strip().startswith(m.group(1)) is False):
+                # replace entire line with the REF token if it's trailing garbage
+                s = m.group(1)
+
+            cleaned_lines.append(s)
+
+    return '\n'.join(cleaned_lines) + ('\n' if cleaned_lines and not cleaned_lines[-1].endswith('\n') else '')
 
 class ThermalPrinter:
     def __init__(self, printer_name="POS-58"):
@@ -32,13 +105,13 @@ class ThermalPrinter:
             print(f"Print error: {e}")
             return False
     
-    def print_bill(self, bill_data):
+    def print_bill(self, bill_data, include_cutting=True):
         """Print a full water bill with all details"""
         try:
             hPrinter = win32print.OpenPrinter(self.printer_name)
             win32print.StartDocPrinter(hPrinter, 1, ("Water Bill", None, "RAW"))
             
-            bill_content = self._format_water_bill(bill_data)
+            bill_content = self._format_water_bill(bill_data, include_cutting=include_cutting)
             
             win32print.WritePrinter(hPrinter, bill_content)
             win32print.EndDocPrinter(hPrinter)
@@ -89,25 +162,40 @@ class ThermalPrinter:
     
     def _generate_barcode_data(self, account_no, amount):
         """Generate CODE39 barcode data for account number and amount"""
-        # Use full account number (CODE39 supports A-Z, 0-9, and symbols)
-        # No filtering needed since CODE39 can encode letters
+        # Use full account/reference (CODE39 supports A-Z, 0-9, and symbols)
+        # The barcode should encode the provided identifier only (reference number),
+        # not the amount — callers should pass the desired barcode string as
+        # `account_no` (legacy parameter name kept).
+        barcode_data = str(account_no)
         
-        # Use amount as integer (no cents conversion)
-        amount_int = int(amount)
-        
-        # Create barcode data: account + amount (no separators needed for CODE39)
-        barcode_data = f"{account_no}{amount_int}"
-        
-        # Use python-escpos to generate barcode commands
-        dummy_printer = Dummy()
-        
-        # Generate CODE39 barcode without text below
-        dummy_printer.barcode(barcode_data, 'CODE39', width=2, height=100, pos='OFF', font='A')
-        
-        # Get the ESC/POS commands
-        barcode_commands = dummy_printer.output
-        
-        return barcode_commands
+        # Try to use python-escpos to generate barcode commands first
+        try:
+            escpos_printer_mod = importlib.import_module('escpos.printer')
+            Dummy = getattr(escpos_printer_mod, 'Dummy')
+            dummy_printer = Dummy()
+            dummy_printer.barcode(barcode_data, 'CODE39', width=2, height=100, pos='OFF', font='A')
+            return dummy_printer.output
+        except Exception:
+            # If escpos or its barcode handling isn't available (common when
+            # the installed `barcode` package differs), fall back to emitting
+            # raw ESC/POS commands for CODE39. This avoids the dependency on
+            # python-escpos internals and works with most ESC/POS-compatible
+            # thermal printers.
+            try:
+                # Set barcode height (GS h n)
+                height = 100
+                cmd = b''
+                cmd += self.GS + b'h' + bytes([height])
+                # Set barcode width (GS w n) - module width
+                cmd += self.GS + b'w' + bytes([2])
+                # Hide HRI (human readable) under barcode (GS H n) -> 0 = off
+                cmd += self.GS + b'H' + bytes([0])
+                # Print CODE39: GS k m d... NUL with m=4 for CODE39
+                cmd += self.GS + b'k' + bytes([4]) + barcode_data.encode('ascii') + b'\x00'
+                return cmd
+            except Exception as e:
+                print(f"Failed to build raw ESC/POS barcode bytes: {e}")
+                return b''
     
     def _print_image(self, image_path):
         """Generate ESC/POS commands to print a BMP/PNG image"""
@@ -115,16 +203,21 @@ class ThermalPrinter:
             # Load image with PIL
             img = Image.open(image_path).convert('1')  # Convert to 1-bit monochrome
             
-            # Use python-escpos to generate image commands
-            dummy_printer = Dummy()
-            dummy_printer.image(img)
-            
-            return dummy_printer.output
+            # Use python-escpos to generate image commands if available
+            try:
+                escpos_printer_mod = importlib.import_module('escpos.printer')
+                Dummy = getattr(escpos_printer_mod, 'Dummy')
+                dummy_printer = Dummy()
+                dummy_printer.image(img)
+                return dummy_printer.output
+            except Exception as e:
+                print(f"escpos not available for image printing: {e}")
+                return b''
         except Exception as e:
             print(f"Error loading image {image_path}: {e}")
             return b''
     
-    def _format_water_bill(self, bill_data):
+    def _format_water_bill(self, bill_data, include_cutting=True):
         """Format a complete water bill with all details"""
         line = b'-' * 32 + b'\n'
         double_line = b'=' * 32 + b'\n'
@@ -143,11 +236,25 @@ class ThermalPrinter:
             line
         )
         
-        # Bill title
+        # Bill title and metadata
         title = (
             self.LEFT + self.BOLD_ON + b'WATER BILL\n' + self.BOLD_OFF +
             f'Bill No: {bill_data.get("bill_no", "N/A")}\n'.encode() +
-            f'Date   : {datetime.now().strftime("%Y-%m-%d")}\n'.encode() +
+            line
+        )
+
+        # Additional metadata lines: Ref No, Date/Time, Classification, Period Covered,
+        # Due Date and Disconnection Date. For narrow paper (58mm) place long
+        # values on the following indented line to avoid overflow.
+        meta = (
+            f'Ref No       : {bill_data.get("reference_no", "N/A")}\n'.encode() +
+            b'Date/Time    :\n' +
+            f'  {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}\n'.encode() +
+            f'Classification: {bill_data.get("classification", "N/A")}\n'.encode() +
+            b'Period Covered:\n' +
+            f'  {bill_data.get("period_covered", "N/A")}\n'.encode() +
+            f'Due Date     : {bill_data.get("due_date", "N/A")}\n'.encode() +
+            f'Disconnect On: {bill_data.get("disconnection_date", "N/A")}\n'.encode() +
             line
         )
         
@@ -167,12 +274,11 @@ class ThermalPrinter:
             line
         )
         
-        # Meter readings section
+        # Meter readings section formatted in columns for narrow paper
         readings_section = (
             self.BOLD_ON + b'METER READINGS\n' + self.BOLD_OFF +
-            f'Previous : {bill_data["prev_reading"]}\n'.encode() +
-            f'Current  : {bill_data["curr_reading"]}\n'.encode() +
-            f'Used     : {used} m3\n'.encode() +
+            b'  Prev   Present   Usage\n' +
+            f'  {bill_data["prev_reading"]:>6}   {bill_data["curr_reading"]:>7}   {used} m3\n'.encode() +
             line
         )
         
@@ -185,32 +291,43 @@ class ThermalPrinter:
             double_line
         )
         
+        # Reminders under total due
+        reminders = (
+            self.LEFT + b'\nREMAINDERS:\n' +
+            b'- Please pay by the due date to avoid disconnection.\n' +
+            b'- Bring this bill when paying.\n' +
+            b'- For inquiries, contact the office.\n' +
+            line
+        )
+
         # Footer message
         footer = (
             self.CENTER + b'\nPlease pay on or before due date\nto avoid penalties.\n\nThank you!\n' +
             self.LEFT
         )
         
-        # Generate CODE39 barcode with account number and amount
-        barcode_commands = self._generate_barcode_data(bill_data["account_no"], total)
-        
-        # Cutting design with barcode and motto
-        cutting_and_barcode = (
-            b'\n' +
-            self.CENTER +
-            b'8< ------------------------------ \n' +  # ASCII scissors with cutting line first
-            b'\n\n\n' +  # More space between cutting line and barcode
-            barcode_commands +  # ESC/POS barcode commands second
-            b'\n' +  # Space after barcode
-            b'Save Water, Save Life!\n' +  # Motto below the barcode
-            b'\n\n\n' +  # More space after motto
-            self.LEFT
-        )
+        cutting_and_barcode = b''
+        if include_cutting:
+            # Generate CODE39 barcode with the reference number only
+            barcode_identifier = bill_data.get("reference_no", bill_data.get("account_no"))
+            barcode_commands = self._generate_barcode_data(barcode_identifier, total)
+            # Cutting design with barcode and motto
+            cutting_and_barcode = (
+                b'\n' +
+                self.CENTER +
+                b'8< ------------------------------ \n' +  # ASCII scissors with cutting line first
+                b'\n\n\n' +  # More space between cutting line and barcode
+                barcode_commands +  # ESC/POS barcode commands second
+                b'\n' +  # Space after barcode
+                b'Save Water, Save Life!\n' +  # Motto below the barcode
+                b'\n\n\n' +  # More space after motto
+                self.LEFT
+            )
         
         # Combine all sections (no automatic cut)
-        return (header + title + customer_info + collector_info + 
-                readings_section + calculation_section + footer + 
-                cutting_and_barcode)
+        return (header + title + meta + customer_info + collector_info + 
+            readings_section + calculation_section + reminders + footer + 
+            cutting_and_barcode)
     
     def _format_datetime(self, datetime_str):
         """Format datetime string for receipt"""
@@ -228,3 +345,80 @@ class ThermalPrinter:
         except Exception as e:
             print(f"Error getting printers: {e}")
             return []
+
+    def print_raw(self, data, docname="Document"):
+        """Send raw ESC/POS bytes to the configured printer as a single job."""
+        try:
+            hPrinter = win32print.OpenPrinter(self.printer_name)
+            win32print.StartDocPrinter(hPrinter, 1, (docname, None, "RAW"))
+            win32print.WritePrinter(hPrinter, data)
+            win32print.EndDocPrinter(hPrinter)
+            win32print.ClosePrinter(hPrinter)
+            return True
+        except Exception as e:
+            print(f"Print error: {e}")
+            return False
+
+
+def _sample_bill():
+    collectors = ['Pedro Santos', 'Maria Lopez', 'Jose Ramos', 'Ana Cruz']
+    ref_no = f"REF{random.randint(100000, 999999)}"
+    return {
+        'bill_no': '000123',
+        'customer_name': 'Juan Dela Cruz',
+        'account_no': 'M001',
+        'reference_no': ref_no,
+        'address': 'Makilas, IPIL',
+        'barangay': 'Makilas',
+        'collector': random.choice(collectors),
+        'classification': 'Residential',
+        'period_covered': '2026-01-01 to 2026-01-31',
+        'disconnection_date': '2026-02-10',
+        'penalty': 0,
+        'due_date': '2026-02-01',
+        'prev_reading': 120,
+        'curr_reading': 128,
+        'rate': 15.0,
+    }
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Thermal printer test harness')
+    parser.add_argument('--mode', choices=['dummy', 'print'], default='dummy',
+                        help='dummy: write ESC/POS bytes to file; print: send to default printer')
+    args = parser.parse_args()
+
+    tp = ThermalPrinter()
+
+    if args.mode == 'dummy':
+        bill = _sample_bill()
+        # Generate a small receipt and a full bill for inspection
+        receipt_bytes = tp._format_receipt(bill.get('bill_no'), bill.get('customer_name'),
+                                          bill.get('rate') * (bill['curr_reading'] - bill['prev_reading']),
+                                          bill.get('rate') * (bill['curr_reading'] - bill['prev_reading']),
+                                          0,
+                                          datetime.now().isoformat())
+
+        bill_bytes = tp._format_water_bill(bill)
+
+        # Convert ESC/POS bytes to readable text preview instead of binary
+        receipt_text = _bytes_to_text(receipt_bytes)
+        bill_text = _bytes_to_text(bill_bytes)
+        preview = receipt_text + "\n\n--- FULL BILL ---\n\n" + bill_text
+
+        out_path = os.path.join(os.getcwd(), 'receipt_preview.txt')
+        try:
+            with open(out_path, 'w', encoding='utf-8') as f:
+                f.write(preview)
+            print(f'Wrote text preview to: {out_path}')
+        except Exception as e:
+            print(f'Failed to write preview file: {e}')
+
+    else:  # print mode — send only the full bill to avoid duplication
+        bill = _sample_bill()
+        success = tp.print_bill(bill, include_cutting=False)
+        print('Print sent' if success else 'Print failed')
+
+
+if __name__ == '__main__':
+    main()

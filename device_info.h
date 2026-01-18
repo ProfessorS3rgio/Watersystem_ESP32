@@ -3,7 +3,7 @@
 
 #include <SD.h>
 #include "config.h"
-#include "readings_database.h"
+#include "sdcard_manager.h"
 
 // Stored at SD so the website can show persistent device info.
 // Format (key=value lines):
@@ -16,6 +16,20 @@ static const char* DEVICE_INFO_FILE = "/WATER_DB/SETTINGS/device_info.txt";
 
 static const char* DEVICE_TYPE_VALUE = "ESP32 Water System";
 static const char* FIRMWARE_VERSION_VALUE = "v1.0.0";
+static const unsigned long DEVICE_ID_VALUE = 2;  // Makilas barangay device
+static const unsigned long BRGY_ID_VALUE = 2;    // Makilas barangay
+
+// Device UID - unique identifier (MAC address)
+static String getDeviceUID() {
+#if defined(ARDUINO_ARCH_ESP32)
+  uint64_t mac = ESP.getEfuseMac();
+  char uid[17];
+  sprintf(uid, "%012llX", mac);
+  return String(uid);
+#else
+  return "UNKNOWN";
+#endif
+}
 
 static uint32_t g_lastSyncEpoch = 0;
 static uint32_t g_printCount = 0;
@@ -79,6 +93,12 @@ static void writeDeviceInfoToSD() {
   f.println(DEVICE_TYPE_VALUE);
   f.print(F("firmware_version="));
   f.println(FIRMWARE_VERSION_VALUE);
+  f.print(F("device_id="));
+  f.println(DEVICE_ID_VALUE);
+  f.print(F("brgy_id="));
+  f.println(BRGY_ID_VALUE);
+  f.print(F("device_uid="));
+  f.println(getDeviceUID());
   f.print(F("last_sync_epoch="));
   f.println((unsigned long)g_lastSyncEpoch);
   f.print(F("print_count="));
@@ -139,10 +159,10 @@ static void setLastSyncEpoch(uint32_t epoch) {
 
 static uint32_t countPendingReadings() {
   if (!deviceInfoSdReady()) return 0;
-  if (!SD.exists(READINGS_SYNC_FILE)) return 0;
+  if (!SD.exists(DB_READINGS "/readings.psv")) return 0;
 
   deselectTftSelectSd();
-  File f = SD.open(READINGS_SYNC_FILE, FILE_READ);
+  File f = SD.open(DB_READINGS "/readings.psv", FILE_READ);
   if (!f) return 0;
 
   uint32_t count = 0;
@@ -177,6 +197,15 @@ static void exportDeviceInfoForSync() {
 
   Serial.print(F("INFO|firmware_version|"));
   Serial.println(FIRMWARE_VERSION_VALUE);
+
+  Serial.print(F("INFO|device_id|"));
+  Serial.println(DEVICE_ID_VALUE);
+
+  Serial.print(F("INFO|brgy_id|"));
+  Serial.println(BRGY_ID_VALUE);
+
+  Serial.print(F("INFO|device_uid|"));
+  Serial.println(getDeviceUID());
 
   Serial.print(F("INFO|last_sync_epoch|"));
   Serial.println((unsigned long)g_lastSyncEpoch);

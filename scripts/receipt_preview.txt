@@ -1,0 +1,72 @@
+ONA JOSEFA M. BULU-AN CAPARAN
+Water & Sanitation Assoc.
+Bulu-an, IPIL, Zambo. Sibugay
+TIN: 464-252-005-000
+--------------------------------
+CEIPT
+Bill No : 000123
+Date    : 2026-01-18 11:06:51
+--------------------------------
+Customer      : Juan Dela Cruz
+--------------------------------
+Amount Paid   : PHP 120.00
+Cash Received : PHP 120.00
+Change        : PHP 0.00
+--------------------------------
+hank you for your payment!
+
+
+--- FULL BILL ---
+
+LOGO PLACEHOLDER]
+
+DONA JOSEFA M. BULU-AN CAPARAN
+Water & Sanitation Assoc.
+Bulu-an, IPIL, Zambo. Sibugay
+TIN: 464-252-005-000
+--------------------------------
+WATER BILL
+Bill No: 000123
+--------------------------------
+REF210186
+Date/Time    :
+  2026-01-18 11:06:51
+Classification: Residential
+Period Covered:
+  2026-01-01 to 2026-01-31
+Due Date     : 2026-02-01
+Disconnect On: 2026-02-10
+--------------------------------
+Customer : Juan Dela Cruz
+Account  : M001
+Address  : Makilas, IPIL
+--------------------------------
+Collector: Pedro Santos
+Penalty  : PHP 0.00
+Due Date : 2026-02-01
+--------------------------------
+METER READINGS
+ Prev   Present   Usage
+     120       128   8 m3
+--------------------------------
+Rate/m3  : PHP 15.00
+================================
+E*** TOTAL AMOUNT DUE ***
+PHP 120.00
+================================
+REMAINDERS:
+- Please pay by the due date to avoid disconnection.
+- Bring this bill when paying.
+- For inquiries, contact the office.
+--------------------------------
+Please pay on or before due date
+to avoid penalties.
+
+Thank you!
+< ------------------------------ 
+
+
+REF210186
+Save Water, Save Life!
+
+

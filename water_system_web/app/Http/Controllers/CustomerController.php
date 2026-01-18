@@ -17,6 +17,7 @@ class CustomerController extends Controller
     {
         $accountNo = $request->query('account_no');
         $name = $request->query('name');
+        $brgyId = $request->query('brgy_id');
 
         $query = DB::table('customer');
 
@@ -26,6 +27,10 @@ class CustomerController extends Controller
 
         if ($name) {
             $query->where('customer_name', 'like', '%' . $name . '%');
+        }
+
+        if ($brgyId) {
+            $query->where('brgy_id', $brgyId);
         }
 
         $latestReadingAt = DB::table('reading')

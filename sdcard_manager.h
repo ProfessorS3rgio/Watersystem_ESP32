@@ -7,6 +7,14 @@
 // Global SD card status
 bool sdCardPresent = false;
 
+// Ensure TFT deselected and SD CS is high before SD operations
+void deselectTftSelectSd() {
+  pinMode(TFT_CS, OUTPUT);
+  pinMode(SD_CS, OUTPUT);
+  digitalWrite(TFT_CS, HIGH);
+  digitalWrite(SD_CS, HIGH);
+}
+
 // Forward declarations
 void initSDCard();
 void initSDCardDatabase();

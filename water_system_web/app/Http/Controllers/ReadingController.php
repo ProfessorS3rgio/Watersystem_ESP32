@@ -55,7 +55,8 @@ class ReadingController extends Controller
     {
         $validated = $request->validate([
             'readings' => ['required', 'array', 'max:2000'],
-            'readings.*.account_no' => ['required', 'string', 'max:64'],
+            'readings.*.customer_id' => ['required', 'integer', 'min:1'],
+            'readings.*.device_id' => ['nullable', 'integer', 'min:1'],
             'readings.*.previous_reading' => ['required', 'integer', 'min:0'],
             'readings.*.current_reading' => ['required', 'integer', 'min:0'],
             'readings.*.usage_m3' => ['required', 'integer', 'min:0'],
@@ -63,12 +64,12 @@ class ReadingController extends Controller
         ]);
 
         $rows = $validated['readings'];
-        $accountNos = collect($rows)->pluck('account_no')->unique()->values();
+        $customerIds = collect($rows)->pluck('customer_id')->unique()->values();
 
-        $customersByAccount = Customer::query()
-            ->whereIn('account_no', $accountNos)
-            ->get(['id', 'account_no'])
-            ->keyBy('account_no');
+        $customersById = Customer::query()
+            ->whereIn('customer_id', $customerIds)
+            ->get(['customer_id', 'id', 'account_no'])
+            ->keyBy('customer_id');
 
         $settings = Setting::query()->orderBy('id')->first();
         $ratePerM3 = $settings ? (float) $settings->rate_per_m3 : (float) env('WATER_RATE_PER_M3', 15.00);
@@ -78,9 +79,9 @@ class ReadingController extends Controller
         $updated = 0;
         $skipped = 0;
 
-        DB::transaction(function () use ($rows, $customersByAccount, $ratePerM3, $dueDays, &$inserted, &$updated, &$skipped) {
+        DB::transaction(function () use ($rows, $customersById, $ratePerM3, $dueDays, &$inserted, &$updated, &$skipped) {
             foreach ($rows as $row) {
-                $customer = $customersByAccount->get($row['account_no']);
+                $customer = $customersById->get($row['customer_id']);
                 if (!$customer) {
                     $skipped++;
                     continue;
