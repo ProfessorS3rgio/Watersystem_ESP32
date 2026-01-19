@@ -14,6 +14,7 @@
 #include "database/bill_database.h"
 #include "database/deduction_database.h"
 #include "database/customer_type_database.h"
+#include "database/database_viewer.h"
 #include "managers/print_manager.h"
 #include "managers/tft_screen_manager.h"
 #include "managers/sdcard_manager.h"
@@ -161,11 +162,14 @@ void setup() {
   // Initialize Customer Types Database
   initCustomerTypesDatabase();
 
+  // Initialize Bills Database
+  initBillsDatabase();
+
 #if WS_SERIAL_VERBOSE
   Serial.println(F("Watersystem ESP32 ready."));
   Serial.println(F("Use keypad or serial commands:"));
   Serial.println(F("Press D or B on keypad to start entering account"));
-  Serial.println(F("Commands: 'P' = Print sample, 'S' = SD status, 'L' = List customers, 'DD' = List deductions, 'CT' = List customer types"));
+  Serial.println(F("Commands: 'P' = Print sample, 'S' = SD status, 'L' = List customers, 'DD' = List deductions, 'CT' = List customer types, 'B' = List bills"));
 #endif
   
   // Show welcome screen on TFT
@@ -214,16 +218,23 @@ void loop() {
     else if (cmd == "CT" || cmd == "CUSTOMER_TYPES") {
       printCustomerTypesList();
     }
+    else if (cmd == "B" || cmd == "BILLS") {
+      printBillsList();
+    }
     else if (cmd == "START") {
       Serial.println(F("Starting workflow..."));
       currentState = STATE_ENTER_ACCOUNT;
       inputBuffer = "";
       displayEnterAccountScreen();
     }
+    else if (cmd == "DB" || cmd == "DATABASE") {
+      Serial.println(F("Displaying all database data..."));
+      displayAllDatabaseData();
+    }
     else if (cmd.length() > 0) {
       Serial.print(F("Unknown: "));
       Serial.println(cmd);
-      Serial.println(F("Commands: P, D, S, L, DD, CT, START"));
+      Serial.println(F("Commands: P, D, S, L, DD, CT, B, DB, START"));
     }
   }
 }

@@ -16,8 +16,9 @@ Table users {
 Table customer {
   customer_id integer [primary key]
   account_no varchar [unique]       // "M001", "B001", etc.
-  type_id integer  
+  type_id integer    
   customer_name varchar
+  deduction_id integer
   brgy_id integer
   address varchar
   previous_reading integer
@@ -58,6 +59,7 @@ Table reading {
 
 Table bill {
   bill_id integer [primary key]
+  reference_number integer
   customer_id integer
   reading_id integer
   bill_no varchar
@@ -99,11 +101,12 @@ Table device {
 Table bill_transaction {
   bill_transaction_id integer [primary key]
   bill_id integer
+  bill_reference_number integer
   type enum('payment', 'void')
   amount decimal(10, 2)
   cash_received decimal(10, 2) [null]
   change decimal(10, 2)
-  transaction_date datetime
+  transaction_date datetime  
   payment_method varchar
   processed_by_user_id integer [null]
   notes text [null]
@@ -155,14 +158,14 @@ Table bill_deduction {
 Table settings {
   id integer [primary key]
   rate_per_m3 decimal(10, 2) [default: 15.00] // should be remove later on
-  bill_due_days integer [default: 15]
+  bill_due_days integer [default: 15] 
   penalty_after_days integer [default: 0]
   penalty_amount decimal(10, 2) [default: 0.00]
   created_at datetime
   updated_at datetime
 }
 
-
+Ref: customer.deduction_id > deduction.deduction_id
 Ref: reading.customer_id > customer.customer_id
 Ref: bill.customer_id > customer.customer_id
 Ref: bill.reading_id > reading.reading_id
@@ -170,6 +173,7 @@ Ref: device.brgy_id > barangay_sequence.brgy_id
 Ref: customer.brgy_id > barangay_sequence.brgy_id// References to Laravel's existing users table
 Ref: reading.read_by_user_id > users.id
 Ref: bill_transaction.bill_id > bill.bill_id
+Ref: bill_transaction.bill_reference_number > bill.reference_number
 Ref: bill_transaction.processed_by_user_id > users.id
 Ref: reading.device_id > device.device_id
 Ref: customer.type_id > customer_type.type_id
