@@ -162,33 +162,19 @@ static uint32_t getLastSyncEpoch() {
 }
 
 static uint32_t countPendingReadings() {
-  if (!deviceInfoSdReady()) return 0;
-  if (!SD.exists(DB_READINGS "/readings.psv")) return 0;
+  if (!db) return 0;
 
-  deselectTftSelectSd();
-  File f = SD.open(DB_READINGS "/readings.psv", FILE_READ);
-  if (!f) return 0;
+  const char *sql = "SELECT COUNT(*) FROM readings WHERE updated_at = created_at;";
+  sqlite3_stmt *stmt;
+  int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+  if (rc != SQLITE_OK) return 0;
 
   uint32_t count = 0;
-  while (f.available()) {
-    String line = f.readStringUntil('\n');
-    line.trim();
-    if (line.length() == 0) continue;
-    if (line.startsWith("#")) continue;
-
-    int p1 = line.indexOf('|');
-    int p2 = (p1 >= 0) ? line.indexOf('|', p1 + 1) : -1;
-    int p3 = (p2 >= 0) ? line.indexOf('|', p2 + 1) : -1;
-    int p4 = (p3 >= 0) ? line.indexOf('|', p3 + 1) : -1;
-    int p5 = (p4 >= 0) ? line.indexOf('|', p4 + 1) : -1;
-    if (p1 < 0 || p2 < 0 || p3 < 0 || p4 < 0 || p5 < 0) continue;
-
-    String synced = line.substring(p5 + 1);
-    synced.trim();
-    if (synced != "1") count++;
+  if (sqlite3_step(stmt) == SQLITE_ROW) {
+    count = sqlite3_column_int(stmt, 0);
   }
 
-  f.close();
+  sqlite3_finalize(stmt);
   return count;
 }
 

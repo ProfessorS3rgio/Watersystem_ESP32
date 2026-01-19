@@ -2,36 +2,169 @@
 #define DATABASE_VIEWER_H
 
 #include <Arduino.h>
-#include "bill_database.h"
+#include <sqlite3.h>
+#include "database_manager.h"
+
+// ===== CALLBACK FUNCTIONS FOR PRINTING =====
+
+// Bills callback
+static int printBillCallback(void *data, int argc, char **argv, char **azColName) {
+  Serial.print(atoi(argv[0])); Serial.print(F(" | "));
+  Serial.print(argv[1]); Serial.print(F(" | "));
+  Serial.print(atoi(argv[2])); Serial.print(F(" | "));
+  Serial.print(atoi(argv[3])); Serial.print(F(" | "));
+  Serial.print(argv[4]); Serial.print(F(" | "));
+  Serial.print(argv[5]); Serial.print(F(" | "));
+  Serial.print(atof(argv[6]), 2); Serial.print(F(" | "));
+  Serial.print(atof(argv[7]), 2); Serial.print(F(" | "));
+  Serial.print(atof(argv[8]), 2); Serial.print(F(" | "));
+  Serial.print(atof(argv[9]), 2); Serial.print(F(" | "));
+  Serial.print(argv[10]); Serial.print(F(" | "));
+  Serial.println(argv[11]);
+  return 0;
+}
+
+// Customers callback
+static int printCustomerCallback(void *data, int argc, char **argv, char **azColName) {
+  Serial.print(atoi(argv[0])); Serial.print(F(" | "));
+  Serial.print(argv[1]); Serial.print(F(" | "));
+  Serial.print(argv[2]); Serial.print(F(" | "));
+  Serial.print(argv[3]); Serial.print(F(" | "));
+  Serial.print(atoi(argv[4])); Serial.print(F(" | "));
+  Serial.print(argv[5]); Serial.print(F(" | "));
+  Serial.println(argv[6] ? argv[6] : "N/A");
+  return 0;
+}
+
+// Deductions callback
+static int printDeductionCallback(void *data, int argc, char **argv, char **azColName) {
+  Serial.print(atoi(argv[0])); Serial.print(F(" | "));
+  Serial.print(argv[1]); Serial.print(F(" | "));
+  Serial.print(argv[2]); Serial.print(F(" | "));
+  Serial.print(atof(argv[3]), 2); Serial.print(F(" | "));
+  Serial.println(argv[4]);
+  return 0;
+}
+
+// Customer Types callback
+static int printCustomerTypeCallback(void *data, int argc, char **argv, char **azColName) {
+  Serial.print(atoi(argv[0])); Serial.print(F(" | "));
+  Serial.print(argv[1]); Serial.print(F(" | "));
+  Serial.print(atof(argv[2]), 2); Serial.print(F(" | "));
+  Serial.print(atoi(argv[3])); Serial.print(F(" | "));
+  Serial.print(atof(argv[4]), 2); Serial.print(F(" | "));
+  Serial.println(argv[5]);
+  return 0;
+}
+
+// Readings callback
+static int printReadingCallback(void *data, int argc, char **argv, char **azColName) {
+  Serial.print(atoi(argv[0])); Serial.print(F(" | "));
+  Serial.print(atoi(argv[1])); Serial.print(F(" | "));
+  Serial.print(atoi(argv[2])); Serial.print(F(" | "));
+  Serial.print(atoi(argv[3])); Serial.print(F(" | "));
+  Serial.print(atoi(argv[4])); Serial.print(F(" | "));
+  Serial.println(argv[5]);
+  return 0;
+}
+
+// Barangays callback
+static int printBarangayCallback(void *data, int argc, char **argv, char **azColName) {
+  Serial.print(atoi(argv[0])); Serial.print(F(" | "));
+  Serial.print(argv[1]); Serial.print(F(" | "));
+  Serial.print(argv[2]); Serial.print(F(" | "));
+  Serial.print(atoi(argv[3])); Serial.print(F(" | "));
+  Serial.println(argv[4]);
+  return 0;
+}
+
+// Device Info callback
+static int printDeviceInfoCallback(void *data, int argc, char **argv, char **azColName) {
+  Serial.print(argv[0]); Serial.print(F(" | "));
+  Serial.print(argv[1]); Serial.print(F(" | "));
+  Serial.println(argv[2]);
+  return 0;
+}
+
+// ===== PRINT FUNCTIONS =====
 
 // Function to print bills list
 void printBillsList() {
   Serial.println(F("===== BILLS DATABASE ====="));
   Serial.println(F("ID | Ref Number    | CustID | ReadID | Bill No       | Date       | Rate | Charges | Penalty | Total | Status | Created"));
   Serial.println(F("---|---------------|--------|--------|---------------|------------|------|---------|---------|-------|--------|--------"));
-
-  for (size_t i = 0; i < bills.size(); ++i) {
-    const Bill& b = bills[i];
-    Serial.print(b.bill_id); Serial.print(F(" | "));
-    Serial.print(b.reference_number); Serial.print(F(" | "));
-    Serial.print(b.customer_id); Serial.print(F(" | "));
-    Serial.print(b.reading_id); Serial.print(F(" | "));
-    Serial.print(b.bill_no); Serial.print(F(" | "));
-    Serial.print(b.bill_date); Serial.print(F(" | "));
-    Serial.print(b.rate_per_m3, 2); Serial.print(F(" | "));
-    Serial.print(b.charges, 2); Serial.print(F(" | "));
-    Serial.print(b.penalty, 2); Serial.print(F(" | "));
-    Serial.print(b.total_due, 2); Serial.print(F(" | "));
-    Serial.print(b.status); Serial.print(F(" | "));
-    Serial.println(b.created_at);
-  }
+  const char *sql = "SELECT bill_id, reference_number, customer_id, reading_id, bill_no, bill_date, rate_per_m3, charges, penalty, total_due, status, created_at FROM bills;";
+  sqlite3_exec(db, sql, printBillCallback, NULL, NULL);
   Serial.println(F("====================================="));
+}
+
+// Function to print customers list
+void printCustomersList() {
+  Serial.println(F("===== CUSTOMERS DATABASE ====="));
+  Serial.println(F("ID | Account  | Name              | Address         | Prev Read | Status | Barangay"));
+  Serial.println(F("---|----------|-------------------|-----------------|----------|--------|---------"));
+  const char *sql = "SELECT c.customer_id, c.account_no, c.customer_name, c.address, c.previous_reading, c.status, b.barangay FROM customers c LEFT JOIN barangay_sequence b ON c.brgy_id = b.brgy_id;";
+  sqlite3_exec(db, sql, printCustomerCallback, NULL, NULL);
+  Serial.println(F("================================"));
+}
+
+// Function to print deductions list
+void printDeductionsList() {
+  Serial.println(F("===== DEDUCTIONS DATABASE ====="));
+  Serial.println(F("ID | Name          | Type      | Value | Created"));
+  Serial.println(F("---|---------------|-----------|-------|--------"));
+  const char *sql = "SELECT deduction_id, name, type, value, created_at FROM deductions;";
+  sqlite3_exec(db, sql, printDeductionCallback, NULL, NULL);
+  Serial.println(F("================================"));
+}
+
+// Function to print customer types list
+void printCustomerTypesList() {
+  Serial.println(F("===== CUSTOMER TYPES DATABASE ====="));
+  Serial.println(F("ID | Name          | Rate/m3 | Min m3 | Min Charge | Created"));
+  Serial.println(F("---|---------------|---------|--------|-----------|--------"));
+  const char *sql = "SELECT type_id, type_name, rate_per_m3, min_m3, min_charge, created_at FROM customer_types;";
+  sqlite3_exec(db, sql, printCustomerTypeCallback, NULL, NULL);
+  Serial.println(F("====================================="));
+}
+
+// Function to print readings list
+void printReadingsList() {
+  Serial.println(F("===== READINGS DATABASE ====="));
+  Serial.println(F("ID | CustID | Prev | Curr | Usage | Reading At"));
+  Serial.println(F("---|--------|------|------|-------|-----------"));
+  const char *sql = "SELECT reading_id, customer_id, previous_reading, current_reading, usage_m3, reading_at FROM readings;";
+  sqlite3_exec(db, sql, printReadingCallback, NULL, NULL);
+  Serial.println(F("================================"));
+}
+
+// Function to print barangays list
+void printBarangaysList() {
+  Serial.println(F("===== BARANGAYS DATABASE ====="));
+  Serial.println(F("ID | Barangay    | Prefix | Next Num | Updated"));
+  Serial.println(F("---|-------------|--------|----------|--------"));
+  const char *sql = "SELECT brgy_id, barangay, prefix, next_number, updated_at FROM barangay_sequence;";
+  sqlite3_exec(db, sql, printBarangayCallback, NULL, NULL);
+  Serial.println(F("================================"));
+}
+
+// Function to print device info list
+void printDeviceInfoList() {
+  // Ensure default values exist
+  initializeDefaultDeviceInfo();
+
+  Serial.println(F("===== DEVICE INFO DATABASE ====="));
+  Serial.println(F("Key          | Value      | Created"));
+  Serial.println(F("-------------|------------|--------"));
+  const char *sql = "SELECT key, value, created_at FROM device_info;";
+  sqlite3_exec(db, sql, printDeviceInfoCallback, NULL, NULL);
+  Serial.println(F("================================"));
 }
 
 // Function to display all database data via Serial
 void displayAllDatabaseData() {
-  Serial.println(F("=== CUSTOMERS DATABASE ==="));
-  printCustomersList();
+  Serial.println(F("=== BARANGAYS DATABASE ==="));
+  printBarangaysList();
   Serial.println();
 
   Serial.println(F("=== DEDUCTIONS DATABASE ==="));
@@ -42,9 +175,21 @@ void displayAllDatabaseData() {
   printCustomerTypesList();
   Serial.println();
 
+  Serial.println(F("=== CUSTOMERS DATABASE ==="));
+  printCustomersList();
+  Serial.println();
+
+  Serial.println(F("=== READINGS DATABASE ==="));
+  printReadingsList();
+  Serial.println();
+
   Serial.println(F("=== BILLS DATABASE ==="));
   printBillsList();
   Serial.println();
+
+  Serial.println(F("=== DEVICE INFO DATABASE ==="));
+  printDeviceInfoList();
+  Serial.println();
 }
 
-#endif
+#endif  // DATABASE_VIEWER_H

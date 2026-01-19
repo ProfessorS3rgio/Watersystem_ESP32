@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class Reading extends Model
 {
     protected $table = 'reading';
+    protected $primaryKey = 'reading_id';
 
     protected $fillable = [
         'customer_id',

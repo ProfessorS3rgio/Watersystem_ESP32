@@ -11,7 +11,7 @@
 #include "database/customers_database.h"
 #include "database/readings_database.h"
 #include "database/device_info.h"
-#include "database/bill_database.h"
+#include "database/database_manager.h"
 #include "database/deduction_database.h"
 #include "database/customer_type_database.h"
 #include "database/database_viewer.h"
@@ -147,6 +147,9 @@ void setup() {
   // Boot screen: console-style checks (SD + settings + printer)
   showBootScreen();
 
+  // Initialize SQLite Database
+  initDatabase();
+
   // Initialize Readings database (time offset + readings log)
   initReadingsDatabase();
 
@@ -165,11 +168,17 @@ void setup() {
   // Initialize Bills Database
   initBillsDatabase();
 
+  // Initialize Customer Types Database
+  initCustomerTypesDatabase();
+
+  // Initialize Bills Database
+  initBillsDatabase();
+
 #if WS_SERIAL_VERBOSE
   Serial.println(F("Watersystem ESP32 ready."));
   Serial.println(F("Use keypad or serial commands:"));
   Serial.println(F("Press D or B on keypad to start entering account"));
-  Serial.println(F("Commands: 'P' = Print sample, 'S' = SD status, 'L' = List customers, 'DD' = List deductions, 'CT' = List customer types, 'B' = List bills"));
+  Serial.println(F("Commands: 'P' = Print sample, 'S' = SD status, 'L' = List customers, 'DD' = List deductions, 'CT' = List customer types, 'B' = List bills, 'DB' = Display all databases"));
 #endif
   
   // Show welcome screen on TFT

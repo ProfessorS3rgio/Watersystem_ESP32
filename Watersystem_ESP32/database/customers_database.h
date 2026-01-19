@@ -5,424 +5,191 @@
 #include "../configuration/config.h"
 #include "device_info.h"
 #include "sync_utils.h"
-
-// Forward declarations
-void printCustomersList();
+#include <sqlite3.h>
+#include <vector>
+#include "database_manager.h"
 
 // ===== CUSTOMER DATA STRUCTURE =====
 struct Customer {
-  // Match Laravel schema fields:
-  // customer_id, account_no, type_id, customer_name, deduction_id, brgy_id, address, previous_reading, status, timestamps
-  unsigned long customer_id;
+  int customer_id;
   String account_no;
-  unsigned long type_id;
+  int type_id;
   String customer_name;
-  unsigned long deduction_id;
-  unsigned long brgy_id;
+  int deduction_id;
+  int brgy_id;
   String address;
   unsigned long previous_reading;
-  String status;  // "active" or "disconnected"
-  unsigned long created_at;  // epoch seconds if available, else 0
-  unsigned long updated_at;  // epoch seconds if available, else 0
+  String status;
+  String created_at;
+  String updated_at;
+};
+
+// ===== BARANGAY SEQUENCE STRUCTURE =====
+struct BarangaySeq {
+  int brgy_id;
+  String barangay;
+  String prefix;
+  int next_number;
+  String updated_at;
 };
 
 // ===== CUSTOMER DATABASE =====
-const int MAX_CUSTOMERS = 50;  // Maximum customers to store
-Customer customers[MAX_CUSTOMERS];
-int customerCount = 0;
+std::vector<Customer> customers;
+std::vector<BarangaySeq> barangays;
 
-static const char* CUSTOMERS_SYNC_FILE = "/WATER_DB/CUSTOMERS/customers.psv"; // pipe-separated values
-
-static bool parseBoolToken(const String& s) {
-  String v = s;
-  v.trim();
-  v.toLowerCase();
-  return (v == "1" || v == "true" || v == "y" || v == "yes");
+static int loadCustomerCallback(void *data, int argc, char **argv, char **azColName) {
+  Customer c;
+  c.customer_id = atoi(argv[0]);
+  c.account_no = argv[1];
+  c.type_id = atoi(argv[2]);
+  c.customer_name = argv[3];
+  c.deduction_id = atoi(argv[4]);
+  c.brgy_id = atoi(argv[5]);
+  c.address = argv[6];
+  c.previous_reading = strtoul(argv[7], NULL, 10);
+  c.status = argv[8];
+  c.created_at = argv[9];
+  c.updated_at = argv[10];
+  customers.push_back(c);
+  return 0;
 }
 
-static bool loadCustomersFromSD() {
-  if (!SD.exists(CUSTOMERS_SYNC_FILE)) {
-    return false;
-  }
-
-  File f = SD.open(CUSTOMERS_SYNC_FILE, FILE_READ);
-  if (!f) {
-    return false;
-  }
-
-  customerCount = 0;
-  while (f.available() && customerCount < MAX_CUSTOMERS) {
-    String line = f.readStringUntil('\n');
-    line.trim();
-    if (line.length() == 0) continue;
-    if (line.startsWith("#")) continue;
-
-    int p1 = line.indexOf('|');
-    int p2 = (p1 >= 0) ? line.indexOf('|', p1 + 1) : -1;
-    int p3 = (p2 >= 0) ? line.indexOf('|', p2 + 1) : -1;
-    int p4 = (p3 >= 0) ? line.indexOf('|', p3 + 1) : -1;
-    int p5 = (p4 >= 0) ? line.indexOf('|', p4 + 1) : -1;
-    int p6 = (p5 >= 0) ? line.indexOf('|', p5 + 1) : -1;
-    int p7 = (p6 >= 0) ? line.indexOf('|', p6 + 1) : -1;
-    if (p1 < 0 || p2 < 0 || p3 < 0 || p4 < 0 || p5 < 0 || p6 < 0 || p7 < 0) {
-      continue;
-    }
-
-    String accountNo = line.substring(0, p1);
-    String name = line.substring(p1 + 1, p2);
-    String address = line.substring(p2 + 1, p3);
-    String prev = line.substring(p3 + 1, p4);
-    String status = line.substring(p4 + 1, p5);
-    String typeId = line.substring(p5 + 1, p6);
-    String deductionId = line.substring(p6 + 1, p7);
-    String brgyId = line.substring(p7 + 1);
-
-    accountNo.trim();
-    name.trim();
-    address.trim();
-    prev.trim();
-    status.trim();
-    typeId.trim();
-    deductionId.trim();
-    brgyId.trim();
-    if (accountNo.length() == 0) continue;
-
-    customers[customerCount].customer_id = (unsigned long)(customerCount + 1);
-    customers[customerCount].account_no = accountNo;
-    customers[customerCount].customer_name = name;
-    customers[customerCount].address = address;
-    customers[customerCount].previous_reading = (unsigned long)prev.toInt();
-    customers[customerCount].status = status;
-    customers[customerCount].type_id = (unsigned long)typeId.toInt();
-    customers[customerCount].deduction_id = (unsigned long)deductionId.toInt();
-    customers[customerCount].brgy_id = (unsigned long)brgyId.toInt();
-    customers[customerCount].created_at = 0;
-    customers[customerCount].updated_at = 0;
-    customerCount++;
-  }
-
-  f.close();
-  return (customerCount > 0);
+static int loadBarangayCallback(void *data, int argc, char **argv, char **azColName) {
+  BarangaySeq b;
+  b.brgy_id = atoi(argv[0]);
+  b.barangay = argv[1];
+  b.prefix = argv[2];
+  b.next_number = atoi(argv[3]);
+  b.updated_at = argv[4];
+  barangays.push_back(b);
+  return 0;
 }
 
-static bool saveCustomersToSD() {
-  // Best-effort: truncate by removing first
-  if (SD.exists(CUSTOMERS_SYNC_FILE)) {
-    SD.remove(CUSTOMERS_SYNC_FILE);
-  }
-
-  File f = SD.open(CUSTOMERS_SYNC_FILE, FILE_WRITE);
-  if (!f) {
-    return false;
-  }
-
-  f.println(F("# account_no|customer_name|address|previous_reading|status|type_id|deduction_id|brgy_id"));
-  for (int i = 0; i < customerCount; i++) {
-    f.print(sanitizeSyncField(customers[i].account_no));
-    f.print('|');
-    f.print(sanitizeSyncField(customers[i].customer_name));
-    f.print('|');
-    f.print(sanitizeSyncField(customers[i].address));
-    f.print('|');
-    f.print(customers[i].previous_reading);
-    f.print('|');
-    f.print(sanitizeSyncField(customers[i].status));
-    f.print('|');
-    f.print(customers[i].type_id);
-    f.print('|');
-    f.print(customers[i].deduction_id);
-    f.print('|');
-    f.println(customers[i].brgy_id);
-  }
-
-  f.close();
-  return true;
+void loadCustomersFromDB() {
+  customers.clear();
+  const char *sql = "SELECT customer_id, account_no, type_id, customer_name, deduction_id, brgy_id, address, previous_reading, status, created_at, updated_at FROM customers;";
+  sqlite3_exec(db, sql, loadCustomerCallback, NULL, NULL);
 }
 
-// ===== INITIALIZE DATABASE =====
+void loadBarangaysFromDB() {
+  barangays.clear();
+  const char *sql = "SELECT brgy_id, barangay, prefix, next_number, updated_at FROM barangay_sequence;";
+  sqlite3_exec(db, sql, loadBarangayCallback, NULL, NULL);
+}
+
 void initCustomersDatabase() {
-  #if WS_SERIAL_VERBOSE
-    Serial.println(F("Initializing Customers Database..."));
-  #endif
-
-  // Prefer SD-backed customer file (so the device really uses SD as its database).
-  bool loadedFromSd = false;
-  if (SD.cardType() != CARD_NONE) {
-    loadedFromSd = loadCustomersFromSD();
+  loadCustomersFromDB();
+  loadBarangaysFromDB();
+  // If barangays empty, insert defaults
+  if (barangays.empty()) {
+    const char *inserts[] = {
+      "INSERT INTO barangay_sequence (barangay, prefix, next_number, updated_at) VALUES ('Dona Josefa', 'D', 1, datetime('now'));",
+      "INSERT INTO barangay_sequence (barangay, prefix, next_number, updated_at) VALUES ('Makilas', 'M', 1, datetime('now'));",
+      "INSERT INTO barangay_sequence (barangay, prefix, next_number, updated_at) VALUES ('Buluan', 'B', 1, datetime('now'));",
+      "INSERT INTO barangay_sequence (barangay, prefix, next_number, updated_at) VALUES ('Caparan', 'C', 1, datetime('now'));"
+    };
+    for (auto sql : inserts) {
+      sqlite3_exec(db, sql, NULL, NULL, NULL);
+    }
+    loadBarangaysFromDB();
   }
-
-  if (loadedFromSd) {
   #if WS_SERIAL_VERBOSE
-      Serial.print(F("Loaded "));
-      Serial.print(customerCount);
-      Serial.println(F(" customers from SD card."));
-  #endif
-    return;
-  }
-  
-  // Start with empty database - customers will be synced from web
-  customerCount = 0;
-  
-  #if WS_SERIAL_VERBOSE
-    Serial.println(F("Initialized empty customer database."));
+    Serial.print(F("Loaded "));
+    Serial.print(customers.size());
+    Serial.println(F(" customers from database."));
   #endif
 }
 
-// ===== FIND CUSTOMER BY ACCOUNT NUMBER =====
+String generateAccountNumber(String barangayName) {
+  for (auto &b : barangays) {
+    if (b.barangay == barangayName) {
+      String num = String(b.next_number);
+      while (num.length() < 3) num = "0" + num;
+      String account = b.prefix + "-" + num;
+      b.next_number++;
+      char sql[256];
+      sprintf(sql, "UPDATE barangay_sequence SET next_number = %d, updated_at = datetime('now') WHERE brgy_id = %d;", b.next_number, b.brgy_id);
+      sqlite3_exec(db, sql, NULL, NULL, NULL);
+      return account;
+    }
+  }
+  return "";
+}
+
+String getBarangayName(int brgy_id) {
+  for (const auto& b : barangays) {
+    if (b.brgy_id == brgy_id) return b.barangay;
+  }
+  return "";
+}
+
+// ===== FIND CUSTOMER BY ACCOUNT =====
 int findCustomerByAccount(String accountNumber) {
-  Serial.print(F("Searching for account: "));
-  Serial.println(accountNumber);
-  
-  // First, try exact match
-  for (int i = 0; i < customerCount; i++) {
+  for (size_t i = 0; i < customers.size(); i++) {
     if (customers[i].account_no == accountNumber) {
-      Serial.print(F("Found exact match at index: "));
-      Serial.println(i);
-      return i;  // Return index
+      return i;
     }
   }
-  
-  // If not found and accountNumber starts with a digit, try prepending "M-" for Makilas
-  if (accountNumber.length() > 0 && isDigit(accountNumber.charAt(0))) {
-    String prefixed = "M-" + accountNumber;
-    Serial.print(F("Trying prefixed: "));
-    Serial.println(prefixed);
-    for (int i = 0; i < customerCount; i++) {
-      if (customers[i].account_no == prefixed) {
-        Serial.print(F("Found prefixed match at index: "));
-        Serial.println(i);
-        return i;  // Return index
-      }
-    }
-  }
-  
-  Serial.println(F("Account not found"));
-  return -1;  // Not found
-}
-
-// ===== FIND CUSTOMER BY CUSTOMER ID =====
-int findCustomerById(unsigned long customerId) {
-  for (int i = 0; i < customerCount; i++) {
-    if (customers[i].customer_id == customerId) {
-      return i;  // Return index
-    }
-  }
-  return -1;  // Not found
+  return -1;
 }
 
 // ===== GET CUSTOMER AT INDEX =====
 Customer* getCustomerAt(int index) {
-  if (index >= 0 && index < customerCount) {
+  if (index >= 0 && index < (int)customers.size()) {
     return &customers[index];
   }
   return nullptr;
 }
 
-// ===== CHECK IF CUSTOMER BELONGS TO DEVICE BARANGAY =====
-bool isCustomerInDeviceBarangay(unsigned long customerId) {
-  int index = findCustomerById(customerId);
-  if (index == -1) return false;
-  return customers[index].brgy_id == BRGY_ID_VALUE;
+// ===== GET BARANGAY PREFIX FOR CURRENT DEVICE =====
+String getCurrentBarangayPrefix() {
+  for (const auto& b : barangays) {
+    if (b.brgy_id == BRGY_ID_VALUE) {
+      return b.prefix;
+    }
+  }
+  return ""; // Not found
 }
 
-// ===== GET CUSTOMER ID BY ACCOUNT NUMBER =====
-unsigned long getCustomerIdByAccount(String accountNo) {
-  int index = findCustomerByAccount(accountNo);
-  if (index == -1) return 0;
-  return customers[index].customer_id;
-}
-
-// ===== ADD NEW CUSTOMER =====
-bool addCustomer(String accountNumber, String customerName, String address, unsigned long previousReading, unsigned long typeId, unsigned long brgyId, String status = "active") {
-  if (customerCount >= MAX_CUSTOMERS) {
-    Serial.println(F("Database is full!"));
-    return false;
-  }
-  
-  // Check if account already exists
-  if (findCustomerByAccount(accountNumber) != -1) {
-    Serial.println(F("Account already exists!"));
-    return false;
-  }
-  
-  customers[customerCount].account_no = accountNumber;
-  customers[customerCount].customer_name = customerName;
-  customers[customerCount].address = address;
-  customers[customerCount].previous_reading = previousReading;
-  customers[customerCount].status = status;
-  customers[customerCount].type_id = typeId;
-  customers[customerCount].brgy_id = brgyId;
-  customers[customerCount].created_at = 0;
-  customers[customerCount].updated_at = 0;
-  customers[customerCount].customer_id = (unsigned long)(customerCount + 1);
-  
-  customerCount++;
-
-  if (SD.cardType() != CARD_NONE) {
-    (void)saveCustomersToSD();
-  }
-  
-  Serial.print(F("Added customer: "));
-  Serial.println(customerName);
-  return true;
-}
-
-// ===== UPDATE CUSTOMER READING =====
-bool updateCustomerReading(String accountNumber, unsigned long newReading) {
-  int index = findCustomerByAccount(accountNumber);
-  if (index == -1) {
-    Serial.println(F("Customer not found!"));
-    return false;
-  }
-  
-  customers[index].previous_reading = newReading;
-
-  if (SD.cardType() != CARD_NONE) {
-    (void)saveCustomersToSD();
-  }
-  Serial.print(F("Updated reading for "));
-  Serial.print(customers[index].customer_name);
-  Serial.print(F(" to "));
-  Serial.println(newReading);
-  return true;
-}
-
-// ===== SYNC PROTOCOL (Web Serial) =====
-// EXPORT_CUSTOMERS
-//   -> prints BEGIN_CUSTOMERS, then CUST|account_no|customer_name|address|previous_reading|is_active lines, then END_CUSTOMERS
-// UPSERT_CUSTOMER|account_no|customer_name|address|previous_reading|is_active
-//   -> prints ACK|UPSERT|<account_no> or ERR|<message>
-
+// ===== EXPORT CUSTOMERS FOR SYNC =====
 void exportCustomersForSync() {
-  uint32_t startMs = millis();
   Serial.println(F("BEGIN_CUSTOMERS"));
-  int exportedCount = 0;
-  for (int i = 0; i < customerCount; i++) {
-    // Only export customers for this device's barangay
-    if (customers[i].brgy_id != BRGY_ID_VALUE) continue;
-    
-    Serial.print(F("CUST|"));
-    Serial.print(sanitizeSyncField(customers[i].account_no));
-    Serial.print('|');
-    Serial.print(sanitizeSyncField(customers[i].customer_name));
-    Serial.print('|');
-    Serial.print(sanitizeSyncField(customers[i].address));
-    Serial.print('|');
-    Serial.print(customers[i].previous_reading);
-    Serial.print('|');
-    Serial.print(sanitizeSyncField(customers[i].status));
-    Serial.print('|');
-    Serial.print(customers[i].type_id);
-    Serial.print('|');
-    Serial.print(customers[i].deduction_id);
-    Serial.print('|');
-    Serial.println(customers[i].brgy_id);
-    exportedCount++;
+  for (const auto& c : customers) {
+    Serial.printf("CUST|%s|%s|%s|%lu|%s|%d|%d|%d\n",
+                  c.account_no.c_str(), c.customer_name.c_str(), c.address.c_str(),
+                  c.previous_reading, c.status.c_str(), c.type_id, c.deduction_id, c.brgy_id);
   }
   Serial.println(F("END_CUSTOMERS"));
-
-  uint32_t elapsedMs = millis() - startMs;
-  Serial.print(F("Done. ("));
-  Serial.print(elapsedMs);
-  Serial.println(F(" ms)"));
-  Serial.print(F("Total Customers exported: "));
-  Serial.println(exportedCount);
 }
 
+// ===== UPSERT CUSTOMER FROM SYNC =====
 bool upsertCustomerFromSync(const String& accountNo, const String& name, const String& address, unsigned long prev, const String& status, unsigned long typeId, unsigned long deductionId, unsigned long brgyId) {
-  String acct = accountNo;
-  acct.trim();
-  if (acct.length() == 0) return false;
-
-  // Only accept customers for this device's barangay
-  if (brgyId != BRGY_ID_VALUE) {
-    Serial.print(F("Skipping customer from different barangay: "));
-    Serial.println(brgyId);
-    return false;
+  char sql[512];
+  sprintf(sql, "INSERT OR REPLACE INTO customers (account_no, customer_name, address, previous_reading, status, type_id, deduction_id, brgy_id, created_at, updated_at) VALUES ('%s', '%s', '%s', %lu, '%s', %lu, %lu, %lu, datetime('now'), datetime('now'));",
+          accountNo.c_str(), name.c_str(), address.c_str(), prev, status.c_str(), typeId, deductionId, brgyId);
+  int rc = sqlite3_exec(db, sql, NULL, NULL, NULL);
+  if (rc == SQLITE_OK) {
+    loadCustomersFromDB(); // Reload to update vector
+    return true;
   }
-
-  int idx = findCustomerByAccount(acct);
-  if (idx == -1) {
-    if (customerCount >= MAX_CUSTOMERS) {
-      return false;
-    }
-    idx = customerCount;
-    customers[idx].customer_id = (unsigned long)(idx + 1);
-    customers[idx].account_no = acct;
-    customerCount++;
-  }
-
-  customers[idx].customer_name = name;
-  customers[idx].address = address;
-  customers[idx].previous_reading = prev;
-  customers[idx].status = status;
-  customers[idx].type_id = typeId;
-  customers[idx].deduction_id = deductionId;
-  customers[idx].brgy_id = brgyId;
-
-  if (SD.cardType() != CARD_NONE) {
-    (void)saveCustomersToSD();
-  }
-  return true;
+  return false;
 }
 
 // ===== REMOVE CUSTOMER BY ACCOUNT =====
-bool removeCustomerByAccount(const String& accountNo) {
-  String acct = accountNo;
-  acct.trim();
-  if (acct.length() == 0) return false;
-
-  int idx = findCustomerByAccount(acct);
-  if (idx == -1) return false;  // Not found
-
-  // Shift all customers after this one down by one
-  for (int i = idx; i < customerCount - 1; i++) {
-    customers[i] = customers[i + 1];
+bool removeCustomerByAccount(const String& accountNumber) {
+  char sql[256];
+  sprintf(sql, "DELETE FROM customers WHERE account_no = '%s';", accountNumber.c_str());
+  int rc = sqlite3_exec(db, sql, NULL, NULL, NULL);
+  if (rc == SQLITE_OK) {
+    loadCustomersFromDB(); // Reload to update vector
+    return true;
   }
-  customerCount--;
-
-  if (SD.cardType() != CARD_NONE) {
-    (void)saveCustomersToSD();
-  }
-  return true;
-}
-
-// ===== CLEAR ALL CUSTOMERS ON SD =====
-void clearCustomersOnSD() {
-  customerCount = 0;
-  if (SD.cardType() != CARD_NONE) {
-    SD.remove(CUSTOMERS_SYNC_FILE);
-  }
-}
-
-// ===== PRINT ALL CUSTOMERS =====
-void printCustomersList() {
-  Serial.println(F("\n===== CUSTOMERS DATABASE ====="));
-  Serial.println(F("Account | Name              | Address         | Prev Read | Status | Type | Brgy"));
-  Serial.println(F("--------|-------------------|-----------------|----------|--------|------|-----"));
-  
-  for (int i = 0; i < customerCount; i++) {
-    Serial.print(customers[i].account_no);
-    Serial.print(F("       | "));
-    Serial.print(customers[i].customer_name);
-    Serial.print(F("      | "));
-    Serial.print(customers[i].address);
-    Serial.print(F(" | "));
-    Serial.print(customers[i].previous_reading);
-    Serial.print(F(" | "));
-    Serial.print(customers[i].status);
-    Serial.print(F(" | "));
-    Serial.print(customers[i].type_id);
-    Serial.print(F(" | "));
-    Serial.println(customers[i].brgy_id);
-  }
-  
-  Serial.println(F("===============================\n"));
+  return false;
 }
 
 // ===== GET CUSTOMER COUNT =====
 int getCustomerCount() {
-  return customerCount;
+  return customers.size();
 }
 
 #endif  // CUSTOMERS_DATABASE_H

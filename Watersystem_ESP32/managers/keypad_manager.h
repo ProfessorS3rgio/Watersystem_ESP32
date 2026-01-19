@@ -149,7 +149,15 @@ void handleKeypadInput(char key) {
       displayEnterAccountScreen();
     }
     else if (key == 'D') {  // Confirm account
-      selectedCustomerIndex = findCustomerByAccount(inputBuffer);
+      // Format account number with barangay prefix
+      String prefix = getCurrentBarangayPrefix();
+      String accountNum = inputBuffer;
+      // Pad with leading zero if needed to make 3 digits
+      while (accountNum.length() < 3) {
+        accountNum = "0" + accountNum;
+      }
+      String fullAccount = prefix + "-" + accountNum;
+      selectedCustomerIndex = findCustomerByAccount(fullAccount);
       processAccountNumberEntry();
     }
     else if (key == 'B') {  // Clear

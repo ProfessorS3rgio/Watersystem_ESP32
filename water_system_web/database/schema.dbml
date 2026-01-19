@@ -62,7 +62,6 @@ Table bill {
   reference_number integer
   customer_id integer
   reading_id integer
-  bill_no varchar
   bill_date date
   rate_per_m3 decimal
   charges decimal
@@ -74,7 +73,7 @@ Table bill {
   created_at datetime
   updated_at datetime
   indexes {
-    bill_no [unique]
+    reference_number [unique]
   }
 }
 enum bill_status{
@@ -103,6 +102,7 @@ Table bill_transaction {
   bill_id integer
   bill_reference_number integer
   type enum('payment', 'void')
+  source enum('Office',"Device")
   amount decimal(10, 2)
   cash_received decimal(10, 2) [null]
   change decimal(10, 2)

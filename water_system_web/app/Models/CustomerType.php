@@ -10,6 +10,7 @@ class CustomerType extends Model
     use HasFactory;
 
     protected $table = 'customer_type';
+    protected $primaryKey = 'type_id';
 
     protected $fillable = [
         'type_name',

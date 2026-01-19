@@ -8,6 +8,7 @@ use App\Models\Deduction;
 class Customer extends Model
 {
     protected $table = 'customer';
+    protected $primaryKey = 'customer_id';
 
     protected $fillable = [
         'account_no',

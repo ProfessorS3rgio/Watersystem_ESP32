@@ -53,12 +53,10 @@
 
 // ===== SD CARD DATABASE PATHS =====
 #define DB_ROOT         "/WATER_DB"
-#define DB_CUSTOMERS    "/WATER_DB/CUSTOMERS"
-#define DB_BILLS        "/WATER_DB/BILLS"
-#define DB_READINGS     "/WATER_DB/READINGS"
-#define DB_LOGS         "/WATER_DB/LOGS"
-#define DB_SETTINGS     "/WATER_DB/SETTINGS"
-#define DB_DEDUCTIONS   "/WATER_DB/DEDUCTIONS"
-#define DB_CUSTOMER_TYPES "/WATER_DB/CUSTOMER_TYPES"
+#define DB_ASSETS       "/WATER_DB/ASSETS"
 #define YIELD_WDT() vTaskDelay(1)
+
+#include <sqlite3.h>
+sqlite3 *db = nullptr;
+
 #endif  // CONFIG_H

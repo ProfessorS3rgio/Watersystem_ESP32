@@ -115,13 +115,7 @@ void initSDCardDatabase() {
   // Define database directories
   const char* dbDirs[] = {
     DB_ROOT,
-    DB_CUSTOMERS,
-    DB_BILLS,
-    DB_READINGS,
-    DB_LOGS,
-    DB_SETTINGS,
-    DB_DEDUCTIONS,
-    DB_CUSTOMER_TYPES
+    DB_ASSETS
   };
   
   const int numDirs = sizeof(dbDirs) / sizeof(dbDirs[0]);
@@ -271,28 +265,8 @@ bool formatSDCard() {
     return false;
   }
   
-  if (!SD.mkdir(DB_CUSTOMERS)) {
-    Serial.println(F("Failed to recreate CUSTOMERS directory"));
-    return false;
-  }
-  
-  if (!SD.mkdir(DB_READINGS)) {
-    Serial.println(F("Failed to recreate READINGS directory"));
-    return false;
-  }
-  
-  if (!SD.mkdir(DB_SETTINGS)) {
-    Serial.println(F("Failed to recreate SETTINGS directory"));
-    return false;
-  }
-  
-  if (!SD.mkdir(DB_DEDUCTIONS)) {
-    Serial.println(F("Failed to recreate DEDUCTIONS directory"));
-    return false;
-  }
-  
-  if (!SD.mkdir(DB_CUSTOMER_TYPES)) {
-    Serial.println(F("Failed to recreate CUSTOMER_TYPES directory"));
+  if (!SD.mkdir(DB_ASSETS)) {
+    Serial.println(F("Failed to recreate ASSETS directory"));
     return false;
   }
   

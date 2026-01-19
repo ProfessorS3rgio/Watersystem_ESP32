@@ -7,6 +7,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class BillTransaction extends Model
 {
+    protected $table = 'bill_transaction';
+    protected $primaryKey = 'bill_transaction_id';
+
     protected $fillable = [
         'bill_id',
         'type',
