@@ -395,13 +395,7 @@ export default {
           }
         }
 
-        // 5) Push filtered DB customers to device (adds new, updates existing)
-        this.addLog(`Pushing ${filteredDbCustomers.length} customers to ESP32...`)
-        await this.pushCustomersToDevice(filteredDbCustomers)
-
-        this.addLog('✓ Customer sync completed')
-
-        // 5.5) Sync customer types from DB to device
+        // 5) Sync customer types from DB to device first (needed for customer references)
         this.addLog('Fetching customer types from database...')
         var dbCustomerTypes = await databaseService.fetchCustomerTypesFromDatabase()
         this.addLog(`Database has ${dbCustomerTypes.length} customer types`)
@@ -409,7 +403,7 @@ export default {
         await this.pushCustomerTypesToDevice(dbCustomerTypes)
         this.addLog('✓ Customer types sync completed')
 
-        // 5.6) Sync deductions from DB to device
+        // 5.5) Sync deductions from DB to device
         this.addLog('Fetching deductions from database...')
         var dbDeductions = await databaseService.fetchDeductionsFromDatabase()
         this.addLog(`Database has ${dbDeductions.length} deductions`)
@@ -417,12 +411,11 @@ export default {
         await this.pushDeductionsToDevice(dbDeductions)
         this.addLog('✓ Deductions sync completed')
 
-        // 5) Sync water rate from DB to device
-        this.addLog('Fetching water rate from database...')
-        var settings = await databaseService.fetchSettingsFromDatabase()
-        var rate = settings?.rate_per_m3 || 15.00
-        this.addLog(`Sending water rate ${rate} to ESP32...`)
-        await this.sendLine('SET_WATER_RATE|' + String(rate))
+        // 5.6) Push filtered DB customers to device (adds new, updates existing)
+        this.addLog(`Pushing ${filteredDbCustomers.length} customers to ESP32...`)
+        await this.pushCustomersToDevice(filteredDbCustomers)
+
+        this.addLog('✓ Customer sync completed')
 
         // 6) Sync readings (device -> DB)
         await this.syncReadingsFromDevice()

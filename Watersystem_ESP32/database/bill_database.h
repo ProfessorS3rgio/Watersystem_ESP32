@@ -16,7 +16,7 @@ float calculateDeductions(float baseAmount, unsigned long deductionId);
 int getLastReadingIdForCustomer(int customerId);
 void updateCustomerPreviousReading(int customerId, unsigned long newPreviousReading);
 bool hasReadingThisMonth(int customerId);
-void updateExistingReading(int customerId, unsigned long currentReading, unsigned long usage);
+void updateExistingReading(int readingId, unsigned long currentReading, unsigned long usage);
 
 const int CURRENT_YEAR = 2026;
 
@@ -218,8 +218,8 @@ bool hasReadingThisMonth(int customerId) {
 }
 
 // ===== UPDATE EXISTING READING =====
-void updateExistingReading(int customerId, unsigned long currentReading, unsigned long usage) {
-  String query = "UPDATE readings SET current_reading = " + String(currentReading) + ", usage_m3 = " + String(usage) + ", updated_at = datetime('now') WHERE customer_id = " + String(customerId) + " ORDER BY reading_id DESC LIMIT 1;";
+void updateExistingReading(int readingId, unsigned long currentReading, unsigned long usage) {
+  String query = "UPDATE readings SET current_reading = " + String(currentReading) + ", usage_m3 = " + String(usage) + ", updated_at = datetime('now') WHERE reading_id = " + String(readingId) + ";";
   sqlite3_exec(db, query.c_str(), NULL, NULL, NULL);
 }
 
@@ -314,11 +314,12 @@ bool generateBillForCustomer(String accountNo, unsigned long currentReading) {
     usage = currentReading - oldPreviousReading;
     Serial.print(F("New usage: "));
     Serial.println(usage);
-    // Update existing reading
-    updateExistingReading(customer->customer_id, currentReading, usage);
+    // Get reading ID first
     readingId = getExistingReadingIdThisMonth(customer->customer_id);
     Serial.print(F("Reading ID to update: "));
     Serial.println(readingId);
+    // Update existing reading
+    updateExistingReading(readingId, currentReading, usage);
   } else {
     Serial.println(F("Creating new reading..."));
     // Save new reading to database
