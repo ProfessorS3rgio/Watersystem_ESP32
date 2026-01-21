@@ -175,11 +175,20 @@ void displayCustomerInfo() {
   
   tft.drawLine(0, 58, 160, 58, COLOR_LINE);
   
+  // Check if customer has existing reading and show correct previous reading
+  unsigned long displayPrevReading = cust->previous_reading;
+  if (hasReadingThisMonth(cust->customer_id)) {
+    unsigned long existingPrev = 0, existingCurr = 0, existingUsage = 0;
+    if (getExistingReadingDataThisMonth(cust->customer_id, existingPrev, existingCurr, existingUsage)) {
+      displayPrevReading = existingPrev;
+    }
+  }
+  
   tft.setTextColor(COLOR_LABEL);
   tft.setCursor(2, 64);
   tft.print(F("Prev: "));
   tft.setTextColor(COLOR_AMOUNT);
-  tft.println(cust->previous_reading);
+  tft.println(displayPrevReading);
   
   tft.setTextColor(COLOR_LABEL);
   tft.setCursor(2, 100);

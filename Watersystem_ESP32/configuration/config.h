@@ -54,6 +54,7 @@
 // ===== SD CARD DATABASE PATHS =====
 #define DB_ROOT         "/WATER_DB"
 #define DB_ASSETS       "/WATER_DB/ASSETS"
+#define DB_PATH         "/sd/watersystem.db"
 #define YIELD_WDT() vTaskDelay(1)
 
 #include <sqlite3.h>

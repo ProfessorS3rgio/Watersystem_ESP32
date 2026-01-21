@@ -3,6 +3,7 @@
 
 #include <SD.h>
 #include <time.h>
+#include <sys/time.h>
 #include "../configuration/config.h"
 #include "../managers/sdcard_manager.h"
 #include "customers_database.h"
@@ -52,7 +53,11 @@ void loadReadingsFromDB() {
 
 void saveReadingToDB(int customer_id, unsigned long previous_reading, unsigned long current_reading, unsigned long usage_m3, String reading_at) {
   char sql[512];
-  sprintf(sql, "INSERT INTO readings (customer_id, previous_reading, current_reading, usage_m3, reading_at, created_at, updated_at) VALUES (%d, %lu, %lu, %lu, '%s', datetime('now'), datetime('now'));", customer_id, previous_reading, current_reading, usage_m3, reading_at.c_str());
+  if (reading_at == "datetime('now')") {
+    sprintf(sql, "INSERT INTO readings (customer_id, previous_reading, current_reading, usage_m3, reading_at, created_at, updated_at) VALUES (%d, %lu, %lu, %lu, datetime('now'), datetime('now'), datetime('now'));", customer_id, previous_reading, current_reading, usage_m3);
+  } else {
+    sprintf(sql, "INSERT INTO readings (customer_id, previous_reading, current_reading, usage_m3, reading_at, created_at, updated_at) VALUES (%d, %lu, %lu, %lu, '%s', datetime('now'), datetime('now'));", customer_id, previous_reading, current_reading, usage_m3, reading_at.c_str());
+  }
   sqlite3_exec(db, sql, NULL, NULL, NULL);
 }
 
@@ -174,11 +179,19 @@ bool markAllReadingsSynced() {
 }
 
 void setDeviceEpoch(uint32_t epoch) {
-  // Set the time offset based on provided epoch
-  // Assuming epoch is the current time from server
+  // Set the ESP32 system time
+  struct timeval tv;
+  tv.tv_sec = epoch;
+  tv.tv_usec = 0;
+  settimeofday(&tv, NULL);
+
+  // Also maintain offset for compatibility
   uint32_t nowMillis = millis() / 1000;
   g_timeOffsetSeconds = epoch - nowMillis;
   saveDeviceTimeOffsetToDB(); // Save to DB
+
+  Serial.print(F("System time set to: "));
+  Serial.println(epoch);
 }
 
 #endif  // READINGS_DATABASE_H

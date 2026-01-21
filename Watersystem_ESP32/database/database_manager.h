@@ -2,6 +2,7 @@
 #define DATABASE_MANAGER_H
 
 #include "../configuration/config.h"
+#include "../managers/sdcard_manager.h"
 #include <sqlite3.h>
 
 void createAllTables();
@@ -9,7 +10,13 @@ void initializeDefaultDeviceInfo();
 
 void initDatabase() {
   if (!db) {
-    int rc = sqlite3_open("/sd/watersystem.db", &db);
+    // Ensure SD card is ready before opening database
+    if (!isSDCardReady()) {
+      Serial.println(F("SD card not ready, cannot open database"));
+      return;
+    }
+    
+    int rc = sqlite3_open(DB_PATH, &db);
     if (rc) {
       Serial.printf("Can't open database: %s\n", sqlite3_errmsg(db));
       return;

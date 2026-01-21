@@ -113,7 +113,8 @@ bool handleSyncCommands(String raw) {
       Serial.print(F("ACK|UPSERT|"));
       Serial.println(accountNo);
     } else {
-      Serial.println(F("ERR|UPSERT_FAILED"));
+      Serial.print(F("ERR|UPSERT_FAILED|CUSTOMER|"));
+      Serial.println(accountNo);
     }
     return true;
   }
@@ -155,7 +156,8 @@ bool handleSyncCommands(String raw) {
       Serial.print(F("ACK|UPSERT|"));
       Serial.println(name);
     } else {
-      Serial.println(F("ERR|UPSERT_FAILED"));
+      Serial.print(F("ERR|UPSERT_FAILED|DEDUCTION|"));
+      Serial.println(name);
     }
     return true;
   }
@@ -202,7 +204,8 @@ bool handleSyncCommands(String raw) {
       Serial.print(F("ACK|UPSERT|"));
       Serial.println(typeName);
     } else {
-      Serial.println(F("ERR|UPSERT_FAILED"));
+      Serial.print(F("ERR|UPSERT_FAILED|CUSTOMER_TYPE|"));
+      Serial.println(typeName);
     }
     return true;
   }
@@ -251,6 +254,9 @@ bool handleSyncCommands(String raw) {
     return true;
   }
 
+  // If command not recognized, log it for debugging
+  Serial.print(F("UNKNOWN_COMMAND: "));
+  Serial.println(raw);
   return false;
 }
 

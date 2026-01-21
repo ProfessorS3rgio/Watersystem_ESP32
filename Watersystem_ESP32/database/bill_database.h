@@ -115,10 +115,15 @@ String generateBillReferenceNumber(String accountNo) {
 
 // ===== SAVE BILL TO DATABASE =====
 bool saveBillToDB(Bill bill) {
+  Serial.print(F("Saving bill for reading "));
+  Serial.println(bill.reading_id);
   char sql[1024];
   sprintf(sql, "INSERT INTO bills (reference_number, customer_id, reading_id, bill_no, bill_date, rate_per_m3, charges, penalty, total_due, status, created_at, updated_at) VALUES ('%s', %d, %d, '%s', '%s', %f, %f, %f, %f, '%s', datetime('now'), datetime('now'));",
           bill.reference_number.c_str(), bill.customer_id, bill.reading_id, bill.bill_no.c_str(), bill.bill_date.c_str(), bill.rate_per_m3, bill.charges, bill.penalty, bill.total_due, bill.status.c_str());
+  Serial.println(sql);
   int rc = sqlite3_exec(db, sql, NULL, NULL, NULL);
+  Serial.print(F("Bill save result: "));
+  Serial.println(rc == SQLITE_OK ? "OK" : "FAILED");
   return rc == SQLITE_OK;
 }
 
@@ -196,7 +201,7 @@ void updateCustomerPreviousReading(int customerId, unsigned long newPreviousRead
 
 // ===== CHECK IF CUSTOMER HAS READING THIS MONTH =====
 bool hasReadingThisMonth(int customerId) {
-  String query = "SELECT COUNT(*) FROM readings WHERE customer_id = " + String(customerId) + " AND strftime('%Y-%m', reading_at) = strftime('%Y-%m', 'now');";
+  String query = "SELECT COUNT(*) FROM readings WHERE customer_id = " + String(customerId) + ";";
   sqlite3_stmt *stmt;
   int rc = sqlite3_prepare_v2(db, query.c_str(), -1, &stmt, NULL);
   if (rc != SQLITE_OK) {
@@ -214,13 +219,57 @@ bool hasReadingThisMonth(int customerId) {
 
 // ===== UPDATE EXISTING READING =====
 void updateExistingReading(int customerId, unsigned long currentReading, unsigned long usage) {
-  String query = "UPDATE readings SET current_reading = " + String(currentReading) + ", usage_m3 = " + String(usage) + ", updated_at = datetime('now') WHERE customer_id = " + String(customerId) + " AND strftime('%Y-%m', reading_at) = strftime('%Y-%m', 'now');";
+  String query = "UPDATE readings SET current_reading = " + String(currentReading) + ", usage_m3 = " + String(usage) + ", updated_at = datetime('now') WHERE customer_id = " + String(customerId) + " ORDER BY reading_id DESC LIMIT 1;";
   sqlite3_exec(db, query.c_str(), NULL, NULL, NULL);
+}
+
+// ===== GET EXISTING READING ID THIS MONTH =====
+int getExistingReadingIdThisMonth(int customerId) {
+  String query = "SELECT reading_id FROM readings WHERE customer_id = " + String(customerId) + " ORDER BY reading_id DESC LIMIT 1;";
+  sqlite3_stmt *stmt;
+  int rc = sqlite3_prepare_v2(db, query.c_str(), -1, &stmt, NULL);
+  if (rc != SQLITE_OK) {
+    Serial.printf("SQL error: %s\n", sqlite3_errmsg(db));
+    return 0;
+  }
+  
+  int readingId = 0;
+  if (sqlite3_step(stmt) == SQLITE_ROW) {
+    readingId = sqlite3_column_int(stmt, 0);
+  }
+  sqlite3_finalize(stmt);
+  return readingId;
+}
+
+// ===== GET EXISTING READING DATA THIS MONTH =====
+bool getExistingReadingDataThisMonth(int customerId, unsigned long& prevReading, unsigned long& currReading, unsigned long& usage) {
+  String query = "SELECT previous_reading, current_reading, usage_m3 FROM readings WHERE customer_id = " + String(customerId) + " ORDER BY reading_id DESC LIMIT 1;";
+  sqlite3_stmt *stmt;
+  int rc = sqlite3_prepare_v2(db, query.c_str(), -1, &stmt, NULL);
+  if (rc != SQLITE_OK) {
+    Serial.printf("SQL error: %s\n", sqlite3_errmsg(db));
+    return false;
+  }
+  
+  bool found = false;
+  if (sqlite3_step(stmt) == SQLITE_ROW) {
+    prevReading = sqlite3_column_int(stmt, 0);
+    currReading = sqlite3_column_int(stmt, 1);
+    usage = sqlite3_column_int(stmt, 2);
+    found = true;
+  }
+  sqlite3_finalize(stmt);
+  return found;
 }
 
 // ===== UPDATE EXISTING BILL =====
 void updateExistingBill(int customerId, int readingId, float charges, float totalDue, float rate) {
+  Serial.print(F("Updating bill for customer "));
+  Serial.print(customerId);
+  Serial.print(F(", reading "));
+  Serial.println(readingId);
   String query = "UPDATE bills SET charges = " + String(charges, 2) + ", total_due = " + String(totalDue, 2) + ", rate_per_m3 = " + String(rate, 2) + ", updated_at = datetime('now') WHERE customer_id = " + String(customerId) + " AND reading_id = " + String(readingId) + ";";
+  Serial.println(query);
   sqlite3_exec(db, query.c_str(), NULL, NULL, NULL);
 }
 
@@ -231,7 +280,10 @@ bool generateBillForCustomer(String accountNo, unsigned long currentReading) {
   Customer* customer = getCustomerAt(customerIndex);
   if (!customer) return false;
 
-  // Calculate usage
+  // Save old previous reading for display
+  unsigned long oldPreviousReading = customer->previous_reading;
+
+  // Calculate usage - this will be recalculated if existing reading
   unsigned long usage = currentReading - customer->previous_reading;
   if (usage <= 0) return false; // Invalid usage
 
@@ -241,7 +293,43 @@ bool generateBillForCustomer(String accountNo, unsigned long currentReading) {
   CustomerType* customerType = getCustomerTypeAt(typeIndex);
   if (!customerType) return false;
 
-  // Calculate charges
+  // Check if customer already has reading this month
+  bool hasExistingReading = hasReadingThisMonth(customer->customer_id);
+  int readingId;
+  String readingAt = "datetime('now')"; // Use current database time
+
+  unsigned long existingCurrReading = 0;
+  unsigned long existingUsage = 0;
+
+  if (hasExistingReading) {
+    Serial.println(F("Updating existing reading..."));
+    // Get existing reading data
+    if (getExistingReadingDataThisMonth(customer->customer_id, oldPreviousReading, existingCurrReading, existingUsage)) {
+      Serial.print(F("Existing prev: "));
+      Serial.print(oldPreviousReading);
+      Serial.print(F(", curr: "));
+      Serial.println(existingCurrReading);
+    }
+    // Recalculate usage based on existing previous reading
+    usage = currentReading - oldPreviousReading;
+    Serial.print(F("New usage: "));
+    Serial.println(usage);
+    // Update existing reading
+    updateExistingReading(customer->customer_id, currentReading, usage);
+    readingId = getExistingReadingIdThisMonth(customer->customer_id);
+    Serial.print(F("Reading ID to update: "));
+    Serial.println(readingId);
+  } else {
+    Serial.println(F("Creating new reading..."));
+    // Save new reading to database
+    saveReadingToDB(customer->customer_id, customer->previous_reading, currentReading, usage, readingAt);
+    // Get the reading ID (last inserted)
+    readingId = getLastReadingIdForCustomer(customer->customer_id);
+    Serial.print(F("New reading ID: "));
+    Serial.println(readingId);
+  }
+
+  // Calculate charges based on usage
   float charges = 0.0;
   if (usage <= customerType->min_m3) {
     charges = customerType->min_charge;
@@ -253,32 +341,29 @@ bool generateBillForCustomer(String accountNo, unsigned long currentReading) {
   float deductionAmount = calculateDeductions(charges, customer->deduction_id);
   float totalDue = charges - deductionAmount;
 
-  // Check if customer already has reading this month
-  bool hasExistingReading = hasReadingThisMonth(customer->customer_id);
-  int readingId;
-  String readingAt = "2026-01-19 14:00:00"; // Current timestamp
-
+  // Update existing bill for this reading if it exists
   if (hasExistingReading) {
-    // Update existing reading
-    updateExistingReading(customer->customer_id, currentReading, usage);
-    readingId = getLastReadingIdForCustomer(customer->customer_id);
-    // Update existing bill
     updateExistingBill(customer->customer_id, readingId, charges, totalDue, customerType->rate_per_m3);
-  } else {
-    // Save new reading to database
-    saveReadingToDB(customer->customer_id, customer->previous_reading, currentReading, usage, readingAt);
-    // Get the reading ID (last inserted)
-    readingId = getLastReadingIdForCustomer(customer->customer_id);
+    Serial.println(F("Updated existing bill"));
   }
 
   // Update customer's previous reading
   updateCustomerPreviousReading(customer->customer_id, currentReading);
 
+  // Reload customers to update in-memory data
+  loadCustomersFromDB();
+
+  // Re-get customer pointer after reload
+  customerIndex = findCustomerByAccount(accountNo);
+  if (customerIndex == -1) return false;
+  customer = getCustomerAt(customerIndex);
+  if (!customer) return false;
+
   // Populate currentBill for display
   currentBill.customerName = customer->customer_name;
   currentBill.accountNo = customer->account_no;
   currentBill.address = customer->address;
-  currentBill.prevReading = customer->previous_reading;
+  currentBill.prevReading = oldPreviousReading;
   currentBill.currReading = currentReading;
   currentBill.usage = usage;
   currentBill.rate = customerType->rate_per_m3;
@@ -306,6 +391,7 @@ bool generateBillForCustomer(String accountNo, unsigned long currentReading) {
 
   // Only create new bill if this is a new reading
   if (!hasExistingReading) {
+    Serial.println(F("Creating new bill..."));
     // Create bill record
     Bill bill;
     bill.reference_number = generateBillReferenceNumber(customer->account_no);
@@ -322,9 +408,12 @@ bool generateBillForCustomer(String accountNo, unsigned long currentReading) {
     // Save bill to DB
     if (saveBillToDB(bill)) {
       bills.push_back(bill);
+      Serial.println(F("New bill created successfully"));
       return true;
+    } else {
+      Serial.println(F("Failed to save new bill"));
+      return false;
     }
-    return false;
   }
 
   return true; // Successfully updated existing reading/bill

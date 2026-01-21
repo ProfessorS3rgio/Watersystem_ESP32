@@ -178,7 +178,7 @@ void setup() {
   Serial.println(F("Watersystem ESP32 ready."));
   Serial.println(F("Use keypad or serial commands:"));
   Serial.println(F("Press D or B on keypad to start entering account"));
-  Serial.println(F("Commands: 'P' = Print sample, 'S' = SD status, 'L' = List customers, 'DD' = List deductions, 'CT' = List customer types, 'B' = List bills, 'DB' = Display all databases"));
+  Serial.println(F("Commands: 'P' = Print sample, 'S' = SD status, 'L' = List customers, 'DD' = List deductions, 'CT' = List customer types, 'B' = List bills, 'DB' = Display all databases, 'DROPDB' = Drop and recreate database"));
 #endif
   
   // Show welcome screen on TFT
@@ -197,6 +197,54 @@ void loop() {
   if (Serial.available()) {
     String raw = Serial.readStringUntil('\n');
     raw.trim();
+
+    // Check for DROPDB command first (local command, not sync)
+    if (raw == "DROPDB") {
+      Serial.println(F("Dropping and recreating the database..."));
+      if (db) {
+        // Drop all tables
+        const char* dropTables[] = {
+          "DROP TABLE IF EXISTS bill_transactions;",
+          "DROP TABLE IF EXISTS bills;",
+          "DROP TABLE IF EXISTS readings;",
+          "DROP TABLE IF EXISTS customers;",
+          "DROP TABLE IF EXISTS customer_types;",
+          "DROP TABLE IF EXISTS deductions;",
+          "DROP TABLE IF EXISTS barangay_sequence;",
+          "DROP TABLE IF EXISTS device_info;",
+          NULL
+        };
+        
+        for (int i = 0; dropTables[i] != NULL; i++) {
+          sqlite3_exec(db, dropTables[i], NULL, NULL, NULL);
+        }
+        
+        Serial.println(F("All tables dropped."));
+        
+        // Recreate all tables
+        createAllTables();
+        initializeDefaultDeviceInfo();
+        
+        // Clear in-memory data
+        customers.clear();
+        readings.clear();
+        customerTypes.clear();
+        deductions.clear();
+        bills.clear();
+        
+        // Reload all data
+        loadCustomersFromDB();
+        loadReadingsFromDB();
+        loadCustomerTypesFromDB();
+        loadDeductionsFromDB();
+        loadBillsFromDB();
+        
+        Serial.println(F("Database reinitialized."));
+      } else {
+        Serial.println(F("Database not open."));
+      }
+      return;
+    }
 
     if (handleSyncCommands(raw)) return;
 
@@ -243,7 +291,7 @@ void loop() {
     else if (cmd.length() > 0) {
       Serial.print(F("Unknown: "));
       Serial.println(cmd);
-      Serial.println(F("Commands: P, D, S, L, DD, CT, B, DB, START"));
+      Serial.println(F("Commands: P, D, S, L, DD, CT, B, DB, DROPDB, START"));
     }
   }
 }
