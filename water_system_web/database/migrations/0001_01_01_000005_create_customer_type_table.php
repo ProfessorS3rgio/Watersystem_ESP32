@@ -17,6 +17,7 @@ return new class extends Migration
             $table->decimal('rate_per_m3', 10, 2);
             $table->integer('min_m3')->default(0);
             $table->decimal('min_charge', 10, 2);
+            $table->decimal('penalty', 10, 2);
             $table->timestamps();
         });
     }

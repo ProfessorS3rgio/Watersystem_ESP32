@@ -734,6 +734,7 @@ export default {
           String(Number(ct.rate_per_m3 || 0)),
           String(Number(ct.min_m3 || 0)),
           String(Number(ct.min_charge || 0)),
+          String(Number(ct.penalty || 0)),
           String(createdAt),
           String(updatedAt)
         ].join('|')

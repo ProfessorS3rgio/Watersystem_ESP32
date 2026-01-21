@@ -69,74 +69,39 @@ export function useCustomers() {
   }
 
   const updateCustomer = async (customerId, customerData) => {
-    const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+    try {
+      const res = await window.axios.put(`/customers/${customerId}`, customerData)
 
-    const res = await fetch(`/customers/${customerId}`, {
-      method: 'PUT',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {}),
-      },
-      credentials: 'same-origin',
-      body: JSON.stringify(customerData)
-    })
-
-    if (res.status === 422) {
-      const json = await res.json()
-      throw new Error('Validation error: ' + Object.values(json.errors).flat().join(', '))
+      await fetchCustomers()
+    } catch (error) {
+      if (error.response?.status === 422) {
+        throw new Error('Validation error: ' + Object.values(error.response.data.errors).flat().join(', '))
+      }
+      throw new Error(error.response?.data?.message || 'Failed to update customer')
     }
-
-    if (!res.ok) {
-      throw new Error('Failed to update customer')
-    }
-
-    await fetchCustomers()
   }
 
   const createCustomer = async (customerData) => {
-    const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+    try {
+      const res = await window.axios.post('/customers', customerData)
 
-    const res = await fetch('/customers', {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {}),
-      },
-      credentials: 'same-origin',
-      body: JSON.stringify(customerData)
-    })
-
-    if (res.status === 422) {
-      const json = await res.json()
-      throw new Error('Validation error: ' + Object.values(json.errors).flat().join(', '))
+      await fetchCustomers()
+    } catch (error) {
+      if (error.response?.status === 422) {
+        throw new Error('Validation error: ' + Object.values(error.response.data.errors).flat().join(', '))
+      }
+      throw new Error(error.response?.data?.message || 'Failed to save customer')
     }
-
-    if (!res.ok) {
-      throw new Error('Failed to save customer')
-    }
-
-    await fetchCustomers()
   }
 
   const deleteCustomer = async (customerId) => {
-    const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+    try {
+      await window.axios.delete(`/customers/${customerId}`)
 
-    const res = await fetch(`/customers/${customerId}`, {
-      method: 'DELETE',
-      headers: {
-        'Accept': 'application/json',
-        ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {}),
-      },
-      credentials: 'same-origin',
-    })
-
-    if (!res.ok) {
-      throw new Error('Failed to delete customer')
+      await fetchCustomers()
+    } catch (error) {
+      throw new Error(error.response?.data?.message || 'Failed to delete customer')
     }
-
-    await fetchCustomers()
   }
 
   const fetchCustomerTypes = async () => {

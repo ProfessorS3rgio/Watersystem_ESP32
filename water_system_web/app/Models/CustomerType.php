@@ -17,11 +17,13 @@ class CustomerType extends Model
         'rate_per_m3',
         'min_m3',
         'min_charge',
+        'penalty',
     ];
 
     protected $casts = [
         'rate_per_m3' => 'decimal:2',
         'min_m3' => 'integer',
         'min_charge' => 'decimal:2',
+        'penalty' => 'decimal:2',
     ];
 }

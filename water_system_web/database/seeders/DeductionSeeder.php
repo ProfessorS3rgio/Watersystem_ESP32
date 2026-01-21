@@ -16,17 +16,11 @@ class DeductionSeeder extends Seeder
             [
                 'name' => 'Senior Citizen',
                 'type' => 'percentage',
-                'value' => 20.00, // 20% discount
+                'value' => 5.00, // 5% discount
                 'created_at' => now(),
                 'updated_at' => now(),
             ],
-            [
-                'name' => 'SSS',
-                'type' => 'fixed',
-                'value' => 50.00, // 50 PHP deduction
-                'created_at' => now(),
-                'updated_at' => now(),
-            ],
+            
         ]);
     }
 }

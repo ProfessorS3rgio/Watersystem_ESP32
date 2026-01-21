@@ -33,42 +33,20 @@ export function useUsage() {
   }
 
   const markBillPaid = async (billId) => {
-    const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-
-    const res = await fetch(`/bills/${billId}/mark-paid`, {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {}),
-      },
-      credentials: 'same-origin',
-    })
-
-    if (!res.ok) {
-      if (res.status === 401) throw new Error('Unauthorized. Please login again.')
-      const text = await res.text()
-      throw new Error('Failed to mark paid: ' + text)
+    try {
+      await window.axios.post(`/bills/${billId}/mark-paid`)
+    } catch (error) {
+      if (error.response?.status === 401) throw new Error('Unauthorized. Please login again.')
+      throw new Error('Failed to mark paid: ' + (error.response?.data?.message || error.message))
     }
   }
 
   const voidBill = async (billId, reason = '') => {
-    const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-
-    const res = await fetch(`/bills/${billId}/void`, {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {}),
-      },
-      credentials: 'same-origin',
-      body: JSON.stringify({ reason })
-    })
-
-    if (!res.ok) {
-      if (res.status === 401) throw new Error('Unauthorized. Please login again.')
-      const text = await res.text()
-      throw new Error('Failed to void bill: ' + text)
+    try {
+      await window.axios.post(`/bills/${billId}/void`, { reason })
+    } catch (error) {
+      if (error.response?.status === 401) throw new Error('Unauthorized. Please login again.')
+      throw new Error('Failed to void bill: ' + (error.response?.data?.message || error.message))
     }
   }
 

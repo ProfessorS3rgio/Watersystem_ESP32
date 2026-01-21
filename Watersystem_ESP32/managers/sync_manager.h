@@ -163,7 +163,7 @@ bool handleSyncCommands(String raw) {
   }
 
   if (raw.startsWith("UPSERT_CUSTOMER_TYPE|")) {
-    // UPSERT_CUSTOMER_TYPE|type_id|type_name|rate_per_m3|min_m3|min_charge|created_at|updated_at
+    // UPSERT_CUSTOMER_TYPE|type_id|type_name|rate_per_m3|min_m3|min_charge|penalty|created_at|updated_at
     String payload = raw.substring(String("UPSERT_CUSTOMER_TYPE|").length());
 
     int p1 = payload.indexOf('|');
@@ -172,7 +172,8 @@ bool handleSyncCommands(String raw) {
     int p4 = (p3 >= 0) ? payload.indexOf('|', p3 + 1) : -1;
     int p5 = (p4 >= 0) ? payload.indexOf('|', p4 + 1) : -1;
     int p6 = (p5 >= 0) ? payload.indexOf('|', p5 + 1) : -1;
-    if (p1 < 0 || p2 < 0 || p3 < 0 || p4 < 0 || p5 < 0 || p6 < 0) {
+    int p7 = (p6 >= 0) ? payload.indexOf('|', p6 + 1) : -1;
+    if (p1 < 0 || p2 < 0 || p3 < 0 || p4 < 0 || p5 < 0 || p6 < 0 || p7 < 0) {
       Serial.println(F("ERR|BAD_FORMAT"));
       return true;
     }
@@ -182,14 +183,16 @@ bool handleSyncCommands(String raw) {
     String rateStr = payload.substring(p2 + 1, p3);
     String minM3Str = payload.substring(p3 + 1, p4);
     String minChargeStr = payload.substring(p4 + 1, p5);
-    String createdStr = payload.substring(p5 + 1, p6);
-    String updatedStr = payload.substring(p6 + 1);
+    String penaltyStr = payload.substring(p5 + 1, p6);
+    String createdStr = payload.substring(p6 + 1, p7);
+    String updatedStr = payload.substring(p7 + 1);
 
     idStr.trim();
     typeName.trim();
     rateStr.trim();
     minM3Str.trim();
     minChargeStr.trim();
+    penaltyStr.trim();
     createdStr.trim();
     updatedStr.trim();
 
@@ -197,10 +200,11 @@ bool handleSyncCommands(String raw) {
     float ratePerM3 = rateStr.toFloat();
     unsigned long minM3 = (unsigned long)minM3Str.toInt();
     float minCharge = minChargeStr.toFloat();
+    float penalty = penaltyStr.toFloat();
     unsigned long createdAt = (unsigned long)createdStr.toInt();
     unsigned long updatedAt = (unsigned long)updatedStr.toInt();
 
-    if (upsertCustomerTypeFromSync(typeId, typeName, ratePerM3, minM3, minCharge, createdAt, updatedAt)) {
+    if (upsertCustomerTypeFromSync(typeId, typeName, ratePerM3, minM3, minCharge, penalty, createdAt, updatedAt)) {
       Serial.print(F("ACK|UPSERT|"));
       Serial.println(typeName);
     } else {

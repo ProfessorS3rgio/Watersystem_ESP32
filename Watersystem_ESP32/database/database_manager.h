@@ -36,7 +36,7 @@ void createAllTables() {
   sqlite3_exec(db, sql_deductions, NULL, NULL, NULL);
 
   // Customer types table
-  const char *sql_customer_types = "CREATE TABLE IF NOT EXISTS customer_types (type_id INTEGER PRIMARY KEY, type_name TEXT UNIQUE, rate_per_m3 REAL, min_m3 INTEGER DEFAULT 0, min_charge REAL, created_at TEXT, updated_at TEXT);";
+  const char *sql_customer_types = "CREATE TABLE IF NOT EXISTS customer_types (type_id INTEGER PRIMARY KEY, type_name TEXT UNIQUE, rate_per_m3 REAL, min_m3 INTEGER DEFAULT 0, min_charge REAL, penalty REAL, created_at TEXT, updated_at TEXT);";
   sqlite3_exec(db, sql_customer_types, NULL, NULL, NULL);
 
   // Customers table

@@ -43,7 +43,7 @@ static int loadCustomerCallback(void *data, int argc, char **argv, char **azColN
   c.account_no = argv[1];
   c.type_id = atoi(argv[2]);
   c.customer_name = argv[3];
-  c.deduction_id = atoi(argv[4]);
+  c.deduction_id = argv[4] ? atoi(argv[4]) : 0;  // 0 means no deduction
   c.brgy_id = atoi(argv[5]);
   c.address = argv[6];
   c.previous_reading = strtoul(argv[7], NULL, 10);
@@ -165,8 +165,13 @@ void exportCustomersForSync() {
 // ===== UPSERT CUSTOMER FROM SYNC =====
 bool upsertCustomerFromSync(const String& accountNo, const String& name, const String& address, unsigned long prev, const String& status, unsigned long typeId, unsigned long deductionId, unsigned long brgyId) {
   char sql[512];
-  sprintf(sql, "INSERT OR REPLACE INTO customers (account_no, customer_name, address, previous_reading, status, type_id, deduction_id, brgy_id, created_at, updated_at) VALUES ('%s', '%s', '%s', %lu, '%s', %lu, %lu, %lu, datetime('now'), datetime('now'));",
-          accountNo.c_str(), name.c_str(), address.c_str(), prev, status.c_str(), typeId, deductionId, brgyId);
+  if (deductionId == 0) {
+    sprintf(sql, "INSERT OR REPLACE INTO customers (account_no, customer_name, address, previous_reading, status, type_id, deduction_id, brgy_id, created_at, updated_at) VALUES ('%s', '%s', '%s', %lu, '%s', %lu, NULL, %lu, datetime('now'), datetime('now'));",
+            accountNo.c_str(), name.c_str(), address.c_str(), prev, status.c_str(), typeId, brgyId);
+  } else {
+    sprintf(sql, "INSERT OR REPLACE INTO customers (account_no, customer_name, address, previous_reading, status, type_id, deduction_id, brgy_id, created_at, updated_at) VALUES ('%s', '%s', '%s', %lu, '%s', %lu, %lu, %lu, datetime('now'), datetime('now'));",
+            accountNo.c_str(), name.c_str(), address.c_str(), prev, status.c_str(), typeId, deductionId, brgyId);
+  }
   int rc = sqlite3_exec(db, sql, NULL, NULL, NULL);
   if (rc == SQLITE_OK) {
     loadCustomersFromDB(); // Reload to update vector

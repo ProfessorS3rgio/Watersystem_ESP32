@@ -53,47 +53,22 @@ export const databaseService = {
   },
 
   async upsertCustomersToDatabase(customers) {
-    const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-    const res = await fetch('/customers/sync', {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {}),
-      },
-      credentials: 'same-origin',
-      body: JSON.stringify({ customers }),
-    })
-
-    if (!res.ok) {
-      if (res.status === 401) throw new Error('Unauthorized (login required)')
-      const text = await res.text()
-      throw new Error('Database sync failed: ' + text)
+    try {
+      const res = await window.axios.post('/customers/sync', { customers })
+      return Number(res.data?.processed || 0)
+    } catch (error) {
+      if (error.response?.status === 401) throw new Error('Unauthorized (login required)')
+      throw new Error('Database sync failed: ' + (error.response?.data?.message || error.message))
     }
-    const json = await res.json()
-    return Number(json?.processed || 0)
   },
 
   async upsertReadingsToDatabase(readings) {
-    const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-    const res = await fetch('/readings/sync', {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {}),
-      },
-      credentials: 'same-origin',
-      body: JSON.stringify({ readings }),
-    })
-
-    if (!res.ok) {
-      if (res.status === 401) throw new Error('Unauthorized (login required)')
-      const text = await res.text()
-      throw new Error('Readings sync failed: ' + text)
+    try {
+      const res = await window.axios.post('/readings/sync', { readings })
+      return Number(res.data?.processed || 0)
+    } catch (error) {
+      if (error.response?.status === 401) throw new Error('Unauthorized (login required)')
+      throw new Error('Readings sync failed: ' + (error.response?.data?.message || error.message))
     }
-
-    const json = await res.json()
-    return Number(json?.processed || 0)
   }
 }
