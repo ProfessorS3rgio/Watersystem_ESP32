@@ -280,7 +280,13 @@ export default {
       exportBeginMarker: null,
       exportEndMarker: null,
       exportLinePrefix: null,
-      lastAck: null
+      lastAck: null,
+
+      // For chunked customer sync
+      chunkAckPromise: null,
+      chunkAckResolve: null,
+      chunkAckReject: null,
+      expectedChunkAck: null
     }
   },
   mounted() {
@@ -326,8 +332,12 @@ export default {
         return false
       }
 
-      if (t.startsWith('CUST|') || t.startsWith('READ|') || t.startsWith('INFO|') || t.startsWith('TYPE|')) {
-        return false
+      if (t.startsWith('ACK|UPSERT_CUSTOMERS_JSON|')) {
+        return true; // Show customer sync success
+      }
+
+      if (t.startsWith('ACK|CHUNK|')) {
+        return true; // Show chunk progress
       }
 
       // Everything else (Exporting..., Done., Totals, ACK/ERR) is useful.
@@ -411,14 +421,13 @@ export default {
         await this.pushDeductionsToDevice(dbDeductions)
         this.addLog('✓ Deductions sync completed')
 
-        // 5.6) Push filtered DB customers to device (adds new, updates existing)
-        this.addLog(`Pushing ${filteredDbCustomers.length} customers to ESP32...`)
-        await this.pushCustomersToDevice(filteredDbCustomers)
-
-        this.addLog('✓ Customer sync completed')
-
         // 6) Sync readings (device -> DB)
         await this.syncReadingsFromDevice()
+
+        // 7) Push filtered DB customers to device (adds new, updates existing) - last to ensure dependencies
+        this.addLog(`Pushing ${filteredDbCustomers.length} customers to ESP32 as JSON...`)
+        await this.pushCustomersToDevice(filteredDbCustomers)
+        this.addLog('✓ Customer sync completed')
 
         // Always update last sync on the device at the end of a successful run.
         // (If there were no new readings, READINGS_SYNCED isn't sent, so device last_sync_epoch would stay 0.)
@@ -521,7 +530,10 @@ export default {
 
     async sendLine(line) {
       const text = String(line).replace(/\r|\n/g, '')
-      this.addLog('> ' + text)
+      // Don't log the massive JSON payload
+      if (!text.startsWith('UPSERT_CUSTOMERS_JSON|') && !text.startsWith('UPSERT_CUSTOMERS_JSON_CHUNK|')) {
+        this.addLog('> ' + text)
+      }
       await serialService.sendLine(text)
     },
 
@@ -702,24 +714,67 @@ export default {
     },
 
     async pushCustomersToDevice(dbCustomers) {
-      // Send each upsert line-by-line (adds new customers, updates existing ones)
-      for (var i = 0; i < dbCustomers.length; i++) {
-        var c = dbCustomers[i]
-        var line = [
-          'UPSERT_CUSTOMER',
-          this.escapeDeviceField(c.account_no),
-          this.escapeDeviceField(c.customer_name),
-          this.escapeDeviceField(c.address),
-          String(Number(c.previous_reading || 0)),
-          this.escapeDeviceField(c.status || 'active'),
-          String(Number(c.type_id || 1)),
-          String(Number(c.deduction_id || 0)),
-          String(Number(c.brgy_id || 1))
-        ].join('|')
-        await this.sendLine(line)
-        // tiny pacing helps avoid overwhelming the serial buffer
-        await new Promise(r => setTimeout(r, 10))
+      // Send customers in chunks sequentially, waiting for ACK each time.
+      // Register the ACK waiter BEFORE sending to avoid ACK arriving
+      // while the promise hasn't been hooked (race condition).
+      // Implement retries in case ACKs are lost or the web serial write fails.
+      const chunkSize = 20
+      const totalChunks = Math.ceil(dbCustomers.length / chunkSize)
+      const maxRetries = 3
+      for (let i = 0; i < dbCustomers.length; i += chunkSize) {
+        const chunk = dbCustomers.slice(i, i + chunkSize)
+        const customersJson = JSON.stringify(chunk).replace(/\|/g, '\\|')
+        const chunkIndex = Math.floor(i / chunkSize)
+        const line = `UPSERT_CUSTOMERS_JSON_CHUNK|${chunkIndex}|${totalChunks}|${customersJson}`
+
+        let attempt = 0
+        while (attempt < maxRetries) {
+          attempt++
+          try {
+            this.addLog(`Sending chunk ${chunkIndex + 1}/${totalChunks} (attempt ${attempt})`)
+            // Create the ACK promise first so the line handler can resolve it
+            const ackPromise = this.waitForChunkAck(chunkIndex, totalChunks)
+            await this.sendLine(line)
+            // Wait for ACK (or timeout inside waitForChunkAck)
+            await ackPromise
+            // Success
+            break
+          } catch (error) {
+            console.error(`Chunk ${chunkIndex} attempt ${attempt} failed:`, error)
+            this.addLog(`Chunk ${chunkIndex} attempt ${attempt} failed: ${error.message || error}`)
+            if (attempt >= maxRetries) {
+              throw new Error(`Failed to send chunk ${chunkIndex} after ${maxRetries} attempts`)
+            }
+            // Backoff before retry
+            await new Promise(resolve => setTimeout(resolve, 500 * attempt))
+          }
+        }
+
+        // Small pause to let device finalize processing before next chunk
+        await new Promise(resolve => setTimeout(resolve, 200))
       }
+    },
+
+    async waitForChunkAck(chunkIndex, totalChunks) {
+      return new Promise((resolve, reject) => {
+        this.chunkAckResolve = resolve
+        this.chunkAckReject = reject
+        this.expectedChunkAck = chunkIndex
+        // Timeout after 30 seconds
+        if (this.chunkAckTimeoutId) {
+          clearTimeout(this.chunkAckTimeoutId)
+          this.chunkAckTimeoutId = null
+        }
+        this.chunkAckTimeoutId = setTimeout(() => {
+          if (this.chunkAckResolve) {
+            this.chunkAckResolve = null
+            this.chunkAckReject = null
+            this.expectedChunkAck = null
+            this.chunkAckTimeoutId = null
+            reject(new Error('Timeout waiting for chunk ACK'))
+          }
+        }, 30000)
+      })
     },
     async pushCustomerTypesToDevice(dbCustomerTypes) {
       // Send each upsert line-by-line (adds new customer types, updates existing ones)
@@ -773,6 +828,37 @@ export default {
       // Track acks (useful for debugging)
       if (line.startsWith('ACK|')) {
         this.lastAck = line
+      }
+
+      // Handle chunk ACKs: only resolve if ACK matches expected chunk index
+      if (line.startsWith('ACK|CHUNK|') || line.startsWith('ACK|UPSERT_CUSTOMERS_JSON|')) {
+        try {
+          let ackIndex = null
+          if (line.startsWith('ACK|CHUNK|')) {
+            const parts = line.split('|')
+            ackIndex = Number(parts[2])
+          } else if (line.startsWith('ACK|UPSERT_CUSTOMERS_JSON|')) {
+            // final ACK may include count; treat as last chunk acknowledge
+            ackIndex = this.expectedChunkAck // allow final ack to resolve current waiter
+          }
+
+          if (this.chunkAckResolve && (this.expectedChunkAck === null || ackIndex === this.expectedChunkAck)) {
+            this.chunkAckResolve(line)
+            this.chunkAckResolve = null
+            this.chunkAckReject = null
+            this.expectedChunkAck = null
+            if (this.chunkAckTimeoutId) {
+              clearTimeout(this.chunkAckTimeoutId)
+              this.chunkAckTimeoutId = null
+            }
+          } else {
+            // ACK arrived but no matching waiter; ignore or log for debugging
+            this.addLog(`Ignored ACK (no waiter or mismatch): ${line}`)
+          }
+        } catch (e) {
+          console.error('Error handling ACK line:', e)
+        }
+        return
       }
 
       if (!this.exportInProgress) return

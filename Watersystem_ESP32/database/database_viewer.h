@@ -29,10 +29,12 @@ static int printCustomerCallback(void *data, int argc, char **argv, char **azCol
   Serial.print(atoi(argv[0])); Serial.print(F(" | "));
   Serial.print(argv[1]); Serial.print(F(" | "));
   Serial.print(argv[2]); Serial.print(F(" | "));
-  Serial.print(argv[3]); Serial.print(F(" | "));
-  Serial.print(atoi(argv[4])); Serial.print(F(" | "));
+  Serial.print(atoi(argv[3])); Serial.print(F(" | "));
+  Serial.print(argv[4] ? argv[4] : "NULL"); Serial.print(F(" | "));
   Serial.print(argv[5]); Serial.print(F(" | "));
-  Serial.println(argv[6] ? argv[6] : "N/A");
+  Serial.print(atoi(argv[6])); Serial.print(F(" | "));
+  Serial.print(argv[7]); Serial.print(F(" | "));
+  Serial.println(argv[8] ? argv[8] : "N/A");
   return 0;
 }
 
@@ -101,9 +103,9 @@ void printBillsList() {
 // Function to print customers list
 void printCustomersList() {
   Serial.println(F("===== CUSTOMERS DATABASE ====="));
-  Serial.println(F("ID | Account  | Name              | Address         | Prev Read | Status | Barangay"));
-  Serial.println(F("---|----------|-------------------|-----------------|----------|--------|---------"));
-  const char *sql = "SELECT c.customer_id, c.account_no, c.customer_name, c.address, c.previous_reading, c.status, b.barangay FROM customers c LEFT JOIN barangay_sequence b ON c.brgy_id = b.brgy_id;";
+  Serial.println(F("ID | Account  | Name              | Type | Deduction | Address         | Prev Read | Status | Barangay"));
+  Serial.println(F("---|----------|-------------------|------|----------|-----------------|----------|--------|---------"));
+  const char *sql = "SELECT c.customer_id, c.account_no, c.customer_name, c.type_id, c.deduction_id, c.address, c.previous_reading, c.status, b.barangay FROM customers c LEFT JOIN barangay_sequence b ON c.brgy_id = b.brgy_id;";
   sqlite3_exec(db, sql, printCustomerCallback, NULL, NULL);
   Serial.println(F("================================"));
 }

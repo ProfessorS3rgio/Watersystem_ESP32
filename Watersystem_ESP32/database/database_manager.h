@@ -59,6 +59,12 @@ void createAllTables() {
   const char *sql_device_info = "CREATE TABLE IF NOT EXISTS device_info (key TEXT PRIMARY KEY, value TEXT, created_at TEXT, updated_at TEXT);";
   sqlite3_exec(db, sql_device_info, NULL, NULL, NULL);
 
+  // Optimize SQLite for low memory ESP32
+  sqlite3_exec(db, "PRAGMA journal_mode = OFF;", NULL, NULL, NULL);
+  sqlite3_exec(db, "PRAGMA synchronous = NORMAL;", NULL, NULL, NULL);
+  sqlite3_exec(db, "PRAGMA temp_store = MEMORY;", NULL, NULL, NULL);
+  sqlite3_exec(db, "PRAGMA cache_size = -1000;", NULL, NULL, NULL); // ~1MB cache
+
   // Initialize default device info if empty
   initializeDefaultDeviceInfo();
 }

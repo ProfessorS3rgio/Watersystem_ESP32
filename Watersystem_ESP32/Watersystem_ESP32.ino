@@ -128,6 +128,8 @@ static void showBootScreen() {
 
 void setup() {
   Serial.begin(SERIAL_BAUD);
+  Serial.setRxBufferSize(262144); // 256KB for large JSON payloads
+  Serial.setTimeout(30000); // 30 seconds timeout for long transmissions
   
   // Initialize TFT Backlight
   pinMode(TFT_BLK, OUTPUT);

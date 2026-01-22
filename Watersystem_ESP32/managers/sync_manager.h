@@ -7,6 +7,15 @@
 #include "../database/deduction_database.h"
 #include "../database/customer_type_database.h"
 #include "../configuration/config.h"
+#include <ArduinoJson.h>
+#include <vector>
+
+// Callback for counting customers
+static int countCallback(void *data, int argc, char **argv, char **azColName) {
+  int* count = (int*)data;
+  *count = atoi(argv[0]);
+  return 0;
+}
 
 // Function to handle all sync protocol commands
 bool handleSyncCommands(String raw) {
@@ -70,51 +79,181 @@ bool handleSyncCommands(String raw) {
     return true;
   }
 
-  if (raw.startsWith("UPSERT_CUSTOMER|")) {
-    // UPSERT_CUSTOMER|account_no|customer_name|address|previous_reading|status|type_id|deduction_id|brgy_id
-    String payload = raw.substring(String("UPSERT_CUSTOMER|").length());
+  if (raw.startsWith("UPSERT_CUSTOMERS_JSON|")) {
+    // UPSERT_CUSTOMERS_JSON|<json_array>
+    String payload = raw.substring(String("UPSERT_CUSTOMERS_JSON|").length());
 
-    int p1 = payload.indexOf('|');
-    int p2 = (p1 >= 0) ? payload.indexOf('|', p1 + 1) : -1;
-    int p3 = (p2 >= 0) ? payload.indexOf('|', p2 + 1) : -1;
-    int p4 = (p3 >= 0) ? payload.indexOf('|', p3 + 1) : -1;
-    int p5 = (p4 >= 0) ? payload.indexOf('|', p4 + 1) : -1;
-    int p6 = (p5 >= 0) ? payload.indexOf('|', p5 + 1) : -1;
-    int p7 = (p6 >= 0) ? payload.indexOf('|', p6 + 1) : -1;
-    if (p1 < 0 || p2 < 0 || p3 < 0 || p4 < 0 || p5 < 0 || p6 < 0 || p7 < 0) {
-      Serial.println(F("ERR|BAD_FORMAT"));
+    DynamicJsonDocument doc(131072); // 128KB for large customer lists
+    DeserializationError error = deserializeJson(doc, payload);
+    if (error) {
+      Serial.println(F("ERR|JSON_PARSE_FAILED"));
       return true;
     }
 
-    String accountNo = payload.substring(0, p1);
-    String name = payload.substring(p1 + 1, p2);
-    String address = payload.substring(p2 + 1, p3);
-    String prevStr = payload.substring(p3 + 1, p4);
-    String status = payload.substring(p4 + 1, p5);
-    String typeIdStr = payload.substring(p5 + 1, p6);
-    String deductionIdStr = payload.substring(p6 + 1, p7);
-    String brgyIdStr = payload.substring(p7 + 1);
+    JsonArray customers = doc.as<JsonArray>();
+    bool allSuccess = true;
+    for (JsonObject customer : customers) {
+      String accountNo = customer["account_no"] | "";
+      String name = customer["customer_name"] | "";
+      String address = customer["address"] | "";
+      unsigned long prev = customer["previous_reading"] | 0;
+      String status = customer["status"] | "active";
+      unsigned long typeId = customer["type_id"] | 1;
+      unsigned long deductionId = customer["deduction_id"] | 0;
+      unsigned long brgyId = customer["brgy_id"] | 1;
 
-    accountNo.trim();
-    name.trim();
-    address.trim();
-    prevStr.trim();
-    status.trim();
-    typeIdStr.trim();
-    deductionIdStr.trim();
-    brgyIdStr.trim();
+      if (!upsertCustomerFromSync(accountNo, name, address, prev, status, typeId, deductionId, brgyId)) {
+        allSuccess = false;
+        break;
+      }
+    }
 
-    unsigned long prev = (unsigned long)prevStr.toInt();
-    unsigned long typeId = (unsigned long)typeIdStr.toInt();
-    unsigned long deductionId = (unsigned long)deductionIdStr.toInt();
-    unsigned long brgyId = (unsigned long)brgyIdStr.toInt();
-
-    if (upsertCustomerFromSync(accountNo, name, address, prev, status, typeId, deductionId, brgyId)) {
-      Serial.print(F("ACK|UPSERT|"));
-      Serial.println(accountNo);
+    if (allSuccess) {
+      Serial.print(F("ACK|UPSERT_CUSTOMERS_JSON|"));
+      Serial.println(customers.size());
     } else {
-      Serial.print(F("ERR|UPSERT_FAILED|CUSTOMER|"));
-      Serial.println(accountNo);
+      Serial.println(F("ERR|UPSERT_CUSTOMERS_JSON_FAILED"));
+    }
+    return true;
+  }
+
+  if (raw.startsWith("UPSERT_CUSTOMERS_JSON_CHUNK|")) {
+    // UPSERT_CUSTOMERS_JSON_CHUNK|chunkIndex|totalChunks|json_chunk
+    String payload = raw.substring(String("UPSERT_CUSTOMERS_JSON_CHUNK|").length());
+
+    int p1 = payload.indexOf('|');
+    int p2 = (p1 >= 0) ? payload.indexOf('|', p1 + 1) : -1;
+    if (p1 < 0 || p2 < 0) {
+      Serial.println(F("ERR|BAD_CHUNK_FORMAT"));
+      return true;
+    }
+
+    int chunkIndex = payload.substring(0, p1).toInt();
+    int totalChunks = payload.substring(p1 + 1, p2).toInt();
+    String jsonChunk = payload.substring(p2 + 1);
+    jsonChunk.replace("\\|", "|");
+
+    // Parse the JSON chunk (it's an array of customers)
+    DynamicJsonDocument doc(16384); // 16KB should be enough for 10 customers
+    Serial.println(F("About to deserialize JSON"));
+    DeserializationError error = deserializeJson(doc, jsonChunk);
+    if (error) {
+      Serial.println(F("ERR|JSON_PARSE_FAILED"));
+      Serial.print(F("Error: "));
+      Serial.println(error.c_str());
+      return true;
+    }
+    Serial.println(F("JSON deserialized successfully"));
+
+    JsonArray customers = doc.as<JsonArray>();
+    bool allSuccess = true;
+
+    Serial.print(F("Processing chunk "));
+    Serial.println(chunkIndex);
+
+    // Set synchronous to NORMAL for speed during sync (durability is still good)
+    sqlite3_exec(db, "PRAGMA synchronous = NORMAL;", NULL, NULL, NULL);
+
+    Serial.printf("Heap free before chunk: %d\n", ESP.getFreeHeap());
+
+    // Begin transaction for this chunk
+    int rc_begin = sqlite3_exec(db, "BEGIN TRANSACTION;", NULL, NULL, NULL);
+    if (rc_begin != SQLITE_OK) {
+      Serial.print(F("BEGIN failed for chunk "));
+      Serial.print(chunkIndex);
+      Serial.print(F(": "));
+      Serial.println(sqlite3_errmsg(db));
+      Serial.println(F("ERR|UPSERT_FAILED"));
+      return true;
+    }
+
+    // Prepare statement once for all inserts in this chunk
+    const char* sql = "INSERT INTO customers (account_no, customer_name, address, previous_reading, status, type_id, deduction_id, brgy_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'));";
+    sqlite3_stmt* stmt;
+    int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+      Serial.print(F("SQLite prepare error: "));
+      Serial.println(sqlite3_errmsg(db));
+      sqlite3_exec(db, "ROLLBACK;", NULL, NULL, NULL);
+      Serial.println(F("ERR|UPSERT_FAILED"));
+      return true;
+    }
+
+    for (JsonObject customer : customers) {
+      String accountNo = customer["account_no"] | "";
+      String name = customer["customer_name"] | "";
+      String address = customer["address"] | "";
+      unsigned long prev = customer["previous_reading"] | 0;
+      String status = customer["status"] | "active";
+      unsigned long typeId = customer["type_id"] | 1;
+      unsigned long deductionId = customer["deduction_id"] | 0;
+      unsigned long brgyId = customer["brgy_id"] | 1;
+
+      // Reset and clear bindings for reuse
+      sqlite3_reset(stmt);
+      sqlite3_clear_bindings(stmt);
+
+      sqlite3_bind_text(stmt, 1, accountNo.c_str(), -1, SQLITE_TRANSIENT);
+      sqlite3_bind_text(stmt, 2, name.c_str(), -1, SQLITE_TRANSIENT);
+      sqlite3_bind_text(stmt, 3, address.c_str(), -1, SQLITE_TRANSIENT);
+      sqlite3_bind_int64(stmt, 4, prev);
+      sqlite3_bind_text(stmt, 5, status.c_str(), -1, SQLITE_TRANSIENT);
+      sqlite3_bind_int64(stmt, 6, typeId);
+
+      if (deductionId == 0) {
+        sqlite3_bind_null(stmt, 7);
+      } else {
+        sqlite3_bind_int64(stmt, 7, deductionId);
+      }
+
+      sqlite3_bind_int64(stmt, 8, brgyId);
+
+      rc = sqlite3_step(stmt);
+      if (rc != SQLITE_DONE) {
+        Serial.print(F("SQLite step error: "));
+        Serial.println(sqlite3_errmsg(db));
+        allSuccess = false;
+        break;
+      } else {
+        Serial.print(F("Inserted customer: "));
+        Serial.println(accountNo);
+      }
+    }
+
+    sqlite3_finalize(stmt);
+
+    if (allSuccess) {
+      int rc_commit = sqlite3_exec(db, "COMMIT;", NULL, NULL, NULL);
+      if (rc_commit != SQLITE_OK) {
+        Serial.print(F("COMMIT failed for chunk "));
+        Serial.print(chunkIndex);
+        Serial.print(F(": "));
+        Serial.println(sqlite3_errmsg(db));
+        Serial.println(F("ERR|UPSERT_FAILED"));
+        return true;
+      } else {
+        Serial.print(F("Processed chunk "));
+        Serial.println(chunkIndex);
+      }
+      Serial.print(F("ACK|CHUNK|"));
+      Serial.println(chunkIndex);
+      Serial.printf("Heap free after chunk: %d\n", ESP.getFreeHeap());
+      Serial.println(F("Ready for next chunk"));
+      Serial.flush();
+      if (chunkIndex == totalChunks - 1) {
+        // Last chunk, count customers in DB
+        int customerCount = 0;
+        sqlite3_exec(db, "SELECT COUNT(*) FROM customers;", countCallback, &customerCount, NULL);
+        Serial.print(F("Total customers in DB after sync: "));
+        Serial.println(customerCount);
+        // Send final success
+        Serial.print(F("ACK|UPSERT_CUSTOMERS_JSON|"));
+        Serial.println(customers.size());
+        Serial.flush();
+      }
+    } else {
+      sqlite3_exec(db, "ROLLBACK;", NULL, NULL, NULL);
+      Serial.println(F("ERR|UPSERT_FAILED"));
     }
     return true;
   }
