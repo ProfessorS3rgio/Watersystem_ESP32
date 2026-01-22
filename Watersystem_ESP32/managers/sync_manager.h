@@ -27,6 +27,24 @@ bool handleSyncCommands(String raw) {
     return true;
   }
 
+  if (raw == "DROP_DB") {
+    Serial.println(F("Dropping database..."));
+    if (db) {
+      sqlite3_close(db);
+      db = nullptr;
+    }
+    if (SD.remove(DB_PATH)) {
+      Serial.println(F("ACK|DROP_DB"));
+      // Reinitialize database
+      initDatabase();
+      initDeviceInfo();
+      Serial.println(F("Database reinitialized after drop."));
+    } else {
+      Serial.println(F("ERR|DROP_DB_FAILED"));
+    }
+    return true;
+  }
+
   if (raw.startsWith("SET_TIME|")) {
     // SET_TIME|<epoch_seconds>
     String payload = raw.substring(String("SET_TIME|").length());
@@ -377,7 +395,15 @@ bool handleSyncCommands(String raw) {
     if (formatSDCard()) {
       Serial.println(F("ACK|FORMAT_SD"));
       Serial.println(F("SD card formatted successfully. Reinitializing..."));
+      // Close database since file was deleted
+      if (db) {
+        sqlite3_close(db);
+        db = nullptr;
+      }
       initSDCard();
+      initDatabase();
+      initDeviceInfo();
+      Serial.println(F("Database reinitialized after format."));
     } else {
       Serial.println(F("ERR|FORMAT_FAILED"));
     }

@@ -101,6 +101,23 @@ static uint32_t countPendingReadings() {
   return count;
 }
 
+static uint32_t countCustomers() {
+  if (!db) return 0;
+
+  const char *sql = "SELECT COUNT(*) FROM customers;";
+  sqlite3_stmt *stmt;
+  int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+  if (rc != SQLITE_OK) return 0;
+
+  uint32_t count = 0;
+  if (sqlite3_step(stmt) == SQLITE_ROW) {
+    count = sqlite3_column_int(stmt, 0);
+  }
+
+  sqlite3_finalize(stmt);
+  return count;
+}
+
 static bool deviceInfoSdReady() {
   return (SD.cardType() != CARD_NONE);
 }
@@ -149,6 +166,9 @@ static void exportDeviceInfoForSync() {
 
   Serial.print(F("INFO|print_count|"));
   Serial.println((unsigned long)g_printCount);
+
+  Serial.print(F("INFO|customer_count|"));
+  Serial.println((unsigned long)countCustomers());
 
   Serial.print(F("INFO|pending_readings|"));
   Serial.println((unsigned long)countPendingReadings());

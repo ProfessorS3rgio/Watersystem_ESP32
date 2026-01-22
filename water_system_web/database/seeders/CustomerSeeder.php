@@ -49,6 +49,8 @@ class CustomerSeeder extends Seeder
                 'address' => $address,
                 'previous_reading' => $previousReading,
                 'status' => 'active',
+                'Synced' => false,
+                'last_sync' => null,
                 'created_at' => now(),
                 'updated_at' => now(),
             ];

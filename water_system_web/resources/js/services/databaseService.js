@@ -73,5 +73,15 @@ export const databaseService = {
       if (error.response?.status === 401) throw new Error('Unauthorized (login required)')
       throw new Error('Readings sync failed: ' + (error.response?.data?.message || error.message))
     }
+  },
+
+  async markCustomersSynced(accountNumbers) {
+    try {
+      const res = await window.axios.post('/customers/mark-synced', { account_numbers: accountNumbers })
+      return Number(res.data?.updated || 0)
+    } catch (error) {
+      if (error.response?.status === 401) throw new Error('Unauthorized (login required)')
+      throw new Error('Failed to mark customers as synced: ' + (error.response?.data?.message || error.message))
+    }
   }
 }

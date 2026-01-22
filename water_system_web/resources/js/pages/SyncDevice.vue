@@ -48,7 +48,7 @@
 
             <div class="grid grid-cols-2 gap-4">
               <button
-                @click="syncData"
+                @click="handleSyncData"
                 :disabled="isSyncing"
                 class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-lg font-medium shadow transition-all duration-200 disabled:opacity-50 flex items-center justify-center space-x-2"
               >
@@ -59,13 +59,13 @@
               </button>
 
               <button
-                @click="sendCommand"
-                class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-3 rounded-lg font-medium shadow transition-all duration-200 flex items-center justify-center space-x-2"
+                @click="showDropConfirm = true"
+                class="bg-red-600 hover:bg-red-700 text-white px-4 py-3 rounded-lg font-medium shadow transition-all duration-200 flex items-center justify-center space-x-2"
               >
                 <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                 </svg>
-                <span>Send Command</span>
+                <span>Drop Database</span>
               </button>
 
               <button
@@ -87,6 +87,29 @@
                 </svg>
                 <span>Restart Device</span>
               </button>
+            </div>
+
+            <!-- Custom Command Input -->
+            <div class="mt-4">
+              <label class="block text-sm font-medium text-gray-700 mb-2">Custom Command</label>
+              <div class="flex space-x-2">
+                <input
+                  v-model="customCommand"
+                  @keyup.enter="sendCustomCommand(addLog)"
+                  type="text"
+                  placeholder="Enter command to send to device..."
+                  class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                <button
+                  @click="sendCustomCommand(addLog)"
+                  class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium shadow transition-all duration-200 flex items-center space-x-2"
+                >
+                  <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                  </svg>
+                  <span>Send</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -119,6 +142,10 @@
           <div class="flex items-center justify-between py-2 border-b border-gray-200">
             <span class="text-sm text-gray-600">Print counts</span>
             <span class="text-sm font-medium text-gray-900">{{ printCount }}</span>
+          </div>
+          <div class="flex items-center justify-between py-2 border-b border-gray-200">
+            <span class="text-sm text-gray-600">Customer Count</span>
+            <span class="text-sm font-medium text-gray-900">{{ customerCount }}</span>
           </div>
           <div class="flex items-center justify-between py-2 border-b border-gray-200">
             <span class="text-sm text-gray-600">Records Pending</span>
@@ -159,8 +186,16 @@
 
     <!-- Sync Log -->
     <div class="bg-white rounded-lg shadow-lg p-6">
-      <h2 class="text-xl font-semibold text-gray-900 mb-4">Sync Log</h2>
-      <div class="bg-gray-900 text-green-400 font-mono text-sm p-4 rounded-lg h-64 overflow-y-auto">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-xl font-semibold text-gray-900">Sync Log</h2>
+        <button
+          @click="clearSyncLogs"
+          class="text-gray-600 hover:text-gray-800 text-sm font-medium px-3 py-1 rounded border border-gray-300 hover:border-gray-400 transition-colors duration-200"
+        >
+          Clear Logs
+        </button>
+      </div>
+      <div class="bg-gray-900 text-green-400 font-mono text-sm p-4 rounded-lg h-96 overflow-y-auto">
         <div v-for="(log, index) in syncLogs" :key="index" class="mb-1">
           <span class="text-gray-500">[{{ log.time }}]</span> {{ log.message }}
         </div>
@@ -197,7 +232,7 @@
       confirm-text="Format SD Card"
       cancel-text="Cancel"
       :is-loading="isFormatting"
-      @confirm="formatSdCard"
+      @confirm="formatSdCard(addLog, sendLineDevice)"
       @cancel="showFormatConfirm = false"
     />
 
@@ -209,8 +244,20 @@
       confirm-text="Restart Device"
       cancel-text="Cancel"
       :is-loading="isRestarting"
-      @confirm="restartDevice"
+      @confirm="restartDevice(addLog, sendLineDevice, disconnectDevice)"
       @cancel="showRestartConfirm = false"
+    />
+
+    <!-- Drop Database Confirmation -->
+    <ConfirmDialog
+      :is-open="showDropConfirm"
+      title="Drop Database"
+      :message="'This will delete all data in the ESP32 database including customers, readings, and settings. The database will be reinitialized.<br><br>Are you sure you want to drop the database?'"
+      confirm-text="Drop Database"
+      cancel-text="Cancel"
+      :is-loading="false"
+      @confirm="dropDatabase(addLog, sendLineDevice)"
+      @cancel="showDropConfirm = false"
     />
 
     <!-- Command Success Modal -->
@@ -231,6 +278,13 @@ import ConfirmDialog from '../components/ConfirmDialog.vue'
 import SuccessModal from '../components/SuccessModal.vue'
 import { serialService } from '../services/serialService'
 import { databaseService } from '../services/databaseService'
+import { useSyncDevice } from '../composables/Sync/useSyncDevice'
+import { useSyncCustomers } from '../composables/Sync/useSyncCustomers'
+import { useSyncCustomerTypes } from '../composables/Sync/useSyncCustomerTypes'
+import { useSyncDeductions } from '../composables/Sync/useSyncDeductions'
+import { useSyncReadings } from '../composables/Sync/useSyncReadings'
+import { useSyncData } from '../composables/Sync/useSyncData'
+import { useSyncController } from '../composables/Sync/useSyncController'
 
 export default {
   name: 'SyncDevice',
@@ -239,56 +293,119 @@ export default {
     ConfirmDialog,
     SuccessModal
   },
+  setup() {
+    const {
+      deviceId,
+      brgyId,
+      firmwareVersion,
+      lastSync,
+      pendingRecords,
+      printCount,
+      customerCount,
+      sdTotalBytes,
+      sdUsedBytes,
+      sdFreeBytes,
+      cpuFreqMhz,
+      heapFreeBytes,
+      exportDeviceInfoFromDevice,
+      refreshDeviceInfo,
+      handleDeviceLine: handleDeviceLineDevice,
+      sendLine: sendLineDevice
+    } = useSyncDevice()
+
+    const {
+      pushCustomersToDevice,
+      handleChunkAck
+    } = useSyncCustomers()
+
+    const {
+      pushCustomerTypesToDevice
+    } = useSyncCustomerTypes()
+
+    const {
+      pushDeductionsToDevice
+    } = useSyncDeductions()
+
+    const {
+      syncReadingsFromDevice,
+      handleDeviceLine: handleDeviceLineReadings
+    } = useSyncReadings()
+
+    const {
+      isSyncing,
+      syncLogs,
+      syncData,
+      addLog
+    } = useSyncData()
+
+    const {
+      customCommand,
+      isFormatting,
+      isRestarting,
+      showFormatConfirm,
+      showRestartConfirm,
+      showDropConfirm,
+      showCommandSuccess,
+      commandSuccessMessage,
+      sendCommand,
+      sendCustomCommand,
+      formatSdCard,
+      restartDevice,
+      dropDatabase
+    } = useSyncController()
+
+    return {
+      deviceId,
+      brgyId,
+      firmwareVersion,
+      lastSync,
+      pendingRecords,
+      printCount,
+      sdTotalBytes,
+      sdUsedBytes,
+      sdFreeBytes,
+      cpuFreqMhz,
+      heapFreeBytes,
+      exportDeviceInfoFromDevice,
+      refreshDeviceInfo,
+      handleDeviceLineDevice,
+      sendLineDevice,
+      pushCustomersToDevice,
+      handleChunkAck,
+      pushCustomerTypesToDevice,
+      pushDeductionsToDevice,
+      syncReadingsFromDevice,
+      handleDeviceLineReadings,
+      isSyncing,
+      syncLogs,
+      syncData,
+      addLog,
+      customCommand,
+      isFormatting,
+      isRestarting,
+      showFormatConfirm,
+      showRestartConfirm,
+      showCommandSuccess,
+      commandSuccessMessage,
+      sendCommand,
+      sendCustomCommand,
+      formatSdCard,
+      restartDevice,
+      dropDatabase,
+      showDropConfirm
+    }
+  },
   data() {
     return {
       isConnected: false,
-      isSyncing: false,
       connectedPort: '',
-      deviceId: null,
-      brgyId: null,
-      firmwareVersion: '-',
-      lastSync: 'Never',
-      pendingRecords: 0,
-      printCount: 0,
-      sdTotalBytes: 0,
-      sdUsedBytes: 0,
-      sdFreeBytes: 0,
-      cpuFreqMhz: 0,
-      heapFreeBytes: 0,
       batteryLevel: 85,
-      syncLogs: [],
 
       showSuccessDialog: false,
 
-      // Command dialogs
-      showFormatConfirm: false,
-      showRestartConfirm: false,
-      showCommandSuccess: false,
-      commandSuccessMessage: '',
-      isFormatting: false,
-      isRestarting: false,
-
       // Serial connection lives in serialService (persists across tabs/pages)
       unlistenLine: null,
-      unlistenStatus: null,
-
-      exportInProgress: false,
-      exportLines: [],
-      exportResolve: null,
-      exportReject: null,
-      exportTimeoutId: null,
-      exportBeginMarker: null,
-      exportEndMarker: null,
-      exportLinePrefix: null,
-      lastAck: null,
-
-      // For chunked customer sync
-      chunkAckPromise: null,
-      chunkAckResolve: null,
-      chunkAckReject: null,
-      expectedChunkAck: null,
-
-      syncStartTime: null
+      unlistenStatus: null
     }
   },
   mounted() {
@@ -298,7 +415,7 @@ export default {
       // Route device lines through the same handler used by the exporter.
       this.handleDeviceLine(line)
       if (this.shouldDisplayDeviceLine(line)) {
-        this.addLog('< ' + line)
+        this.addLog('Device ← ' + line)
       }
     })
 
@@ -361,106 +478,20 @@ export default {
       this.addLog('Device disconnected')
     },
 
-    async syncData() {
-      var st = serialService.getState()
-      if (!this.isConnected || !st.writer) {
-        this.addLog('Not connected. Connect a device first.')
-        return
-      }
-
-      this.isSyncing = true
-      this.syncStartTime = Date.now()
-      try {
-        this.addLog('Starting customer sync...')
-
-        // Get device info first to know which barangay this device belongs to
-        this.addLog('Getting device information...')
-        var deviceInfo = await this.exportDeviceInfoFromDevice()
-        var deviceBrgyId = deviceInfo?.brgy_id || 1
-        var deviceId = deviceInfo?.device_id || 1
-        var lastSyncEpoch = deviceInfo?.last_sync_epoch || 0
-        this.addLog(`Device ID: ${deviceId}, Barangay ID: ${deviceBrgyId}, Last Sync: ${lastSyncEpoch}`)
-
-        // Get customers from web database, filtered by barangay and updated after last sync
-        this.addLog('Fetching customers from database...')
-        var dbCustomers = await databaseService.fetchCustomersFromDatabase({ brgy_id: deviceBrgyId, updated_after: lastSyncEpoch })
-        this.addLog(`Database has ${dbCustomers.length} customers updated since last sync`)
-
-        // No need to filter further, API already filtered
-        var filteredDbCustomers = dbCustomers
-
-        // Sync customer types from DB to device first (needed for customer references)
-        this.addLog('Fetching customer types from database...')
-        var dbCustomerTypes = await databaseService.fetchCustomerTypesFromDatabase()
-        this.addLog(`Database has ${dbCustomerTypes.length} customer types`)
-        this.addLog(`Pushing ${dbCustomerTypes.length} customer types to ESP32...`)
-        await this.pushCustomerTypesToDevice(dbCustomerTypes)
-        this.addLog('✓ Customer types sync completed')
-
-        // Sync deductions from DB to device
-        this.addLog('Fetching deductions from database...')
-        var dbDeductions = await databaseService.fetchDeductionsFromDatabase()
-        this.addLog(`Database has ${dbDeductions.length} deductions`)
-        this.addLog(`Pushing ${dbDeductions.length} deductions to ESP32...`)
-        await this.pushDeductionsToDevice(dbDeductions)
-        this.addLog('✓ Deductions sync completed')
-
-        // Sync readings (device -> DB)
-        await this.syncReadingsFromDevice()
-
-        // Push filtered DB customers to device (adds new, updates existing) - last to ensure dependencies
-        this.addLog(`Pushing ${filteredDbCustomers.length} customers to ESP32 as JSON...`)
-        await this.pushCustomersToDevice(filteredDbCustomers)
-        this.addLog('✓ Customer sync completed')
-
-        // Always update last sync on the device at the end of a successful run.
-        // (If there were no new readings, READINGS_SYNCED isn't sent, so device last_sync_epoch would stay 0.)
-        var epochNow = Math.floor(Date.now() / 1000)
-        await this.sendLine('SET_LAST_SYNC|' + String(epochNow))
-
-        await this.refreshDeviceInfo()
-
-        // Reload SD card to apply new settings
-        this.addLog('Reloading SD card on ESP32...')
-        await this.sendLine('RELOAD_SD')
-        // Wait a moment for reload
-        await new Promise(r => setTimeout(r, 1000))
-        await this.refreshDeviceInfo()
-
-        // Show success dialog
-        const elapsed = Date.now() - this.syncStartTime
-        this.addLog('Sync completed in ' + this.formatElapsedTime(elapsed))
-        this.showSuccessDialog = true
-      } catch (error) {
-        this.addLog('Sync failed: ' + (error?.message || String(error)))
-      } finally {
-        this.isSyncing = false
-        this.syncStartTime = null
-      }
-    },
-
-    async refreshDeviceInfo() {
-      try {
-        var info = await this.exportDeviceInfoFromDevice()
-        if (typeof info?.device_id === 'number') this.deviceId = info.device_id
-        if (typeof info?.brgy_id === 'number') this.brgyId = info.brgy_id
-        if (info?.firmware_version) this.firmwareVersion = info.firmware_version
-        if (typeof info?.pending_readings === 'number') this.pendingRecords = info.pending_readings
-
-        var last = Number(info?.last_sync_epoch || 0)
-        this.lastSync = last > 0 ? new Date(last * 1000).toLocaleString() : 'Never'
-
-        if (typeof info?.print_count === 'number') this.printCount = info.print_count
-
-        if (typeof info?.sd_total_bytes === 'number') this.sdTotalBytes = info.sd_total_bytes
-        if (typeof info?.sd_used_bytes === 'number') this.sdUsedBytes = info.sd_used_bytes
-        if (typeof info?.sd_free_bytes === 'number') this.sdFreeBytes = info.sd_free_bytes
-
-        if (typeof info?.cpu_freq_mhz === 'number') this.cpuFreqMhz = info.cpu_freq_mhz
-        if (typeof info?.heap_free_bytes === 'number') this.heapFreeBytes = info.heap_free_bytes
-      } catch (e) {
-        this.addLog('Device info unavailable: ' + (e?.message || String(e)))
-      }
+    async handleSyncData() {
+      await this.syncData({
+        isConnected: this.isConnected,
+        exportDeviceInfoFromDevice: this.exportDeviceInfoFromDevice,
+        pushCustomerTypesToDevice: this.pushCustomerTypesToDevice,
+        pushDeductionsToDevice: this.pushDeductionsToDevice,
+        syncReadingsFromDevice: this.syncReadingsFromDevice,
+        pushCustomersToDevice: this.pushCustomersToDevice,
+        refreshDeviceInfo: this.refreshDeviceInfo,
+        sendLineDevice: this.sendLineDevice,
+        onSyncSuccess: () => {
+          this.showSuccessDialog = true
+        }
+      })
     },
 
     formatBytes(value) {
@@ -475,439 +506,31 @@ export default {
       return String(Math.floor(n)) + ' B'
     },
 
-    async syncReadingsFromDevice() {
-      // Ensure device has a usable clock (epoch seconds)
-      const epochNow = Math.floor(Date.now() / 1000)
-      this.addLog('Setting device time...')
-      await this.sendLine('SET_TIME|' + String(epochNow))
-
-      this.addLog('Fetching unsynced readings from ESP32...')
-      const deviceReadings = await this.exportReadingsFromDevice()
-      this.addLog(`Device exported ${deviceReadings.length} readings`)
-
-      if (deviceReadings.length === 0) {
-        this.addLog('No new readings to sync')
-        return
-      }
-
-      this.addLog('Saving readings into database...')
-      const processed = await databaseService.upsertReadingsToDatabase(deviceReadings)
-      this.addLog(`Database processed ${processed} readings`)
-
-      // Mark device readings as synced (so next export is incremental)
-      await this.sendLine('READINGS_SYNCED')
-      this.addLog('✓ Readings sync completed')
-    },
-
-    async sendCommand() {
-      var st = serialService.getState()
-      if (!this.isConnected || !st.writer) {
-        this.addLog('Not connected. Connect a device first.')
-        return
-      }
-
-      // Minimal test write. Your ESP32 firmware must decide what to do with this.
-      var command = 'EXPORT_CUSTOMERS'
-      try {
-        await this.sendLine(command)
-      } catch (error) {
-        this.addLog('Write failed: ' + error.message)
-      }
-    },
-
-    async sendLine(line) {
-      const text = String(line).replace(/\r|\n/g, '')
-      // Don't log the massive JSON payload
-      if (!text.startsWith('UPSERT_CUSTOMERS_JSON|') && !text.startsWith('UPSERT_CUSTOMERS_JSON_CHUNK|')) {
-        this.addLog('> ' + text)
-      }
-      await serialService.sendLine(text)
-    },
-
-    escapeDeviceField(value) {
-      return String(value ?? '')
-        .replace(/\r|\n/g, ' ')
-        .replace(/\|/g, ' ')
-        .trim()
-    },
-
-    async exportDeviceInfoFromDevice() {
-      if (this.exportInProgress) {
-        throw new Error('Export already in progress')
-      }
-
-      this.exportInProgress = true
-      this.exportLines = []
-      this.lastAck = null
-      this.exportBeginMarker = 'BEGIN_DEVICE_INFO'
-      this.exportEndMarker = 'END_DEVICE_INFO'
-      this.exportLinePrefix = 'INFO|'
-
-      const promise = new Promise((resolve, reject) => {
-        this.exportResolve = resolve
-        this.exportReject = reject
-        this.exportTimeoutId = setTimeout(() => {
-          this.finishExport(new Error('Timed out waiting for device export'))
-        }, 8000)
-      })
-
-      await this.sendLine('EXPORT_DEVICE_INFO')
-
-      const lines = await promise
-      return this.parseDeviceInfoLines(lines)
-    },
-
-    async exportReadingsFromDevice() {
-      if (this.exportInProgress) {
-        throw new Error('Export already in progress')
-      }
-
-      this.exportInProgress = true
-      this.exportLines = []
-      this.lastAck = null
-      this.exportBeginMarker = 'BEGIN_READINGS'
-      this.exportEndMarker = 'END_READINGS'
-      this.exportLinePrefix = 'READ|'
-
-      const promise = new Promise((resolve, reject) => {
-        this.exportResolve = resolve
-        this.exportReject = reject
-        this.exportTimeoutId = setTimeout(() => {
-          this.finishExport(new Error('Timed out waiting for device export'))
-        }, 12000)
-      })
-
-      await this.sendLine('EXPORT_READINGS')
-
-      const lines = await promise
-      return this.parseReadingsExportLines(lines)
-    },
-
-    finishExport(error, lines = null) {
-      if (this.exportTimeoutId) {
-        clearTimeout(this.exportTimeoutId)
-        this.exportTimeoutId = null
-      }
-
-      const resolve = this.exportResolve
-      const reject = this.exportReject
-      this.exportResolve = null
-      this.exportReject = null
-      this.exportInProgress = false
-
-      if (error) {
-        if (reject) reject(error)
-        return
-      }
-      if (resolve) resolve(lines || [])
-    },
-
-    parseDeviceInfoLines(lines) {
-      const out = {}
-      for (const line of lines) {
-        if (!line.startsWith('INFO|')) continue
-        const parts = line.split('|')
-        // INFO|key|value
-        if (parts.length < 3) continue
-        const key = parts[1]
-        const value = parts.slice(2).join('|')
-        if (
-          key === 'pending_readings' ||
-          key === 'print_count' ||
-          key === 'last_sync_epoch' ||
-          key === 'device_id' ||
-          key === 'brgy_id' ||
-          key === 'sd_present' ||
-          key === 'sd_total_bytes' ||
-          key === 'sd_used_bytes' ||
-          key === 'sd_free_bytes' ||
-          key === 'cpu_freq_mhz' ||
-          key === 'heap_free_bytes' ||
-          key === 'heap_min_free_bytes' ||
-          key === 'heap_max_alloc_bytes'
-        ) {
-          out[key] = Number(value || 0)
-        } else {
-          out[key] = value
-        }
-      }
-      return out
-    },
-
-    parseReadingsExportLines(lines) {
-      const readings = []
-      for (const line of lines) {
-        if (!line.startsWith('READ|')) continue
-        const parts = line.split('|')
-        // READ|customer_id|device_id|previous_reading|current_reading|usage_m3|reading_at_epoch
-        if (parts.length < 7) continue
-        readings.push({
-          customer_id: Number(parts[1] || 0),
-          device_id: Number(parts[2] || 1),
-          previous_reading: Number(parts[3] || 0),
-          current_reading: Number(parts[4] || 0),
-          usage_m3: Number(parts[5] || 0),
-          reading_at: Number(parts[6] || 0),
-        })
-      }
-      return readings
-    },
-
-    async pushCustomersToDevice(dbCustomers) {
-      // Send customers in chunks sequentially, waiting for ACK each time.
-      // Register the ACK waiter BEFORE sending to avoid ACK arriving
-      // while the promise hasn't been hooked (race condition).
-      // Implement retries in case ACKs are lost or the web serial write fails.
-      const chunkSize = 55
-      const totalChunks = Math.ceil(dbCustomers.length / chunkSize)
-      const maxRetries = 3
-      for (let i = 0; i < dbCustomers.length; i += chunkSize) {
-        const chunk = dbCustomers.slice(i, i + chunkSize)
-        const customersJson = JSON.stringify(chunk).replace(/\|/g, '\\|')
-        const chunkIndex = Math.floor(i / chunkSize)
-        const line = `UPSERT_CUSTOMERS_JSON_CHUNK|${chunkIndex}|${totalChunks}|${customersJson}`
-
-        let attempt = 0
-        while (attempt < maxRetries) {
-          attempt++
-          try {
-            this.addLog(`Sending chunk ${chunkIndex + 1}/${totalChunks} (attempt ${attempt})`)
-            // Create the ACK promise first so the line handler can resolve it
-            const ackPromise = this.waitForChunkAck(chunkIndex, totalChunks)
-            await this.sendLine(line)
-            // Wait for ACK (or timeout inside waitForChunkAck)
-            await ackPromise
-            // Success
-            break
-          } catch (error) {
-            console.error(`Chunk ${chunkIndex} attempt ${attempt} failed:`, error)
-            this.addLog(`Chunk ${chunkIndex} attempt ${attempt} failed: ${error.message || error}`)
-            if (attempt >= maxRetries) {
-              throw new Error(`Failed to send chunk ${chunkIndex} after ${maxRetries} attempts`)
-            }
-            // Backoff before retry
-            await new Promise(resolve => setTimeout(resolve, 500 * attempt))
-          }
-        }
-
-        // Small pause to let device finalize processing before next chunk
-        await new Promise(resolve => setTimeout(resolve, 200))
-      }
-    },
-
-    async waitForChunkAck(chunkIndex, totalChunks) {
-      return new Promise((resolve, reject) => {
-        this.chunkAckResolve = resolve
-        this.chunkAckReject = reject
-        this.expectedChunkAck = chunkIndex
-        // Timeout after 30 seconds
-        if (this.chunkAckTimeoutId) {
-          clearTimeout(this.chunkAckTimeoutId)
-          this.chunkAckTimeoutId = null
-        }
-        this.chunkAckTimeoutId = setTimeout(() => {
-          if (this.chunkAckResolve) {
-            this.chunkAckResolve = null
-            this.chunkAckReject = null
-            this.expectedChunkAck = null
-            this.chunkAckTimeoutId = null
-            reject(new Error('Timeout waiting for chunk ACK'))
-          }
-        }, 30000)
-      })
-    },
-    async pushCustomerTypesToDevice(dbCustomerTypes) {
-      // Send each upsert line-by-line (adds new customer types, updates existing ones)
-      for (var i = 0; i < dbCustomerTypes.length; i++) {
-        var ct = dbCustomerTypes[i]
-        var createdAt = ct.created_at ? Math.floor(new Date(ct.created_at).getTime() / 1000) : 0
-        var updatedAt = ct.updated_at ? Math.floor(new Date(ct.updated_at).getTime() / 1000) : 0
-        var line = [
-          'UPSERT_CUSTOMER_TYPE',
-          String(Number(ct.id || ct.type_id || 1)),
-          this.escapeDeviceField(ct.type_name || ct.name || ''),
-          String(Number(ct.rate_per_m3 || 0)),
-          String(Number(ct.min_m3 || 0)),
-          String(Number(ct.min_charge || 0)),
-          String(Number(ct.penalty || 0)),
-          String(createdAt),
-          String(updatedAt)
-        ].join('|')
-        await this.sendLine(line)
-        // tiny pacing helps avoid overwhelming the serial buffer
-        await new Promise(r => setTimeout(r, 10))
-      }
-    },
-
-    async pushDeductionsToDevice(dbDeductions) {
-      // Send each upsert line-by-line (adds new deductions, updates existing ones)
-      for (var i = 0; i < dbDeductions.length; i++) {
-        var d = dbDeductions[i]
-        var createdAt = d.created_at ? Math.floor(new Date(d.created_at).getTime() / 1000) : 0
-        var updatedAt = d.updated_at ? Math.floor(new Date(d.updated_at).getTime() / 1000) : 0
-        var line = [
-          'UPSERT_DEDUCTION',
-          String(Number(d.id || d.deduction_id || 1)),
-          this.escapeDeviceField(d.name || ''),
-          this.escapeDeviceField(d.type || ''),
-          String(Number(d.value || 0)),
-          String(createdAt),
-          String(updatedAt)
-        ].join('|')
-        await this.sendLine(line)
-        // tiny pacing helps avoid overwhelming the serial buffer
-        await new Promise(r => setTimeout(r, 10))
-      }
-    },
-
-    // Reading/parsing is handled by serialService now.
-
     handleDeviceLine(line) {
       if (!line) return
 
       // Track acks (useful for debugging)
       if (line.startsWith('ACK|')) {
-        this.lastAck = line
+        // Handle chunk ACKs
+        this.handleChunkAck(line)
       }
 
-      // Handle chunk ACKs: only resolve if ACK matches expected chunk index
-      if (line.startsWith('ACK|CHUNK|') || line.startsWith('ACK|UPSERT_CUSTOMERS_JSON|')) {
-        try {
-          let ackIndex = null
-          if (line.startsWith('ACK|CHUNK|')) {
-            const parts = line.split('|')
-            ackIndex = Number(parts[2])
-          } else if (line.startsWith('ACK|UPSERT_CUSTOMERS_JSON|')) {
-            // final ACK may include count; treat as last chunk acknowledge
-            ackIndex = this.expectedChunkAck // allow final ack to resolve current waiter
-          }
-
-          if (this.chunkAckResolve && (this.expectedChunkAck === null || ackIndex === this.expectedChunkAck)) {
-            this.chunkAckResolve(line)
-            this.chunkAckResolve = null
-            this.chunkAckReject = null
-            this.expectedChunkAck = null
-            if (this.chunkAckTimeoutId) {
-              clearTimeout(this.chunkAckTimeoutId)
-              this.chunkAckTimeoutId = null
-            }
-          } else {
-            // ACK arrived but no matching waiter; ignore or log for debugging
-            this.addLog(`Ignored ACK (no waiter or mismatch): ${line}`)
-          }
-        } catch (e) {
-          console.error('Error handling ACK line:', e)
-        }
-        return
-      }
-
-      if (!this.exportInProgress) return
-
-      if (this.exportBeginMarker && line === this.exportBeginMarker) {
-        this.exportLines = []
-        return
-      }
-
-      if (this.exportEndMarker && line === this.exportEndMarker) {
-        const lines = this.exportLines.slice()
-        this.exportLines = []
-        this.finishExport(null, lines)
-        return
-      }
-
-      if (this.exportLinePrefix && line.startsWith(this.exportLinePrefix)) {
-        this.exportLines.push(line)
-      }
+      // Handle device info and readings exports
+      this.handleDeviceLineDevice(line)
+      this.handleDeviceLineReadings(line)
 
       if (line.startsWith('ERR|')) {
-        this.finishExport(new Error('Device error: ' + line))
+        // Error handling is done in the individual handlers
       }
+    },
+
+    clearSyncLogs() {
+      this.syncLogs.length = 0
     },
 
     // Disconnect handling is handled by serialService now.
 
-    async formatSdCard() {
-      var st = serialService.getState()
-      if (!this.isConnected || !st.writer) {
-        this.addLog('Not connected. Connect a device first.')
-        this.showFormatConfirm = false
-        return
-      }
 
-      this.isFormatting = true
-      try {
-        this.addLog('Formatting SD card...')
-        await this.sendLine('FORMAT_SD')
-        
-        // Wait for acknowledgment
-        await new Promise(resolve => setTimeout(resolve, 2000))
-        
-        this.commandSuccessMessage = 'SD card has been formatted successfully. The device will reinitialize the file system.'
-        this.showCommandSuccess = true
-        this.addLog('✓ SD card formatted successfully')
-      } catch (error) {
-        this.addLog('Format failed: ' + (error?.message || String(error)))
-      } finally {
-        this.isFormatting = false
-        this.showFormatConfirm = false
-      }
-    },
-
-    async restartDevice() {
-      var st = serialService.getState()
-      if (!this.isConnected || !st.writer) {
-        this.addLog('Not connected. Connect a device first.')
-        this.showRestartConfirm = false
-        return
-      }
-
-      this.isRestarting = true
-      try {
-        this.addLog('Restarting device...')
-        await this.sendLine('RESTART_DEVICE')
-        
-        // Wait a moment for the command to be sent
-        await new Promise(resolve => setTimeout(resolve, 500))
-        
-        this.commandSuccessMessage = 'Device restart command sent. The device will restart momentarily.'
-        this.showCommandSuccess = true
-        this.addLog('✓ Restart command sent')
-        
-        // Disconnect after restart command
-        setTimeout(() => {
-          this.disconnectDevice()
-        }, 1000)
-      } catch (error) {
-        this.addLog('Restart failed: ' + (error?.message || String(error)))
-      } finally {
-        this.isRestarting = false
-        this.showRestartConfirm = false
-      }
-    },
-
-    addLog(message) {
-      const time = new Date().toLocaleTimeString()
-      this.syncLogs.push({ time, message })
-      
-      // Auto-scroll to bottom
-      this.$nextTick(() => {
-        const logContainer = this.$el.querySelector('.overflow-y-auto')
-        if (logContainer) {
-          logContainer.scrollTop = logContainer.scrollHeight
-        }
-      })
-    },
-
-    formatElapsedTime(ms) {
-      const seconds = Math.floor(ms / 1000)
-      const minutes = Math.floor(seconds / 60)
-      const remainingSeconds = seconds % 60
-      if (minutes > 0) {
-        return `${minutes}m ${remainingSeconds}s`
-      } else {
-        return `${remainingSeconds}s`
-      }
-    }
   }
 }
 </script>

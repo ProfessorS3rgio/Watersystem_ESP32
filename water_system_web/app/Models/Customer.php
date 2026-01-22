@@ -19,6 +19,8 @@ class Customer extends Model
         'address',
         'previous_reading',
         'status',
+        'Synced',
+        'last_sync',
     ];
 
     protected $casts = [
@@ -26,6 +28,8 @@ class Customer extends Model
         'type_id' => 'integer',
         'deduction_id' => 'integer',
         'brgy_id' => 'integer',
+        'Synced' => 'boolean',
+        'last_sync' => 'datetime',
     ];
 
     public function deductions()

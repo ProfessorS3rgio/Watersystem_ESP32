@@ -73,6 +73,8 @@ class CustomerController extends Controller
                 'customer.address',
                 'customer.previous_reading',
                 'customer.status',
+                'customer.Synced',
+                'customer.last_sync',
                 'customer.created_at',
                 'customer.updated_at',
                 DB::raw('r.current_reading as current_reading'),
@@ -148,6 +150,7 @@ class CustomerController extends Controller
                     ? $validated['previous_reading']
                     : 0,
                 'status' => $validated['status'],
+                'Synced' => false,
             ]);
 
             // Increment the sequence
@@ -198,6 +201,8 @@ class CustomerController extends Controller
                     'type_id' => $row['type_id'] ?? null,
                     'deduction_id' => $row['deduction_id'] ?? null,
                     'brgy_id' => $row['brgy_id'] ?? null,
+                    'Synced' => true,
+                    'last_sync' => now(),
                 ]
             );
 
@@ -262,6 +267,8 @@ class CustomerController extends Controller
                     ? $validated['previous_reading']
                     : $customer->previous_reading,
                 'status' => $validated['status'],
+                'Synced' => false,
+                'last_sync' => null,
             ]);
 
             // Sync deductions in customer_deduction table
@@ -274,6 +281,28 @@ class CustomerController extends Controller
 
         return response()->json([
             'data' => $customer,
+        ]);
+    }
+
+    /**
+     * Mark customers as synced after successful device sync.
+     */
+    public function markSynced(Request $request)
+    {
+        $validated = $request->validate([
+            'account_numbers' => ['required', 'array'],
+            'account_numbers.*' => ['required', 'string', 'max:255'],
+        ]);
+
+        $updated = Customer::whereIn('account_no', $validated['account_numbers'])
+            ->update([
+                'Synced' => true,
+                'last_sync' => now(),
+            ]);
+
+        return response()->json([
+            'updated' => $updated,
+            'message' => "{$updated} customers marked as synced",
         ]);
     }
 

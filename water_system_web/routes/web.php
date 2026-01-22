@@ -33,6 +33,7 @@ Route::middleware('auth')->group(function () {
     Route::put('/customers/{customer}', [CustomerController::class, 'update']);
     Route::delete('/customers/{customer}', [CustomerController::class, 'destroy']);
     Route::post('/customers/sync', [CustomerController::class, 'sync']);
+    Route::post('/customers/mark-synced', [CustomerController::class, 'markSynced']);
 
     Route::get('/customers/{customer}/readings', [ReadingController::class, 'indexByCustomer']);
 

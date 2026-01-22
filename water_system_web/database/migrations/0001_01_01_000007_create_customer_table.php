@@ -21,7 +21,9 @@ return new class extends Migration
             $table->string('address');
             $table->integer('previous_reading');
             $table->enum('status', ['active', 'disconnected'])->default('active');
+            $table->boolean('Synced')->default(false);
             $table->timestamps();
+            $table->datetime('last_sync')->nullable();
 
             $table->foreign('type_id')->references('type_id')->on('customer_type');
             $table->foreign('deduction_id')->references('deduction_id')->on('deduction');
