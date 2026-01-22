@@ -4,15 +4,10 @@
 #include <SD.h>
 #include "../configuration/config.h"
 #include "../managers/sdcard_manager.h"
+#include <sqlite3.h>
 
-// Stored at SD so the website can show persistent device info.
-// Format (key=value lines):
-// device_type=...
-// firmware_version=...
-// last_sync_epoch=...
-// print_count=...
-
-static const char* DEVICE_INFO_FILE = "/WATER_DB/SETTINGS/device_info.txt";
+// Device info now stored in SQLite database table 'device_info'
+// Table: (key TEXT PRIMARY KEY, value TEXT, created_at TEXT, updated_at TEXT)
 
 static const char* DEVICE_TYPE_VALUE = "ESP32 Water System";
 static const char* FIRMWARE_VERSION_VALUE = "v1.0.0";
@@ -31,23 +26,79 @@ static String getDeviceUID() {
 #endif
 }
 
+// Global variables for cached values
 static uint32_t g_lastSyncEpoch = 0;
 static uint32_t g_printCount = 0;
 
-// Forward declarations (needed because this file is a header and order matters in C++)
-static bool deviceInfoSdReady();
+// Helper functions for DB operations
+static void setDeviceInfoValue(const char* key, const String& value) {
+  if (!db) return;
+  char sql[256];
+  sprintf(sql, "INSERT OR REPLACE INTO device_info (key, value, created_at, updated_at) VALUES ('%s', '%s', datetime('now'), datetime('now'));", key, value.c_str());
+  sqlite3_exec(db, sql, NULL, NULL, NULL);
+}
 
-static void ensureDeviceInfoDirs() {
-  if (!deviceInfoSdReady()) return;
-  deselectTftSelectSd();
+static String getDeviceInfoValue(const char* key) {
+  if (!db) return "";
+  char sql[128];
+  sprintf(sql, "SELECT value FROM device_info WHERE key = '%s';", key);
+  sqlite3_stmt* stmt;
+  int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+  if (rc != SQLITE_OK) return "";
+  String value = "";
+  if (sqlite3_step(stmt) == SQLITE_ROW) {
+    value = String((const char*)sqlite3_column_text(stmt, 0));
+  }
+  sqlite3_finalize(stmt);
+  return value;
+}
 
-  // Ensure the folder structure exists so SD.open(FILE_WRITE) succeeds.
-  if (!SD.exists("/WATER_DB")) {
-    SD.mkdir("/WATER_DB");
+static void loadDeviceInfoFromDB() {
+  if (!db) return;
+  g_lastSyncEpoch = getDeviceInfoValue("last_sync_epoch").toInt();
+  g_printCount = getDeviceInfoValue("print_count").toInt();
+  // Initialize defaults if not set
+  if (g_lastSyncEpoch == 0) {
+    setDeviceInfoValue("last_sync_epoch", "0");
   }
-  if (!SD.exists("/WATER_DB/SETTINGS")) {
-    SD.mkdir("/WATER_DB/SETTINGS");
+  if (g_printCount == 0) {
+    setDeviceInfoValue("print_count", "0");
   }
+}
+
+static void initDeviceInfo() {
+  loadDeviceInfoFromDB();
+}
+
+static void incrementPrintCount() {
+  g_printCount++;
+  setDeviceInfoValue("print_count", String(g_printCount));
+}
+
+static void setLastSyncEpoch(uint32_t epoch) {
+  g_lastSyncEpoch = epoch;
+  setDeviceInfoValue("last_sync_epoch", String(epoch));
+}
+
+static uint32_t getLastSyncEpoch() {
+  return g_lastSyncEpoch;
+}
+
+static uint32_t countPendingReadings() {
+  if (!db) return 0;
+
+  const char *sql = "SELECT COUNT(*) FROM readings WHERE updated_at = created_at;";
+  sqlite3_stmt *stmt;
+  int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+  if (rc != SQLITE_OK) return 0;
+
+  uint32_t count = 0;
+  if (sqlite3_step(stmt) == SQLITE_ROW) {
+    count = sqlite3_column_int(stmt, 0);
+  }
+
+  sqlite3_finalize(stmt);
+  return count;
 }
 
 static bool deviceInfoSdReady() {
@@ -72,110 +123,6 @@ static uint64_t sdUsedBytesSafe() {
 #else
   return 0;
 #endif
-}
-
-static void writeDeviceInfoToSD() {
-  if (!deviceInfoSdReady()) return;
-
-  deselectTftSelectSd();
-
-  ensureDeviceInfoDirs();
-
-  // Best-effort overwrite by remove
-  if (SD.exists(DEVICE_INFO_FILE)) {
-    SD.remove(DEVICE_INFO_FILE);
-  }
-
-  File f = SD.open(DEVICE_INFO_FILE, FILE_WRITE);
-  if (!f) return;
-
-  f.print(F("device_type="));
-  f.println(DEVICE_TYPE_VALUE);
-  f.print(F("firmware_version="));
-  f.println(FIRMWARE_VERSION_VALUE);
-  f.print(F("device_id="));
-  f.println(DEVICE_ID_VALUE);
-  f.print(F("brgy_id="));
-  f.println(BRGY_ID_VALUE);
-  f.print(F("device_uid="));
-  f.println(getDeviceUID());
-  f.print(F("last_sync_epoch="));
-  f.println((unsigned long)g_lastSyncEpoch);
-  f.print(F("print_count="));
-  f.println((unsigned long)g_printCount);
-
-  f.close();
-}
-
-static void loadDeviceInfoFromSD() {
-  if (!deviceInfoSdReady()) return;
-
-  deselectTftSelectSd();
-
-  ensureDeviceInfoDirs();
-  if (!SD.exists(DEVICE_INFO_FILE)) {
-    writeDeviceInfoToSD();
-    return;
-  }
-
-  File f = SD.open(DEVICE_INFO_FILE, FILE_READ);
-  if (!f) return;
-
-  while (f.available()) {
-    String line = f.readStringUntil('\n');
-    line.trim();
-    if (line.length() == 0) continue;
-    int eq = line.indexOf('=');
-    if (eq < 0) continue;
-
-    String key = line.substring(0, eq);
-    String val = line.substring(eq + 1);
-    key.trim();
-    val.trim();
-
-    if (key == "last_sync_epoch") {
-      g_lastSyncEpoch = (uint32_t)val.toInt();
-    } else if (key == "print_count") {
-      g_printCount = (uint32_t)val.toInt();
-    }
-  }
-
-  f.close();
-}
-
-static void initDeviceInfo() {
-  loadDeviceInfoFromSD();
-}
-
-static void incrementPrintCount() {
-  g_printCount++;
-  writeDeviceInfoToSD();
-}
-
-static void setLastSyncEpoch(uint32_t epoch) {
-  g_lastSyncEpoch = epoch;
-  writeDeviceInfoToSD();
-}
-
-static uint32_t getLastSyncEpoch() {
-  return g_lastSyncEpoch;
-}
-
-static uint32_t countPendingReadings() {
-  if (!db) return 0;
-
-  const char *sql = "SELECT COUNT(*) FROM readings WHERE updated_at = created_at;";
-  sqlite3_stmt *stmt;
-  int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
-  if (rc != SQLITE_OK) return 0;
-
-  uint32_t count = 0;
-  if (sqlite3_step(stmt) == SQLITE_ROW) {
-    count = sqlite3_column_int(stmt, 0);
-  }
-
-  sqlite3_finalize(stmt);
-  return count;
 }
 
 static void exportDeviceInfoForSync() {

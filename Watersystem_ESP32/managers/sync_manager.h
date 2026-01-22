@@ -20,11 +20,6 @@ static int countCallback(void *data, int argc, char **argv, char **azColName) {
 // Function to handle all sync protocol commands
 bool handleSyncCommands(String raw) {
   // ---- Sync protocol (do NOT uppercase; payload may be mixed-case) ----
-  if (raw == "EXPORT_CUSTOMERS") {
-    Serial.println(F("Exporting customers..."));
-    exportCustomersForSync();
-    return true;
-  }
 
   if (raw == "EXPORT_DEVICE_INFO") {
     Serial.println(F("Exporting device info..."));

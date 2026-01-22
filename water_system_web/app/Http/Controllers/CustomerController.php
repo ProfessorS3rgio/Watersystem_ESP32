@@ -18,6 +18,7 @@ class CustomerController extends Controller
         $accountNo = $request->query('account_no');
         $name = $request->query('name');
         $brgyId = $request->query('brgy_id');
+        $updatedAfter = $request->query('updated_after');
 
         $query = DB::table('customer');
 
@@ -31,6 +32,10 @@ class CustomerController extends Controller
 
         if ($brgyId) {
             $query->where('brgy_id', $brgyId);
+        }
+
+        if ($updatedAfter) {
+            $query->where('customer.updated_at', '>', Carbon::createFromTimestamp($updatedAfter));
         }
 
         $latestReadingAt = DB::table('reading')

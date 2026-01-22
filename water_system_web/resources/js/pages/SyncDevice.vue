@@ -286,7 +286,9 @@ export default {
       chunkAckPromise: null,
       chunkAckResolve: null,
       chunkAckReject: null,
-      expectedChunkAck: null
+      expectedChunkAck: null,
+
+      syncStartTime: null
     }
   },
   mounted() {
@@ -320,8 +322,6 @@ export default {
 
       // Hide protocol markers and payload lines to keep the log readable.
       if (
-        t === 'BEGIN_CUSTOMERS' ||
-        t === 'END_CUSTOMERS' ||
         t === 'BEGIN_READINGS' ||
         t === 'END_READINGS' ||
         t === 'BEGIN_DEVICE_INFO' ||
@@ -369,6 +369,7 @@ export default {
       }
 
       this.isSyncing = true
+      this.syncStartTime = Date.now()
       try {
         this.addLog('Starting customer sync...')
 
@@ -377,35 +378,18 @@ export default {
         var deviceInfo = await this.exportDeviceInfoFromDevice()
         var deviceBrgyId = deviceInfo?.brgy_id || 1
         var deviceId = deviceInfo?.device_id || 1
-        this.addLog(`Device ID: ${deviceId}, Barangay ID: ${deviceBrgyId}`)
+        var lastSyncEpoch = deviceInfo?.last_sync_epoch || 0
+        this.addLog(`Device ID: ${deviceId}, Barangay ID: ${deviceBrgyId}, Last Sync: ${lastSyncEpoch}`)
 
-        // 1) Export customers from device for comparison
-        this.addLog('Fetching customers from ESP32 (SD card)...')
-        var deviceCustomers = await this.exportCustomersFromDevice()
-        this.addLog(`Device has ${deviceCustomers.length} customers`)
-
-        // 2) Get customers from web database
+        // Get customers from web database, filtered by barangay and updated after last sync
         this.addLog('Fetching customers from database...')
-        var dbCustomers = await databaseService.fetchCustomersFromDatabase()
-        this.addLog(`Database has ${dbCustomers.length} customers`)
+        var dbCustomers = await databaseService.fetchCustomersFromDatabase({ brgy_id: deviceBrgyId, updated_after: lastSyncEpoch })
+        this.addLog(`Database has ${dbCustomers.length} customers updated since last sync`)
 
-        // 3) Filter database customers by device's barangay
-        var filteredDbCustomers = dbCustomers.filter(c => c.brgy_id == deviceBrgyId)
-        this.addLog(`Filtered to ${filteredDbCustomers.length} customers for barangay ${deviceBrgyId}`)
+        // No need to filter further, API already filtered
+        var filteredDbCustomers = dbCustomers
 
-        // 4) Find customers to remove (on device but not in filtered web DB)
-        var filteredDbAccountNos = new Set(filteredDbCustomers.map(c => c.account_no))
-        var customersToRemove = deviceCustomers.filter(c => !filteredDbAccountNos.has(c.account_no))
-        
-        if (customersToRemove.length > 0) {
-          this.addLog(`Removing ${customersToRemove.length} customers from device that no longer exist in database...`)
-          for (var customer of customersToRemove) {
-            await this.sendLine('REMOVE_CUSTOMER|' + this.escapeDeviceField(customer.account_no))
-            await new Promise(r => setTimeout(r, 50))
-          }
-        }
-
-        // 5) Sync customer types from DB to device first (needed for customer references)
+        // Sync customer types from DB to device first (needed for customer references)
         this.addLog('Fetching customer types from database...')
         var dbCustomerTypes = await databaseService.fetchCustomerTypesFromDatabase()
         this.addLog(`Database has ${dbCustomerTypes.length} customer types`)
@@ -413,7 +397,7 @@ export default {
         await this.pushCustomerTypesToDevice(dbCustomerTypes)
         this.addLog('✓ Customer types sync completed')
 
-        // 5.5) Sync deductions from DB to device
+        // Sync deductions from DB to device
         this.addLog('Fetching deductions from database...')
         var dbDeductions = await databaseService.fetchDeductionsFromDatabase()
         this.addLog(`Database has ${dbDeductions.length} deductions`)
@@ -421,10 +405,10 @@ export default {
         await this.pushDeductionsToDevice(dbDeductions)
         this.addLog('✓ Deductions sync completed')
 
-        // 6) Sync readings (device -> DB)
+        // Sync readings (device -> DB)
         await this.syncReadingsFromDevice()
 
-        // 7) Push filtered DB customers to device (adds new, updates existing) - last to ensure dependencies
+        // Push filtered DB customers to device (adds new, updates existing) - last to ensure dependencies
         this.addLog(`Pushing ${filteredDbCustomers.length} customers to ESP32 as JSON...`)
         await this.pushCustomersToDevice(filteredDbCustomers)
         this.addLog('✓ Customer sync completed')
@@ -444,11 +428,14 @@ export default {
         await this.refreshDeviceInfo()
 
         // Show success dialog
+        const elapsed = Date.now() - this.syncStartTime
+        this.addLog('Sync completed in ' + this.formatElapsedTime(elapsed))
         this.showSuccessDialog = true
       } catch (error) {
         this.addLog('Sync failed: ' + (error?.message || String(error)))
       } finally {
         this.isSyncing = false
+        this.syncStartTime = null
       }
     },
 
@@ -544,32 +531,6 @@ export default {
         .trim()
     },
 
-    async exportCustomersFromDevice() {
-      if (this.exportInProgress) {
-        throw new Error('Export already in progress')
-      }
-
-      this.exportInProgress = true
-      this.exportLines = []
-      this.lastAck = null
-      this.exportBeginMarker = 'BEGIN_CUSTOMERS'
-      this.exportEndMarker = 'END_CUSTOMERS'
-      this.exportLinePrefix = 'CUST|'
-
-      const promise = new Promise((resolve, reject) => {
-        this.exportResolve = resolve
-        this.exportReject = reject
-        this.exportTimeoutId = setTimeout(() => {
-          this.finishExport(new Error('Timed out waiting for device export'))
-        }, 12000)
-      })
-
-      await this.sendLine('EXPORT_CUSTOMERS')
-
-      const lines = await promise
-      return this.parseExportLines(lines)
-    },
-
     async exportDeviceInfoFromDevice() {
       if (this.exportInProgress) {
         throw new Error('Export already in progress')
@@ -641,27 +602,6 @@ export default {
       if (resolve) resolve(lines || [])
     },
 
-    parseExportLines(lines) {
-      const customers = []
-      for (const line of lines) {
-        if (!line.startsWith('CUST|')) continue
-        const parts = line.split('|')
-        // CUST|account_no|customer_name|address|previous_reading|status|type_id|deduction_id|brgy_id
-        if (parts.length < 9) continue
-        customers.push({
-          account_no: parts[1],
-          customer_name: parts[2],
-          address: parts[3],
-          previous_reading: Number(parts[4] || 0),
-          status: parts[5] || 'active',
-          type_id: Number(parts[6] || 1),
-          deduction_id: Number(parts[7] || null),
-          brgy_id: Number(parts[8] || 1),
-        })
-      }
-      return customers
-    },
-
     parseDeviceInfoLines(lines) {
       const out = {}
       for (const line of lines) {
@@ -718,7 +658,7 @@ export default {
       // Register the ACK waiter BEFORE sending to avoid ACK arriving
       // while the promise hasn't been hooked (race condition).
       // Implement retries in case ACKs are lost or the web serial write fails.
-      const chunkSize = 20
+      const chunkSize = 55
       const totalChunks = Math.ceil(dbCustomers.length / chunkSize)
       const maxRetries = 3
       for (let i = 0; i < dbCustomers.length; i += chunkSize) {
@@ -956,6 +896,17 @@ export default {
           logContainer.scrollTop = logContainer.scrollHeight
         }
       })
+    },
+
+    formatElapsedTime(ms) {
+      const seconds = Math.floor(ms / 1000)
+      const minutes = Math.floor(seconds / 60)
+      const remainingSeconds = seconds % 60
+      if (minutes > 0) {
+        return `${minutes}m ${remainingSeconds}s`
+      } else {
+        return `${remainingSeconds}s`
+      }
     }
   }
 }

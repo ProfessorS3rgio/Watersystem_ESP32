@@ -1,7 +1,10 @@
 // Database service for handling API calls to the backend
 export const databaseService = {
-  async fetchCustomersFromDatabase() {
-    const res = await fetch('/customers', {
+  async fetchCustomersFromDatabase(options = {}) {
+    const url = new URL('/customers', window.location.origin)
+    if (options.updated_after) url.searchParams.set('updated_after', options.updated_after)
+    if (options.brgy_id) url.searchParams.set('brgy_id', options.brgy_id)
+    const res = await fetch(url, {
       headers: { 'Accept': 'application/json' },
       credentials: 'same-origin',
     })

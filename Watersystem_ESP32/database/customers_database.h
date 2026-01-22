@@ -158,27 +158,6 @@ String getCurrentBarangayPrefix() {
   return ""; // Not found
 }
 
-// ===== EXPORT CUSTOMERS FOR SYNC =====
-static int exportCustomerCallback(void *data, int argc, char **argv, char **azColName) {
-  Serial.printf("CUST|%s|%s|%s|%s|%s|%s|%s|%s\n",
-                argv[0] ? argv[0] : "",  // account_no
-                argv[1] ? argv[1] : "",  // customer_name
-                argv[2] ? argv[2] : "",  // address
-                argv[3] ? argv[3] : "",  // previous_reading
-                argv[4] ? argv[4] : "",  // status
-                argv[5] ? argv[5] : "",  // type_id
-                argv[6] ? argv[6] : "",  // deduction_id
-                argv[7] ? argv[7] : ""); // brgy_id
-  return 0;
-}
-
-void exportCustomersForSync() {
-  Serial.println(F("BEGIN_CUSTOMERS"));
-  const char* sql = "SELECT account_no, customer_name, address, previous_reading, status, type_id, deduction_id, brgy_id FROM customers;";
-  sqlite3_exec(db, sql, exportCustomerCallback, NULL, NULL);
-  Serial.println(F("END_CUSTOMERS"));
-}
-
 // ===== UPSERT CUSTOMER FROM SYNC =====
 bool upsertCustomerFromSync(const String& accountNo, const String& name, const String& address, unsigned long prev, const String& status, unsigned long typeId, unsigned long deductionId, unsigned long brgyId) {
   const char* sql = "INSERT OR REPLACE INTO customers (account_no, customer_name, address, previous_reading, status, type_id, deduction_id, brgy_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'));";
