@@ -34,26 +34,9 @@ struct BarangaySeq {
 };
 
 // ===== CUSTOMER DATABASE =====
-std::vector<Customer> customers;
+// std::vector<Customer> customers;  // Removed to save memory, load on demand
+Customer* currentCustomer = nullptr;  // Single customer loaded on demand
 std::vector<BarangaySeq> barangays;
-
-static int loadCustomerCallback(void *data, int argc, char **argv, char **azColName) {
-  Customer c;
-  // Defensive: check argc and NULL argv pointers to avoid crashes on malformed rows
-  c.customer_id = (argc > 0 && argv[0]) ? atoi(argv[0]) : 0;
-  c.account_no = (argc > 1 && argv[1]) ? String(argv[1]) : String("");
-  c.type_id = (argc > 2 && argv[2]) ? atoi(argv[2]) : 1;
-  c.customer_name = (argc > 3 && argv[3]) ? String(argv[3]) : String("");
-  c.deduction_id = (argc > 4 && argv[4]) ? atoi(argv[4]) : 0;  // 0 means no deduction
-  c.brgy_id = (argc > 5 && argv[5]) ? atoi(argv[5]) : 1;
-  c.address = (argc > 6 && argv[6]) ? String(argv[6]) : String("");
-  c.previous_reading = (argc > 7 && argv[7]) ? strtoul(argv[7], NULL, 10) : 0UL;
-  c.status = (argc > 8 && argv[8]) ? String(argv[8]) : String("active");
-  c.created_at = (argc > 9 && argv[9]) ? String(argv[9]) : String("");
-  c.updated_at = (argc > 10 && argv[10]) ? String(argv[10]) : String("");
-  customers.push_back(c);
-  return 0;
-}
 
 static int loadBarangayCallback(void *data, int argc, char **argv, char **azColName) {
   BarangaySeq b;
@@ -64,81 +47,6 @@ static int loadBarangayCallback(void *data, int argc, char **argv, char **azColN
   b.updated_at = argv[4];
   barangays.push_back(b);
   return 0;
-}
-
-void loadCustomersFromDB() {
-  customers.clear();
-  // Reserve capacity to reduce repeated reallocations when loading many rows.
-  int count = 0;
-  sqlite3_stmt* stmt = NULL;
-  const char* countSql = "SELECT COUNT(*) FROM customers;";
-  if (sqlite3_prepare_v2(db, countSql, -1, &stmt, NULL) == SQLITE_OK) {
-    if (sqlite3_step(stmt) == SQLITE_ROW) {
-      count = sqlite3_column_int(stmt, 0);
-    }
-    sqlite3_finalize(stmt);
-  }
-  if (count > 0) customers.reserve((size_t)count + 8);
-
-  // Use a prepared statement and step through rows to have better control
-  const char *sql = "SELECT customer_id, account_no, type_id, customer_name, deduction_id, brgy_id, address, previous_reading, status, created_at, updated_at FROM customers;";
-  sqlite3_stmt* s = NULL;
-  int rc = sqlite3_prepare_v2(db, sql, -1, &s, NULL);
-  if (rc != SQLITE_OK) {
-    Serial.print(F("SQLite prepare failed in loadCustomersFromDB: "));
-    Serial.println(sqlite3_errmsg(db));
-    return;
-  }
-
-  int rowIndex = 0;
-  while ((rc = sqlite3_step(s)) == SQLITE_ROW) {
-    // If heap dangerously low, abort loading to avoid crash. Caller can retry later.
-    if (ESP.getFreeHeap() < 30000) {
-      Serial.println(F("Warning: low heap during customer load; stopping early to avoid abort."));
-      break;
-    }
-
-    Customer c;
-    // Read columns safely
-    const unsigned char* col0 = sqlite3_column_text(s, 0);
-    const unsigned char* col1 = sqlite3_column_text(s, 1);
-    const unsigned char* col2 = sqlite3_column_text(s, 2);
-    const unsigned char* col3 = sqlite3_column_text(s, 3);
-    const unsigned char* col4 = sqlite3_column_text(s, 4);
-    const unsigned char* col5 = sqlite3_column_text(s, 5);
-    const unsigned char* col6 = sqlite3_column_text(s, 6);
-    const unsigned char* col7 = sqlite3_column_text(s, 7);
-    const unsigned char* col8 = sqlite3_column_text(s, 8);
-    const unsigned char* col9 = sqlite3_column_text(s, 9);
-    const unsigned char* col10 = sqlite3_column_text(s, 10);
-
-    c.customer_id = col0 ? atoi((const char*)col0) : 0;
-    c.account_no = col1 ? String((const char*)col1) : String("");
-    c.type_id = col2 ? atoi((const char*)col2) : 1;
-    c.customer_name = col3 ? String((const char*)col3) : String("");
-    c.deduction_id = col4 ? atoi((const char*)col4) : 0;
-    c.brgy_id = col5 ? atoi((const char*)col5) : 1;
-    c.address = col6 ? String((const char*)col6) : String("");
-    c.previous_reading = col7 ? strtoul((const char*)col7, NULL, 10) : 0UL;
-    c.status = col8 ? String((const char*)col8) : String("active");
-    c.created_at = col9 ? String((const char*)col9) : String("");
-    c.updated_at = col10 ? String((const char*)col10) : String("");
-
-    customers.push_back(c);
-    rowIndex++;
-
-    // Log progress occasionally
-    if ((rowIndex % 100) == 0) {
-      Serial.print(F("Loaded customers: "));
-      Serial.println(rowIndex);
-      Serial.printf("Heap free during load: %d\n", ESP.getFreeHeap());
-    }
-  }
-
-  if (count > (int)customers.size()) {
-    Serial.printf("[WARN] Only loaded %d of %d customers due to heap limits.\n", customers.size(), count);
-  }
-  sqlite3_finalize(s);
 }
 
 void loadBarangaysFromDB() {
@@ -197,22 +105,45 @@ String getBarangayName(int brgy_id) {
 
 // ===== FIND CUSTOMER BY ACCOUNT =====
 int findCustomerByAccount(String accountNumber) {
-  if (customers.empty()) {
-    Serial.println(F("Loading customers on demand..."));
-    loadCustomersFromDB();
+  // Query DB directly to avoid loading all customers
+  const char* sql = "SELECT customer_id, account_no, type_id, customer_name, deduction_id, brgy_id, address, previous_reading, status, created_at, updated_at FROM customers WHERE account_no = ?;";
+  sqlite3_stmt* stmt;
+  int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+  if (rc != SQLITE_OK) {
+    Serial.print(F("Failed to prepare findCustomerByAccount: "));
+    Serial.println(sqlite3_errmsg(db));
+    return -1;
   }
-  for (size_t i = 0; i < customers.size(); i++) {
-    if (customers[i].account_no == accountNumber) {
-      return i;
+  sqlite3_bind_text(stmt, 1, accountNumber.c_str(), -1, SQLITE_STATIC);
+  rc = sqlite3_step(stmt);
+  if (rc == SQLITE_ROW) {
+    // Free previous customer if exists
+    if (currentCustomer) {
+      delete currentCustomer;
     }
+    currentCustomer = new Customer();
+    currentCustomer->customer_id = sqlite3_column_int(stmt, 0);
+    currentCustomer->account_no = String((const char*)sqlite3_column_text(stmt, 1));
+    currentCustomer->type_id = sqlite3_column_int(stmt, 2);
+    currentCustomer->customer_name = String((const char*)sqlite3_column_text(stmt, 3));
+    currentCustomer->deduction_id = sqlite3_column_int(stmt, 4);
+    currentCustomer->brgy_id = sqlite3_column_int(stmt, 5);
+    currentCustomer->address = String((const char*)sqlite3_column_text(stmt, 6));
+    currentCustomer->previous_reading = (unsigned long)sqlite3_column_int64(stmt, 7);
+    currentCustomer->status = String((const char*)sqlite3_column_text(stmt, 8));
+    currentCustomer->created_at = String((const char*)sqlite3_column_text(stmt, 9));
+    currentCustomer->updated_at = String((const char*)sqlite3_column_text(stmt, 10));
+    sqlite3_finalize(stmt);
+    return 0;  // Return 0 as the index for currentCustomer
   }
+  sqlite3_finalize(stmt);
   return -1;
 }
 
 // ===== GET CUSTOMER AT INDEX =====
 Customer* getCustomerAt(int index) {
-  if (index >= 0 && index < (int)customers.size()) {
-    return &customers[index];
+  if (index == 0 && currentCustomer) {
+    return currentCustomer;
   }
   return nullptr;
 }
@@ -228,17 +159,23 @@ String getCurrentBarangayPrefix() {
 }
 
 // ===== EXPORT CUSTOMERS FOR SYNC =====
+static int exportCustomerCallback(void *data, int argc, char **argv, char **azColName) {
+  Serial.printf("CUST|%s|%s|%s|%s|%s|%s|%s|%s\n",
+                argv[0] ? argv[0] : "",  // account_no
+                argv[1] ? argv[1] : "",  // customer_name
+                argv[2] ? argv[2] : "",  // address
+                argv[3] ? argv[3] : "",  // previous_reading
+                argv[4] ? argv[4] : "",  // status
+                argv[5] ? argv[5] : "",  // type_id
+                argv[6] ? argv[6] : "",  // deduction_id
+                argv[7] ? argv[7] : ""); // brgy_id
+  return 0;
+}
+
 void exportCustomersForSync() {
-  if (customers.empty()) {
-    Serial.println(F("Loading customers for export..."));
-    loadCustomersFromDB();
-  }
   Serial.println(F("BEGIN_CUSTOMERS"));
-  for (const auto& c : customers) {
-    Serial.printf("CUST|%s|%s|%s|%lu|%s|%d|%d|%d\n",
-                  c.account_no.c_str(), c.customer_name.c_str(), c.address.c_str(),
-                  c.previous_reading, c.status.c_str(), c.type_id, c.deduction_id, c.brgy_id);
-  }
+  const char* sql = "SELECT account_no, customer_name, address, previous_reading, status, type_id, deduction_id, brgy_id FROM customers;";
+  sqlite3_exec(db, sql, exportCustomerCallback, NULL, NULL);
   Serial.println(F("END_CUSTOMERS"));
 }
 
@@ -290,11 +227,6 @@ bool removeCustomerByAccount(const String& accountNumber) {
     return true;
   }
   return false;
-}
-
-// ===== GET CUSTOMER COUNT =====
-int getCustomerCount() {
-  return customers.size();
 }
 
 #endif  // CUSTOMERS_DATABASE_H

@@ -8,6 +8,9 @@
 #include "../database/customers_database.h"
 #include <SD.h>
 
+// ===== EXTERNAL FROM CUSTOMERS DATABASE =====
+extern Customer* currentCustomer;
+
 // Forward declarations for workflow and display functions (defined in main .ino and workflow_manager.h)
 void handleKeypadInput(char key);
 void displayBillOnTFT();
@@ -172,7 +175,7 @@ void handleKeypadInput(char key) {
     // Customer info displayed
     if (key == 'D') {  // Proceed to reading
       // If this account already has a reading for the current month, warn first.
-      if (hasReadingForAccountThisMonth(customers[selectedCustomerIndex].account_no)) {
+      if (hasReadingForAccountThisMonth(currentCustomer->account_no)) {
         currentState = STATE_READING_ALREADY_DONE;
         displayReadingAlreadyDoneScreen();
       } else {

@@ -11,6 +11,9 @@
 // ===== EXTERNAL OBJECTS FROM MAIN .INO =====
 extern Adafruit_ST7735 tft;
 
+// ===== EXTERNAL FROM CUSTOMERS DATABASE =====
+extern Customer* currentCustomer;
+
 // ===== FORWARD DECLARATIONS =====
 void showWelcomeScreen();
 void displayBillOnTFT();
@@ -145,7 +148,7 @@ void displayViewRateScreen() {
 void displayCustomerInfo() {
   tft.fillScreen(COLOR_BG);
   
-  Customer* cust = getCustomerAt(selectedCustomerIndex);
+  Customer* cust = currentCustomer;
   if (cust == nullptr) return;
   
   tft.setTextColor(COLOR_HEADER);
@@ -200,7 +203,7 @@ void displayCustomerInfo() {
 void displayEnterReadingScreen() {
   tft.fillScreen(COLOR_BG);
   
-  Customer* cust = getCustomerAt(selectedCustomerIndex);
+  Customer* cust = currentCustomer;
   if (cust == nullptr) return;
   
   tft.setTextColor(COLOR_HEADER);
@@ -249,7 +252,7 @@ void displayEnterReadingScreen() {
 void displayReadingAlreadyDoneScreen() {
   tft.fillScreen(COLOR_BG);
 
-  Customer* cust = getCustomerAt(selectedCustomerIndex);
+  Customer* cust = currentCustomer;
 
   tft.setTextColor(COLOR_HEADER);
   tft.setTextSize(1);
@@ -285,7 +288,7 @@ void displayReadingAlreadyDoneScreen() {
 void displayBillCalculated() {
   tft.fillScreen(COLOR_BG);
   
-  Customer* cust = getCustomerAt(selectedCustomerIndex);
+  Customer* cust = currentCustomer;
   if (cust == nullptr) return;
   
   // Generate bill using customer type logic
@@ -399,7 +402,7 @@ void processAccountNumberEntry() {
     displayCustomerInfo();
     
     Serial.print(F("Account found: "));
-    Serial.println(customers[selectedCustomerIndex].customer_name);
+    Serial.println(currentCustomer->customer_name);
   } else {
     // Account not found - show error and stay in entry mode
     tft.fillScreen(COLOR_BG);
@@ -420,7 +423,7 @@ void processAccountNumberEntry() {
 void processReadingEntry() {
   currentReading = inputBuffer.toInt();
   
-  if (currentReading <= customers[selectedCustomerIndex].previous_reading) {
+  if (currentReading <= currentCustomer->previous_reading) {
     // Invalid reading - must be higher than previous
     tft.fillScreen(COLOR_BG);
     tft.setTextColor(ST77XX_RED);
@@ -444,6 +447,10 @@ void processReadingEntry() {
 }
 
 void resetWorkflow() {
+  if (currentCustomer) {
+    delete currentCustomer;
+    currentCustomer = nullptr;
+  }
   currentState = STATE_WELCOME;
   inputBuffer = "";
   selectedCustomerIndex = -1;

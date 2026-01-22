@@ -165,8 +165,10 @@ bool recordReadingForCustomerIndex(int customerIndex, unsigned long currentReadi
   // Insert reading
   saveReadingToDB(c->customer_id, previous, currentReading, usage, "datetime('now')");
 
-  // Reload customers to update vector
-  loadCustomersFromDB();
+  // Update in-memory customer previous reading
+  if (currentCustomer) {
+    currentCustomer->previous_reading = currentReading;
+  }
 
   return true;
 }

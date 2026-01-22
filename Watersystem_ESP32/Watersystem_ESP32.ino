@@ -228,14 +228,14 @@ void loop() {
         initializeDefaultDeviceInfo();
         
         // Clear in-memory data
-        customers.clear();
+        // customers.clear();  // Removed, no global vector
         readings.clear();
         customerTypes.clear();
         deductions.clear();
         bills.clear();
         
         // Reload all data
-        loadCustomersFromDB();
+        // loadCustomersFromDB();  // Removed, lazy load instead
         loadReadingsFromDB();
         loadCustomerTypesFromDB();
         loadDeductionsFromDB();

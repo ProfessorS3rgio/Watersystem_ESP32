@@ -351,13 +351,10 @@ bool generateBillForCustomer(String accountNo, unsigned long currentReading) {
   // Update customer's previous reading
   updateCustomerPreviousReading(customer->customer_id, currentReading);
 
-  // Reload customers to update in-memory data
-  loadCustomersFromDB();
-
-  // Re-get customer pointer after reload
-  customerIndex = findCustomerByAccount(accountNo);
-  if (customerIndex == -1) return false;
-  customer = getCustomerAt(customerIndex);
+  // Update in-memory customer previous reading
+  if (currentCustomer) {
+    currentCustomer->previous_reading = currentReading;
+  }
   if (!customer) return false;
 
   // Populate currentBill for display
