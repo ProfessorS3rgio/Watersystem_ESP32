@@ -13,19 +13,19 @@ export function useSyncCustomers() {
     await serialService.sendLine(text)
   }
 
-  const pushCustomersToDevice = async (dbCustomers) => {
+  const sendCustomerChunks = async (type, customers) => {
     // Send customers in chunks sequentially, waiting for ACK each time.
     // Register the ACK waiter BEFORE sending to avoid ACK arriving
     // while the promise hasn't been hooked (race condition).
     // Implement retries in case ACKs are lost or the web serial write fails.
     const chunkSize = 50
-    const totalChunks = Math.ceil(dbCustomers.length / chunkSize)
+    const totalChunks = Math.ceil(customers.length / chunkSize)
     const maxRetries = 3
-    for (let i = 0; i < dbCustomers.length; i += chunkSize) {
-      const chunk = dbCustomers.slice(i, i + chunkSize)
+    for (let i = 0; i < customers.length; i += chunkSize) {
+      const chunk = customers.slice(i, i + chunkSize)
       const customersJson = JSON.stringify(chunk).replace(/\|/g, '\\|')
       const chunkIndex = Math.floor(i / chunkSize)
-      const line = `UPSERT_CUSTOMERS_JSON_CHUNK|${chunkIndex}|${totalChunks}|${customersJson}`
+      const line = `UPSERT_${type}_CUSTOMER_JSON_CHUNK|${chunkIndex}|${totalChunks}|${customersJson}`
 
       let attempt = 0
       while (attempt < maxRetries) {
@@ -39,9 +39,9 @@ export function useSyncCustomers() {
           // Success
           break
         } catch (error) {
-          console.error(`Chunk ${chunkIndex} attempt ${attempt} failed:`, error)
+          console.error(`Chunk ${chunkIndex} for ${type} attempt ${attempt} failed:`, error)
           if (attempt >= maxRetries) {
-            throw new Error(`Failed to send chunk ${chunkIndex} after ${maxRetries} attempts`)
+            throw new Error(`Failed to send chunk ${chunkIndex} for ${type} after ${maxRetries} attempts`)
           }
           // Backoff before retry
           await new Promise(resolve => setTimeout(resolve, 500 * attempt))
@@ -50,6 +50,17 @@ export function useSyncCustomers() {
 
       // Small pause to let device finalize processing before next chunk
       await new Promise(resolve => setTimeout(resolve, 200))
+    }
+  }
+
+  const pushCustomersToDevice = async (newCustomers, updatedCustomers) => {
+    // Send new customers first
+    if (newCustomers && newCustomers.length > 0) {
+      await sendCustomerChunks('NEW', newCustomers)
+    }
+    // Then send updated customers
+    if (updatedCustomers && updatedCustomers.length > 0) {
+      await sendCustomerChunks('UPDATED', updatedCustomers)
     }
   }
 
@@ -77,13 +88,13 @@ export function useSyncCustomers() {
 
   const handleChunkAck = (line) => {
     // Handle chunk ACKs: only resolve if ACK matches expected chunk index
-    if (line.startsWith('ACK|CHUNK|') || line.startsWith('ACK|UPSERT_CUSTOMERS_JSON|')) {
+    if (line.startsWith('ACK|CHUNK|') || line.startsWith('ACK|UPSERT_NEW_CUSTOMER_JSON|') || line.startsWith('ACK|UPSERT_UPDATED_CUSTOMER_JSON|') || line.startsWith('ACK|UPSERT_CUSTOMERS_JSON|')) {
       try {
         let ackIndex = null
         if (line.startsWith('ACK|CHUNK|')) {
           const parts = line.split('|')
           ackIndex = Number(parts[2])
-        } else if (line.startsWith('ACK|UPSERT_CUSTOMERS_JSON|')) {
+        } else if (line.startsWith('ACK|UPSERT_NEW_CUSTOMER_JSON|') || line.startsWith('ACK|UPSERT_UPDATED_CUSTOMER_JSON|') || line.startsWith('ACK|UPSERT_CUSTOMERS_JSON|')) {
           // final ACK may include count; treat as last chunk acknowledge
           ackIndex = expectedChunkAck.value // allow final ack to resolve current waiter
         }

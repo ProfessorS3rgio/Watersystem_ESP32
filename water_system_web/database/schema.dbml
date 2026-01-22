@@ -23,8 +23,10 @@ Table customer {
   address varchar
   previous_reading integer
   status customer_status [not null, default: 'active']
+  Synced boolean
   created_at datetime
   updated_at datetime
+  last_sync datetime
   indexes {
     account_no [unique]
   }
@@ -40,6 +42,7 @@ Table customer_type {
   rate_per_m3 decimal(10,2)          // normal rate per cubic meter
   min_m3 integer [default: 0]        // minimum cubic meters to charge
   min_charge decimal(10,2)           // optional: minimum charge if min_m3 applies
+  penalty decimal(10,2)  
   created_at datetime
   updated_at datetime
 }
@@ -59,8 +62,9 @@ Table reading {
 
 Table bill {
   bill_id integer [primary key]
-  reference_number integer
+  reference_number integer [unique]
   customer_id integer
+  customer_account_number varchar
   reading_id integer
   bill_date date
   rate_per_m3 decimal
@@ -163,7 +167,7 @@ Table settings {
   penalty_amount decimal(10, 2) [default: 0.00]
   created_at datetime
   updated_at datetime
-}
+}  
 
 Ref: customer.deduction_id > deduction.deduction_id
 Ref: reading.customer_id > customer.customer_id

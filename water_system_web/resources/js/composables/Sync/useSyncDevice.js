@@ -90,6 +90,7 @@ export function useSyncDevice() {
         key === 'last_sync_epoch' ||
         key === 'device_id' ||
         key === 'brgy_id' ||
+        key === 'customer_count' ||
         key === 'sd_present' ||
         key === 'sd_total_bytes' ||
         key === 'sd_used_bytes' ||

@@ -245,7 +245,7 @@ class CustomerController extends Controller
         $customer = Customer::findOrFail($id);
 
         $validated = $request->validate([
-            'account_no' => ['required', 'string', 'max:255', 'unique:customer,account_no,' . $customer->id],
+            'account_no' => ['required', 'string', 'max:255', 'unique:customer,account_no,' . $customer->customer_id . ',customer_id'],
             'customer_name' => ['required', 'string', 'max:255'],
             'type_id' => ['required', 'integer', 'exists:customer_type,type_id'],
             'brgy_id' => ['required', 'integer', 'exists:barangay_sequence,brgy_id'],
@@ -268,7 +268,7 @@ class CustomerController extends Controller
                     : $customer->previous_reading,
                 'status' => $validated['status'],
                 'Synced' => false,
-                'last_sync' => null,
+                // Don't set last_sync to null for updated customers - keep previous sync time
             ]);
 
             // Sync deductions in customer_deduction table

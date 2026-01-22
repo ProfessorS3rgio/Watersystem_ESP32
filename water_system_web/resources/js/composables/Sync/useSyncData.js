@@ -25,6 +25,12 @@ export function useSyncData() {
     }
   }
 
+  const separateCustomersBySyncStatus = (customers) => {
+    const newCustomers = customers.filter(c => !c.Synced && c.last_sync === null)
+    const updatedCustomers = customers.filter(c => !c.Synced && c.last_sync !== null)
+    return { newCustomers, updatedCustomers }
+  }
+
   const syncData = async ({
     isConnected,
     exportDeviceInfoFromDevice,
@@ -90,9 +96,20 @@ export function useSyncData() {
       // Sync readings (device -> DB)
       await syncReadingsFromDevice()
 
+      // Separate customers into new and updated
+      const { newCustomers, updatedCustomers } = separateCustomersBySyncStatus(filteredDbCustomers)
+
+      addLog(`New customers: ${newCustomers.length}, Updated customers: ${updatedCustomers.length}`)
+
       // Push filtered DB customers to device (adds new, updates existing) - last to ensure dependencies
-      addLog(`Pushing ${filteredDbCustomers.length} customers to ESP32 as JSON...`)
-      await pushCustomersToDevice(filteredDbCustomers)
+      if (newCustomers.length > 0) {
+        addLog(`Pushing ${newCustomers.length} new customers to ESP32...`)
+      }
+      if (updatedCustomers.length > 0) {
+        addLog(`Pushing ${updatedCustomers.length} updated customers to ESP32...`)
+      }
+      await pushCustomersToDevice(newCustomers, updatedCustomers)
+      addLog(`Sent ${newCustomers.length} new customers and ${updatedCustomers.length} updated customers to device`)
       addLog('✓ Customer sync completed')
 
       // Mark customers as synced in web database
