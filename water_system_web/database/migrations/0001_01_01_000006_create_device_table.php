@@ -12,12 +12,17 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('device', function (Blueprint $table) {
-            $table->id('device_id');
             $table->unsignedBigInteger('brgy_id');
-            $table->string('device_uid')->unique();
+            $table->string('device_mac')->unique();
+            $table->string('device_uid');
+            $table->string('firmware_version');
             $table->string('device_name')->nullable();
+            $table->integer('print_count')->default(0);
+            $table->integer('customer_count')->default(0);
+            $table->datetime('last_sync')->nullable();
             $table->timestamps();
 
+            $table->index('device_uid');
             $table->foreign('brgy_id')->references('brgy_id')->on('barangay_sequence');
         });
     }

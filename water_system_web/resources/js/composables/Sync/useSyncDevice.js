@@ -108,6 +108,31 @@ export function useSyncDevice() {
     return out
   }
 
+  const syncDeviceInfoToServer = async (deviceInfo) => {
+    try {
+      console.log('Syncing device info to server:', deviceInfo)
+      // Prepare device info for server
+      const serverDeviceInfo = {
+        device_id: deviceInfo.device_id,
+        brgy_id: deviceInfo.brgy_id,
+        device_mac: deviceInfo.device_uid, // ESP32 MAC address
+        device_uid: deviceInfo.device_uid,
+        firmware_version: deviceInfo.firmware_version,
+        device_name: `ESP32 Device ${deviceInfo.device_id}`,
+        print_count: deviceInfo.print_count || 0,
+        customer_count: deviceInfo.customer_count || 0,
+      }
+
+      console.log('Sending serverDeviceInfo:', serverDeviceInfo)
+      await databaseService.syncDeviceInfoToDatabase(serverDeviceInfo)
+      console.log('Device info synced successfully')
+      return true
+    } catch (error) {
+      console.error('Failed to sync device info to server:', error)
+      throw error
+    }
+  }
+
   const refreshDeviceInfo = async () => {
     try {
       const info = await exportDeviceInfoFromDevice()
@@ -128,6 +153,9 @@ export function useSyncDevice() {
 
       if (typeof info?.cpu_freq_mhz === 'number') cpuFreqMhz.value = info.cpu_freq_mhz
       if (typeof info?.heap_free_bytes === 'number') heapFreeBytes.value = info.heap_free_bytes
+
+      // Sync device info to server
+      await syncDeviceInfoToServer(info)
     } catch (e) {
       console.error('Device info unavailable:', e?.message || String(e))
     }
@@ -179,6 +207,7 @@ export function useSyncDevice() {
     heapFreeBytes,
     exportDeviceInfoFromDevice,
     refreshDeviceInfo,
+    syncDeviceInfoToServer,
     handleDeviceLine,
     sendLine
   }

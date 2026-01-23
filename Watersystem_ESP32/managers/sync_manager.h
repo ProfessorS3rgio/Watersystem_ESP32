@@ -4,6 +4,7 @@
 #include "../database/customers_database.h"
 #include "../database/device_info.h"
 #include "../database/readings_database.h"
+#include "../database/bill_database.h"
 #include "../database/deduction_database.h"
 #include "../database/customer_type_database.h"
 #include "../configuration/config.h"
@@ -78,6 +79,12 @@ bool handleSyncCommands(String raw) {
   if (raw == "EXPORT_READINGS") {
     Serial.println(F("Exporting readings..."));
     exportReadingsForSync();
+    return true;
+  }
+
+  if (raw == "EXPORT_BILLS") {
+    Serial.println(F("Exporting bills..."));
+    exportBillsForSync();
     return true;
   }
 

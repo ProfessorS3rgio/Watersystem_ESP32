@@ -11,16 +11,17 @@ class Reading extends Model
 
     protected $fillable = [
         'customer_id',
+        'device_uid',
         'previous_reading',
         'current_reading',
         'usage_m3',
         'reading_at',
         'read_by_user_id',
-        'source',
     ];
 
     protected $casts = [
         'customer_id' => 'integer',
+        'device_uid' => 'string',
         'previous_reading' => 'integer',
         'current_reading' => 'integer',
         'usage_m3' => 'integer',

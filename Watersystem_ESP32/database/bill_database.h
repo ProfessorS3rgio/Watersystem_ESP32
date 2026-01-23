@@ -92,6 +92,42 @@ void initBillsDatabase() {
   loadBillsFromDB();
 }
 
+void exportBillsForSync() {
+  // Export bills for sync as JSON
+  Serial.println(F("BEGIN_BILLS_JSON"));
+  for (const auto& b : bills) {
+    // Create JSON object for each bill
+    Serial.print(F("{\"bill_id\":"));
+    Serial.print(b.bill_id);
+    Serial.print(F(",\"reference_number\":\""));
+    Serial.print(b.reference_number);
+    Serial.print(F("\",\"customer_id\":"));
+    Serial.print(b.customer_id);
+    Serial.print(F(",\"reading_id\":"));
+    Serial.print(b.reading_id);
+    Serial.print(F(",\"bill_no\":\""));
+    Serial.print(b.bill_no);
+    Serial.print(F("\",\"bill_date\":\""));
+    Serial.print(b.bill_date);
+    Serial.print(F("\",\"rate_per_m3\":"));
+    Serial.print(b.rate_per_m3, 2);
+    Serial.print(F(",\"charges\":"));
+    Serial.print(b.charges, 2);
+    Serial.print(F(",\"penalty\":"));
+    Serial.print(b.penalty, 2);
+    Serial.print(F(",\"total_due\":"));
+    Serial.print(b.total_due, 2);
+    Serial.print(F(",\"status\":\""));
+    Serial.print(b.status);
+    Serial.print(F("\",\"created_at\":\""));
+    Serial.print(b.created_at);
+    Serial.print(F("\",\"updated_at\":\""));
+    Serial.print(b.updated_at);
+    Serial.println(F("}"));
+  }
+  Serial.println(F("END_BILLS_JSON"));
+}
+
 // ===== GENERATE BILL REFERENCE NUMBER =====
 String generateBillReferenceNumber(String accountNo) {
   // Extract number part from account (e.g., "M-002" -> "002")

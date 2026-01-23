@@ -54,7 +54,7 @@ void loadReadingsFromDB() {
 void saveReadingToDB(int customer_id, unsigned long previous_reading, unsigned long current_reading, unsigned long usage_m3, String reading_at) {
   char sql[512];
   if (reading_at == "datetime('now')") {
-    sprintf(sql, "INSERT INTO readings (customer_id, previous_reading, current_reading, usage_m3, reading_at, created_at, updated_at) VALUES (%d, %lu, %lu, %lu, datetime('now'), datetime('now'), datetime('now'));", customer_id, previous_reading, current_reading, usage_m3);
+    sprintf(sql, "INSERT INTO readings (customer_id, previous_reading, current_reading, usage_m3, reading_at, created_at, updated_at) VALUES (%d, %lu, %lu, %lu, strftime('%%s', 'now'), datetime('now'), datetime('now'));", customer_id, previous_reading, current_reading, usage_m3);
   } else {
     sprintf(sql, "INSERT INTO readings (customer_id, previous_reading, current_reading, usage_m3, reading_at, created_at, updated_at) VALUES (%d, %lu, %lu, %lu, '%s', datetime('now'), datetime('now'));", customer_id, previous_reading, current_reading, usage_m3, reading_at.c_str());
   }
@@ -63,7 +63,7 @@ void saveReadingToDB(int customer_id, unsigned long previous_reading, unsigned l
 
 bool hasReadingForCustomerInYearMonth(int customer_id, int year, int month) {
   char sql[256];
-  sprintf(sql, "SELECT COUNT(*) FROM readings WHERE customer_id = %d AND strftime('%%Y', reading_at) = '%04d' AND strftime('%%m', reading_at) = '%02d';", customer_id, year, month);
+  sprintf(sql, "SELECT COUNT(*) FROM readings WHERE customer_id = %d AND strftime('%%Y', datetime(reading_at, 'unixepoch')) = '%04d' AND strftime('%%m', datetime(reading_at, 'unixepoch')) = '%02d';", customer_id, year, month);
   // For simplicity, assume no reading if not loaded, but since we load all, check vector
   for (const auto& r : readings) {
     if (r.customer_id == customer_id) {
@@ -75,12 +75,27 @@ bool hasReadingForCustomerInYearMonth(int customer_id, int year, int month) {
 }
 
 void exportReadingsForSync() {
-  // Export readings for sync
-  Serial.println(F("BEGIN_READINGS"));
+  // Export readings for sync as JSON
+  Serial.println(F("BEGIN_READINGS_JSON"));
   for (const auto& r : readings) {
-    Serial.printf("READING|%d|%d|%lu|%lu|%lu|%s\n", r.reading_id, r.customer_id, r.previous_reading, r.current_reading, r.usage_m3, r.reading_at.c_str());
+    Serial.print(F("{\"reading_id\":"));
+    Serial.print(r.reading_id);
+    Serial.print(F(",\"customer_id\":"));
+    Serial.print(r.customer_id);
+    Serial.print(F(",\"device_uid\":\""));
+    Serial.print(getDeviceUID());
+    Serial.print(F("\""));
+    Serial.print(F(",\"previous_reading\":"));
+    Serial.print(r.previous_reading);
+    Serial.print(F(",\"current_reading\":"));
+    Serial.print(r.current_reading);
+    Serial.print(F(",\"usage_m3\":"));
+    Serial.print(r.usage_m3);
+    Serial.print(F(",\"reading_at\":"));
+    Serial.print(r.reading_at.toInt());
+    Serial.println(F("}"));
   }
-  Serial.println(F("END_READINGS"));
+  Serial.println(F("END_READINGS_JSON"));
 }
 
 static uint32_t deviceEpochNow() {

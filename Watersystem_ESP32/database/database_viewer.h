@@ -82,9 +82,11 @@ static int printBarangayCallback(void *data, int argc, char **argv, char **azCol
 
 // Device Info callback
 static int printDeviceInfoCallback(void *data, int argc, char **argv, char **azColName) {
-  Serial.print(argv[0]); Serial.print(F(" | "));
-  Serial.print(argv[1]); Serial.print(F(" | "));
-  Serial.println(argv[2]);
+  for (int i = 0; i < argc; i++) {
+    Serial.print(argv[i] ? argv[i] : "NULL");
+    if (i < argc - 1) Serial.print(F(" | "));
+  }
+  Serial.println();
   return 0;
 }
 
@@ -153,12 +155,12 @@ void printBarangaysList() {
 // Function to print device info list
 void printDeviceInfoList() {
   // Ensure default values exist
-  initializeDefaultDeviceInfo();
+  initializeDefaultDevice();
 
   Serial.println(F("===== DEVICE INFO DATABASE ====="));
-  Serial.println(F("Key          | Value      | Created"));
-  Serial.println(F("-------------|------------|--------"));
-  const char *sql = "SELECT key, value, created_at FROM device_info;";
+  Serial.println(F("BrgyID | DeviceMAC          | DeviceUID          | Firmware | Name             | PrintCnt | CustCnt | LastSync | Created | Updated"));
+  Serial.println(F("-------|---------------------|---------------------|----------|------------------|---------|--------|----------|---------|--------"));
+  const char *sql = "SELECT brgy_id, device_mac, device_uid, firmware_version, device_name, print_count, customer_count, last_sync, created_at, updated_at FROM device_info;";
   sqlite3_exec(db, sql, printDeviceInfoCallback, NULL, NULL);
   Serial.println(F("================================"));
 }

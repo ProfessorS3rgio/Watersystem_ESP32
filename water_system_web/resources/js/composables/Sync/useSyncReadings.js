@@ -26,9 +26,9 @@ export function useSyncReadings() {
     exportInProgress.value = true
     exportLines.value = []
     lastAck.value = null
-    exportBeginMarker.value = 'BEGIN_READINGS'
-    exportEndMarker.value = 'END_READINGS'
-    exportLinePrefix.value = 'READ|'
+    exportBeginMarker.value = 'BEGIN_READINGS_JSON'
+    exportEndMarker.value = 'END_READINGS_JSON'
+    exportLinePrefix.value = '{'
 
     const promise = new Promise((resolve, reject) => {
       exportResolve.value = resolve
@@ -66,18 +66,21 @@ export function useSyncReadings() {
   const parseReadingsExportLines = (lines) => {
     const readings = []
     for (const line of lines) {
-      if (!line.startsWith('READ|')) continue
-      const parts = line.split('|')
-      // READ|customer_id|device_id|previous_reading|current_reading|usage_m3|reading_at_epoch
-      if (parts.length < 7) continue
-      readings.push({
-        customer_id: Number(parts[1] || 0),
-        device_id: Number(parts[2] || 1),
-        previous_reading: Number(parts[3] || 0),
-        current_reading: Number(parts[4] || 0),
-        usage_m3: Number(parts[5] || 0),
-        reading_at: Number(parts[6] || 0),
-      })
+      if (!line.startsWith('{')) continue
+      try {
+        const reading = JSON.parse(line)
+        readings.push({
+          reading_id: Number(reading.reading_id || 0),
+          customer_id: Number(reading.customer_id || 0),
+          device_id: Number(reading.device_id || 1),
+          previous_reading: Number(reading.previous_reading || 0),
+          current_reading: Number(reading.current_reading || 0),
+          usage_m3: Number(reading.usage_m3 || 0),
+          reading_at: Number(reading.reading_at || 0),
+        })
+      } catch (e) {
+        console.error('Failed to parse reading JSON:', line, e)
+      }
     }
     return readings
   }

@@ -5,6 +5,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\ReadingController;
 use App\Http\Controllers\BillController;
+use App\Http\Controllers\DeviceController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\CustomerTypeController;
@@ -48,6 +49,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/bills/transactions', [BillController::class, 'transactions']);
 
     Route::post('/readings/sync', [ReadingController::class, 'sync']);
+    Route::post('/bills/sync', [BillController::class, 'sync']);
+    Route::post('/devices/sync', [DeviceController::class, 'sync']);
 
     Route::post('/bills/{bill}/mark-paid', [BillController::class, 'markPaid']);
     Route::post('/bills/{bill}/void', [BillController::class, 'void']);

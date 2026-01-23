@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('reading', function (Blueprint $table) {
             $table->id('reading_id');
             $table->unsignedBigInteger('customer_id');
-            $table->unsignedBigInteger('device_id');
+            $table->string('device_uid');
             $table->integer('previous_reading');
             $table->integer('current_reading');
             $table->integer('usage_m3');
@@ -23,7 +23,7 @@ return new class extends Migration
             $table->timestamps();
 
             $table->foreign('customer_id')->references('customer_id')->on('customer');
-            $table->foreign('device_id')->references('device_id')->on('device');
+            $table->foreign('device_uid')->references('device_uid')->on('device');
             $table->foreign('read_by_user_id')->references('id')->on('users');
         });
     }

@@ -3,10 +3,11 @@
 
 #include "../configuration/config.h"
 #include "../managers/sdcard_manager.h"
+#include "device_info.h"
 #include <sqlite3.h>
 
 void createAllTables();
-void initializeDefaultDeviceInfo();
+void initializeDefaultDevice();
 
 void initDatabase() {
   if (!db) {
@@ -56,7 +57,7 @@ void createAllTables() {
   sqlite3_exec(db, sql_bill_transactions, NULL, NULL, NULL);
 
   // Device info table
-  const char *sql_device_info = "CREATE TABLE IF NOT EXISTS device_info (key TEXT PRIMARY KEY, value TEXT, created_at TEXT, updated_at TEXT);";
+  const char *sql_device_info = "CREATE TABLE IF NOT EXISTS device_info (brgy_id INTEGER, device_mac TEXT UNIQUE, device_uid TEXT, firmware_version TEXT, device_name TEXT, print_count INTEGER DEFAULT 0, customer_count INTEGER DEFAULT 0, last_sync TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT);";
   sqlite3_exec(db, sql_device_info, NULL, NULL, NULL);
 
   // Optimize SQLite for low memory ESP32
@@ -66,27 +67,17 @@ sqlite3_exec(db, "PRAGMA temp_store = MEMORY;", NULL, NULL, NULL);
 sqlite3_exec(db, "PRAGMA cache_size = -10;", NULL, NULL, NULL); // ~40KB
 sqlite3_exec(db, "PRAGMA mmap_size = 0;", NULL, NULL, NULL);
 
-  // Initialize default device info if empty
-  initializeDefaultDeviceInfo();
+  // Initialize default device if empty
+  initializeDefaultDevice();
 }
 
-void initializeDefaultDeviceInfo() {
-  // Check if time_offset exists, if not, set to 0
-  const char *check_sql = "SELECT COUNT(*) FROM device_info WHERE key = 'time_offset';";
-  sqlite3_stmt *stmt;
-  int rc = sqlite3_prepare_v2(db, check_sql, -1, &stmt, NULL);
-  if (rc == SQLITE_OK) {
-    if (sqlite3_step(stmt) == SQLITE_ROW) {
-      int count = sqlite3_column_int(stmt, 0);
-      if (count == 0) {
-        // Insert default time offset
-        const char *insert_sql = "INSERT INTO device_info (key, value, created_at, updated_at) VALUES ('time_offset', '0', datetime('now'), datetime('now'));";
-        sqlite3_exec(db, insert_sql, NULL, NULL, NULL);
-        Serial.println(F("Initialized default time offset in device_info"));
-      }
-    }
-    sqlite3_finalize(stmt);
-  }
+void initializeDefaultDevice() {
+  // Insert or replace default device record
+  String macAddress = getDeviceUID();
+  char insert_sql[512];
+  sprintf(insert_sql, "INSERT OR REPLACE INTO device_info (brgy_id, device_mac, device_uid, firmware_version, device_name, print_count, customer_count, last_sync, updated_at) VALUES (2, '%s', '%s', 'v1.0.0', 'ESP32 Water System', 0, 0, '0', datetime('now'));", macAddress.c_str(), macAddress.c_str());
+  sqlite3_exec(db, insert_sql, NULL, NULL, NULL);
+  Serial.println(F("Initialized default device record"));
 }
 
 #endif  // DATABASE_MANAGER_H

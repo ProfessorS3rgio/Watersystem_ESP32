@@ -50,7 +50,7 @@ Table customer_type {
 Table reading {
   reading_id integer [primary key]
   customer_id integer
-  device_id integer
+  device_uid integer
   previous_reading integer
   current_reading integer
   usage_m3 integer
@@ -88,16 +88,19 @@ enum bill_status{
 }
 
 // Optional: track devices that sync readings/bills
-Table device {
-  device_id integer [primary key]
+Table device    {
   brgy_id integer       
-  // ESP32 identifier (MAC/serial/device code)
+  device_mac varchar
   device_uid varchar
+  firmware_version varchar
   device_name varchar [null]          // each device belongs to one barangay
+  print_count integer
+  customer_count integer
+  last_sync datetime
   created_at datetime
   updated_at datetime
   indexes {
-    device_uid [unique]
+    device_mac [unique]
   }
 }
 
@@ -179,7 +182,7 @@ Ref: reading.read_by_user_id > users.id
 Ref: bill_transaction.bill_id > bill.bill_id
 Ref: bill_transaction.bill_reference_number > bill.reference_number
 Ref: bill_transaction.processed_by_user_id > users.id
-Ref: reading.device_id > device.device_id
+Ref: reading.device_uid > device.device_uid
 Ref: customer.type_id > customer_type.type_id
 Ref: customer_deduction.customer_id > customer.customer_id
 Ref: customer_deduction.deduction_id > deduction.deduction_id

@@ -37,6 +37,7 @@ export function useSyncData() {
     pushCustomerTypesToDevice,
     pushDeductionsToDevice,
     syncReadingsFromDevice,
+    syncBillsFromDevice,
     pushCustomersToDevice,
     refreshDeviceInfo,
     sendLineDevice,
@@ -61,6 +62,27 @@ export function useSyncData() {
       const deviceId = deviceInfo?.device_id || 1
       const lastSyncEpoch = deviceInfo?.last_sync_epoch || 0
       addLog(`Device ID: ${deviceId}, Barangay ID: ${deviceBrgyId}, Last Sync: ${lastSyncEpoch}`)
+
+      // Sync device info to server immediately
+      try {
+        console.log('Syncing device info to server:', deviceInfo)
+        const serverDeviceInfo = {
+          device_id: deviceInfo.device_id,
+          brgy_id: deviceInfo.brgy_id,
+          device_mac: deviceInfo.device_uid,
+          device_uid: deviceInfo.device_uid,
+          firmware_version: deviceInfo.firmware_version,
+          device_name: `ESP32 Device ${deviceInfo.device_id}`,
+          print_count: deviceInfo.print_count || 0,
+          customer_count: deviceInfo.customer_count || 0,
+        }
+        console.log('Sending serverDeviceInfo:', serverDeviceInfo)
+        await databaseService.syncDeviceInfoToDatabase(serverDeviceInfo)
+        console.log('Device info synced successfully')
+      } catch (error) {
+        console.error('Failed to sync device info to server:', error)
+        // Continue with sync even if device info sync fails
+      }
 
       // Get customers from web database, filtered by barangay and updated after last sync
       addLog('Fetching customers from database...')
@@ -95,6 +117,9 @@ export function useSyncData() {
 
       // Sync readings (device -> DB)
       await syncReadingsFromDevice()
+
+      // Sync bills (device -> DB)
+      await syncBillsFromDevice()
 
       // Separate customers into new and updated
       const { newCustomers, updatedCustomers } = separateCustomersBySyncStatus(filteredDbCustomers)

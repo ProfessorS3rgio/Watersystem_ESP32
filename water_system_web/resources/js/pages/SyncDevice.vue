@@ -283,6 +283,7 @@ import { useSyncCustomers } from '../composables/Sync/useSyncCustomers'
 import { useSyncCustomerTypes } from '../composables/Sync/useSyncCustomerTypes'
 import { useSyncDeductions } from '../composables/Sync/useSyncDeductions'
 import { useSyncReadings } from '../composables/Sync/useSyncReadings'
+import { useSyncBills } from '../composables/Sync/useSyncBills'
 import { useSyncData } from '../composables/Sync/useSyncData'
 import { useSyncController } from '../composables/Sync/useSyncController'
 
@@ -332,6 +333,11 @@ export default {
     } = useSyncReadings()
 
     const {
+      syncBillsFromDevice,
+      handleDeviceLine: handleDeviceLineBills
+    } = useSyncBills()
+
+    const {
       isSyncing,
       syncLogs,
       syncData,
@@ -361,6 +367,7 @@ export default {
       lastSync,
       pendingRecords,
       printCount,
+      customerCount,
       sdTotalBytes,
       sdUsedBytes,
       sdFreeBytes,
@@ -376,6 +383,8 @@ export default {
       pushDeductionsToDevice,
       syncReadingsFromDevice,
       handleDeviceLineReadings,
+      syncBillsFromDevice,
+      handleDeviceLineBills,
       isSyncing,
       syncLogs,
       syncData,
@@ -485,8 +494,10 @@ export default {
         pushCustomerTypesToDevice: this.pushCustomerTypesToDevice,
         pushDeductionsToDevice: this.pushDeductionsToDevice,
         syncReadingsFromDevice: this.syncReadingsFromDevice,
+        syncBillsFromDevice: this.syncBillsFromDevice,
         pushCustomersToDevice: this.pushCustomersToDevice,
         refreshDeviceInfo: this.refreshDeviceInfo,
+
         sendLineDevice: this.sendLineDevice,
         onSyncSuccess: () => {
           this.showSuccessDialog = true
@@ -518,6 +529,7 @@ export default {
       // Handle device info and readings exports
       this.handleDeviceLineDevice(line)
       this.handleDeviceLineReadings(line)
+      this.handleDeviceLineBills(line)
 
       if (line.startsWith('ERR|')) {
         // Error handling is done in the individual handlers

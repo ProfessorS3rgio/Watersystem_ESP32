@@ -34,7 +34,6 @@ class ReadingController extends Controller
                 'reading.current_reading',
                 'reading.usage_m3',
                 'reading.reading_at',
-                'reading.source',
                 'reading.read_by_user_id',
                 'reading.created_at',
                 'reading.updated_at',
@@ -56,7 +55,7 @@ class ReadingController extends Controller
         $validated = $request->validate([
             'readings' => ['required', 'array', 'max:2000'],
             'readings.*.customer_id' => ['required', 'integer', 'min:1'],
-            'readings.*.device_id' => ['nullable', 'integer', 'min:1'],
+            'readings.*.device_uid' => ['nullable', 'string'],
             'readings.*.previous_reading' => ['required', 'integer', 'min:0'],
             'readings.*.current_reading' => ['required', 'integer', 'min:0'],
             'readings.*.usage_m3' => ['required', 'integer', 'min:0'],
@@ -68,7 +67,7 @@ class ReadingController extends Controller
 
         $customersById = Customer::query()
             ->whereIn('customer_id', $customerIds)
-            ->get(['customer_id', 'id', 'account_no'])
+            ->get(['customer_id', 'account_no'])
             ->keyBy('customer_id');
 
         $settings = Setting::query()->orderBy('id')->first();
@@ -93,15 +92,15 @@ class ReadingController extends Controller
 
                 $reading = Reading::updateOrCreate(
                     [
-                        'customer_id' => $customer->id,
+                        'customer_id' => $customer->customer_id,
                         'reading_at' => $readingAt,
                     ],
                     [
+                        'device_uid' => $row['device_uid'] ?? null,
                         'previous_reading' => (int) $row['previous_reading'],
                         'current_reading' => (int) $row['current_reading'],
                         'usage_m3' => (int) $row['usage_m3'],
                         'read_by_user_id' => null,
-                        'source' => 'device',
                     ]
                 );
 

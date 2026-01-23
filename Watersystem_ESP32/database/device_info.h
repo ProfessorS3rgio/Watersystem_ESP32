@@ -7,7 +7,7 @@
 #include <sqlite3.h>
 
 // Device info now stored in SQLite database table 'device_info'
-// Table: (key TEXT PRIMARY KEY, value TEXT, created_at TEXT, updated_at TEXT)
+// Table: (brgy_id INTEGER, device_mac TEXT UNIQUE, device_uid TEXT, firmware_version TEXT, device_name TEXT, print_count INTEGER, customer_count INTEGER, last_sync TEXT, created_at TEXT, updated_at TEXT)
 
 static const char* DEVICE_TYPE_VALUE = "ESP32 Water System";
 static const char* FIRMWARE_VERSION_VALUE = "v1.0.0";
@@ -34,20 +34,44 @@ static uint32_t g_printCount = 0;
 static void setDeviceInfoValue(const char* key, const String& value) {
   if (!db) return;
   char sql[256];
-  sprintf(sql, "INSERT OR REPLACE INTO device_info (key, value, created_at, updated_at) VALUES ('%s', '%s', datetime('now'), datetime('now'));", key, value.c_str());
+  String mac = getDeviceUID();
+  if (strcmp(key, "print_count") == 0) {
+    sprintf(sql, "UPDATE device_info SET print_count = %s, updated_at = datetime('now') WHERE device_mac = '%s';", value.c_str(), mac.c_str());
+  } else if (strcmp(key, "last_sync_epoch") == 0) {
+    sprintf(sql, "UPDATE device_info SET last_sync = '%s', updated_at = datetime('now') WHERE device_mac = '%s';", value.c_str(), mac.c_str());
+  } else {
+    // For other keys, do nothing or handle if needed
+    return;
+  }
   sqlite3_exec(db, sql, NULL, NULL, NULL);
 }
 
 static String getDeviceInfoValue(const char* key) {
   if (!db) return "";
+  if (strcmp(key, "device_id") == 0) return String(DEVICE_ID_VALUE);
+  if (strcmp(key, "brgy_id") == 0) return String(BRGY_ID_VALUE);
   char sql[128];
-  sprintf(sql, "SELECT value FROM device_info WHERE key = '%s';", key);
+  const char* column = "";
+  if (strcmp(key, "device_mac") == 0) column = "device_mac";
+  else if (strcmp(key, "device_uid") == 0) column = "device_uid";
+  else if (strcmp(key, "firmware_version") == 0) column = "firmware_version";
+  else if (strcmp(key, "device_name") == 0) column = "device_name";
+  else if (strcmp(key, "print_count") == 0) column = "print_count";
+  else if (strcmp(key, "customer_count") == 0) column = "customer_count";
+  else if (strcmp(key, "last_sync_epoch") == 0) column = "last_sync";
+  else return "";
+  
+  sprintf(sql, "SELECT %s FROM device_info WHERE device_mac = '%s';", column, getDeviceUID().c_str());
   sqlite3_stmt* stmt;
   int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
   if (rc != SQLITE_OK) return "";
   String value = "";
   if (sqlite3_step(stmt) == SQLITE_ROW) {
-    value = String((const char*)sqlite3_column_text(stmt, 0));
+    if (sqlite3_column_type(stmt, 0) == SQLITE_INTEGER) {
+      value = String(sqlite3_column_int(stmt, 0));
+    } else {
+      value = String((const char*)sqlite3_column_text(stmt, 0));
+    }
   }
   sqlite3_finalize(stmt);
   return value;
@@ -159,6 +183,9 @@ static void exportDeviceInfoForSync() {
   Serial.println(BRGY_ID_VALUE);
 
   Serial.print(F("INFO|device_uid|"));
+  Serial.println(getDeviceUID());
+
+  Serial.print(F("INFO|device_mac|"));
   Serial.println(getDeviceUID());
 
   Serial.print(F("INFO|last_sync_epoch|"));

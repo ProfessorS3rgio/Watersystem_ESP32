@@ -225,7 +225,7 @@ void loop() {
         
         // Recreate all tables
         createAllTables();
-        initializeDefaultDeviceInfo();
+        initializeDefaultDevice();
         
         // Clear in-memory data
         // customers.clear();  // Removed, no global vector

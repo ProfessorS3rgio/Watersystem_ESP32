@@ -75,6 +75,26 @@ export const databaseService = {
     }
   },
 
+  async upsertBillsToDatabase(bills) {
+    try {
+      const res = await window.axios.post('/bills/sync', { bills })
+      return Number(res.data?.processed || 0)
+    } catch (error) {
+      if (error.response?.status === 401) throw new Error('Unauthorized (login required)')
+      throw new Error('Bills sync failed: ' + (error.response?.data?.message || error.message))
+    }
+  },
+
+  async syncDeviceInfoToDatabase(deviceInfo) {
+    try {
+      const res = await window.axios.post('/devices/sync', { device_info: deviceInfo })
+      return res.data
+    } catch (error) {
+      if (error.response?.status === 401) throw new Error('Unauthorized (login required)')
+      throw new Error('Device info sync failed: ' + (error.response?.data?.message || error.message))
+    }
+  },
+
   async markCustomersSynced(accountNumbers) {
     try {
       const res = await window.axios.post('/customers/mark-synced', { account_numbers: accountNumbers })
