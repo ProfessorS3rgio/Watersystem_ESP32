@@ -48,7 +48,7 @@ struct Bill {
   String reference_number;
   int customer_id;
   int reading_id;
-  String bill_no;
+  String device_uid;
   String bill_date;
   float rate_per_m3;
   float charges;
@@ -69,7 +69,7 @@ static int loadBillCallback(void *data, int argc, char **argv, char **azColName)
   b.reference_number = argv[1];
   b.customer_id = atoi(argv[2]);
   b.reading_id = atoi(argv[3]);
-  b.bill_no = argv[4];
+  b.device_uid = argv[4];
   b.bill_date = argv[5];
   b.rate_per_m3 = atof(argv[6]);
   b.charges = atof(argv[7]);
@@ -84,7 +84,7 @@ static int loadBillCallback(void *data, int argc, char **argv, char **azColName)
 
 void loadBillsFromDB() {
   bills.clear();
-  const char *sql = "SELECT bill_id, reference_number, customer_id, reading_id, bill_no, bill_date, rate_per_m3, charges, penalty, total_due, status, created_at, updated_at FROM bills;";
+  const char *sql = "SELECT bill_id, reference_number, customer_id, reading_id, device_uid, bill_date, rate_per_m3, charges, penalty, total_due, status, created_at, updated_at FROM bills;";
   sqlite3_exec(db, sql, loadBillCallback, NULL, NULL);
 }
 
@@ -105,8 +105,8 @@ void exportBillsForSync() {
     Serial.print(b.customer_id);
     Serial.print(F(",\"reading_id\":"));
     Serial.print(b.reading_id);
-    Serial.print(F(",\"bill_no\":\""));
-    Serial.print(b.bill_no);
+    Serial.print(F(",\"device_uid\":\""));
+    Serial.print(b.device_uid);
     Serial.print(F("\",\"bill_date\":\""));
     Serial.print(b.bill_date);
     Serial.print(F("\",\"rate_per_m3\":"));
@@ -154,8 +154,8 @@ bool saveBillToDB(Bill bill) {
   Serial.print(F("Saving bill for reading "));
   Serial.println(bill.reading_id);
   char sql[1024];
-  sprintf(sql, "INSERT INTO bills (reference_number, customer_id, reading_id, bill_no, bill_date, rate_per_m3, charges, penalty, total_due, status, created_at, updated_at) VALUES ('%s', %d, %d, '%s', '%s', %f, %f, %f, %f, '%s', datetime('now'), datetime('now'));",
-          bill.reference_number.c_str(), bill.customer_id, bill.reading_id, bill.bill_no.c_str(), bill.bill_date.c_str(), bill.rate_per_m3, bill.charges, bill.penalty, bill.total_due, bill.status.c_str());
+  sprintf(sql, "INSERT INTO bills (reference_number, customer_id, reading_id, device_uid, bill_date, rate_per_m3, charges, penalty, total_due, status, created_at, updated_at) VALUES ('%s', %d, %d, '%s', '%s', %f, %f, %f, %f, '%s', datetime('now'), datetime('now'));",
+          bill.reference_number.c_str(), bill.customer_id, bill.reading_id, bill.device_uid.c_str(), bill.bill_date.c_str(), bill.rate_per_m3, bill.charges, bill.penalty, bill.total_due, bill.status.c_str());
   Serial.println(sql);
   int rc = sqlite3_exec(db, sql, NULL, NULL, NULL);
   Serial.print(F("Bill save result: "));
@@ -431,7 +431,7 @@ bool generateBillForCustomer(String accountNo, unsigned long currentReading) {
     bill.reference_number = generateBillReferenceNumber(customer->account_no);
     bill.customer_id = customer->customer_id;
     bill.reading_id = readingId;
-    bill.bill_no = "BILL-" + String(CURRENT_YEAR);
+    bill.device_uid = getDeviceUID();
     bill.bill_date = "2026-01-19";
     bill.rate_per_m3 = customerType->rate_per_m3;
     bill.charges = charges;

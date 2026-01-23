@@ -14,6 +14,7 @@
 #include "database/database_manager.h"
 #include "database/deduction_database.h"
 #include "database/customer_type_database.h"
+#include "database/barangay_database.h"
 #include "database/database_viewer.h"
 #include "managers/print_manager.h"
 #include "managers/tft_screen_manager.h"
@@ -164,6 +165,9 @@ void setup() {
   // Initialize Deductions Database
   initDeductionsDatabase();
 
+  // Initialize Barangays Database
+  initBarangaysDatabase();
+
   // Initialize Customer Types Database
   initCustomerTypesDatabase();
 
@@ -180,7 +184,7 @@ void setup() {
   Serial.println(F("Watersystem ESP32 ready."));
   Serial.println(F("Use keypad or serial commands:"));
   Serial.println(F("Press D or B on keypad to start entering account"));
-  Serial.println(F("Commands: 'P' = Print sample, 'S' = SD status, 'L' = List customers, 'DD' = List deductions, 'CT' = List customer types, 'B' = List bills, 'DB' = Display all databases, 'DROPDB' = Drop and recreate database"));
+  Serial.println(F("Commands: 'P' = Print sample, 'S' = SD status, 'L' = List customers, 'DD' = List deductions, 'CT' = List customer types, 'R' = List readings, 'B' = List bills, 'DB' = Display all databases, 'DROPDB' = Drop and recreate database"));
 #endif
   
   // Show welcome screen on TFT
@@ -279,6 +283,9 @@ void loop() {
     }
     else if (cmd == "B" || cmd == "BILLS") {
       printBillsList();
+    }
+    else if (cmd == "R" || cmd == "READINGS") {
+      printReadingsList();
     }
     else if (cmd == "START") {
       Serial.println(F("Starting workflow..."));

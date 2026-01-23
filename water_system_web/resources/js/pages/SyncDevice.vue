@@ -282,6 +282,7 @@ import { useSyncDevice } from '../composables/Sync/useSyncDevice'
 import { useSyncCustomers } from '../composables/Sync/useSyncCustomers'
 import { useSyncCustomerTypes } from '../composables/Sync/useSyncCustomerTypes'
 import { useSyncDeductions } from '../composables/Sync/useSyncDeductions'
+import { useSyncBarangays } from '../composables/Sync/useSyncBarangays'
 import { useSyncReadings } from '../composables/Sync/useSyncReadings'
 import { useSyncBills } from '../composables/Sync/useSyncBills'
 import { useSyncData } from '../composables/Sync/useSyncData'
@@ -326,6 +327,10 @@ export default {
     const {
       pushDeductionsToDevice
     } = useSyncDeductions()
+
+    const {
+      pushBarangaysToDevice
+    } = useSyncBarangays()
 
     const {
       syncReadingsFromDevice,
@@ -381,6 +386,7 @@ export default {
       handleChunkAck,
       pushCustomerTypesToDevice,
       pushDeductionsToDevice,
+      pushBarangaysToDevice,
       syncReadingsFromDevice,
       handleDeviceLineReadings,
       syncBillsFromDevice,
@@ -493,6 +499,7 @@ export default {
         exportDeviceInfoFromDevice: this.exportDeviceInfoFromDevice,
         pushCustomerTypesToDevice: this.pushCustomerTypesToDevice,
         pushDeductionsToDevice: this.pushDeductionsToDevice,
+        pushBarangaysToDevice: this.pushBarangaysToDevice,
         syncReadingsFromDevice: this.syncReadingsFromDevice,
         syncBillsFromDevice: this.syncBillsFromDevice,
         pushCustomersToDevice: this.pushCustomersToDevice,

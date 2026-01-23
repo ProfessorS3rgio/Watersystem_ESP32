@@ -13,9 +13,10 @@ return new class extends Migration
     {
         Schema::create('bill', function (Blueprint $table) {
             $table->id('bill_id');
+            $table->string('reference_number')->unique();
             $table->unsignedBigInteger('customer_id');
             $table->unsignedBigInteger('reading_id');
-            $table->string('bill_no')->unique();
+            $table->string('device_uid');
             $table->date('bill_date');
             $table->decimal('rate_per_m3', 10, 2);
             $table->decimal('charges', 10, 2);
@@ -27,6 +28,7 @@ return new class extends Migration
 
             $table->foreign('customer_id')->references('customer_id')->on('customer');
             $table->foreign('reading_id')->references('reading_id')->on('reading');
+            $table->foreign('device_uid')->references('device_uid')->on('device');
         });
     }
 

@@ -36,6 +36,7 @@ export function useSyncData() {
     exportDeviceInfoFromDevice,
     pushCustomerTypesToDevice,
     pushDeductionsToDevice,
+    pushBarangaysToDevice,
     syncReadingsFromDevice,
     syncBillsFromDevice,
     pushCustomersToDevice,
@@ -114,6 +115,14 @@ export function useSyncData() {
       addLog(`Pushing ${dbDeductions.length} deductions to ESP32...`)
       await pushDeductionsToDevice(dbDeductions)
       addLog('✓ Deductions sync completed')
+
+      // Sync barangays from DB to device
+      addLog('Fetching barangays from database...')
+      const dbBarangays = await databaseService.fetchBarangaysFromDatabase()
+      addLog(`Database has ${dbBarangays.length} barangays`)
+      addLog(`Pushing ${dbBarangays.length} barangays to ESP32...`)
+      await pushBarangaysToDevice(dbBarangays)
+      addLog('✓ Barangays sync completed')
 
       // Sync readings (device -> DB)
       await syncReadingsFromDevice()

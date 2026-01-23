@@ -24,83 +24,19 @@ struct Customer {
   String updated_at;
 };
 
-// ===== BARANGAY SEQUENCE STRUCTURE =====
-struct BarangaySeq {
-  int brgy_id;
-  String barangay;
-  String prefix;
-  int next_number;
-  String updated_at;
-};
-
 // ===== CUSTOMER DATABASE =====
 // std::vector<Customer> customers;  // Removed to save memory, load on demand
 Customer* currentCustomer = nullptr;  // Single customer loaded on demand
-std::vector<BarangaySeq> barangays;
-
-static int loadBarangayCallback(void *data, int argc, char **argv, char **azColName) {
-  BarangaySeq b;
-  b.brgy_id = atoi(argv[0]);
-  b.barangay = argv[1];
-  b.prefix = argv[2];
-  b.next_number = atoi(argv[3]);
-  b.updated_at = argv[4];
-  barangays.push_back(b);
-  return 0;
-}
-
-void loadBarangaysFromDB() {
-  barangays.clear();
-  const char *sql = "SELECT brgy_id, barangay, prefix, next_number, updated_at FROM barangay_sequence;";
-  sqlite3_exec(db, sql, loadBarangayCallback, NULL, NULL);
-}
 
 void initCustomersDatabase() {
   Serial.printf("Heap free before load: %d\n", ESP.getFreeHeap());
   // loadCustomersFromDB(); // Skip loading customers at boot to avoid heap exhaustion. Load on demand.
-  loadBarangaysFromDB();
-  // If barangays empty, insert defaults
-  if (barangays.empty()) {
-    const char *inserts[] = {
-      "INSERT INTO barangay_sequence (barangay, prefix, next_number, updated_at) VALUES ('Dona Josefa', 'D', 1, datetime('now'));",
-      "INSERT INTO barangay_sequence (barangay, prefix, next_number, updated_at) VALUES ('Makilas', 'M', 1, datetime('now'));",
-      "INSERT INTO barangay_sequence (barangay, prefix, next_number, updated_at) VALUES ('Buluan', 'B', 1, datetime('now'));",
-      "INSERT INTO barangay_sequence (barangay, prefix, next_number, updated_at) VALUES ('Caparan', 'C', 1, datetime('now'));"
-    };
-    for (auto sql : inserts) {
-      sqlite3_exec(db, sql, NULL, NULL, NULL);
-    }
-    loadBarangaysFromDB();
-  }
   #if WS_SERIAL_VERBOSE
     Serial.print(F("Loaded "));
     Serial.print(customers.size());
     Serial.println(F(" customers from database."));
   #endif
   Serial.printf("Heap free after load: %d\n", ESP.getFreeHeap());
-}
-
-String generateAccountNumber(String barangayName) {
-  for (auto &b : barangays) {
-    if (b.barangay == barangayName) {
-      String num = String(b.next_number);
-      while (num.length() < 3) num = "0" + num;
-      String account = b.prefix + "-" + num;
-      b.next_number++;
-      char sql[256];
-      sprintf(sql, "UPDATE barangay_sequence SET next_number = %d, updated_at = datetime('now') WHERE brgy_id = %d;", b.next_number, b.brgy_id);
-      sqlite3_exec(db, sql, NULL, NULL, NULL);
-      return account;
-    }
-  }
-  return "";
-}
-
-String getBarangayName(int brgy_id) {
-  for (const auto& b : barangays) {
-    if (b.brgy_id == brgy_id) return b.barangay;
-  }
-  return "";
 }
 
 // ===== FIND CUSTOMER BY ACCOUNT =====
@@ -146,16 +82,6 @@ Customer* getCustomerAt(int index) {
     return currentCustomer;
   }
   return nullptr;
-}
-
-// ===== GET BARANGAY PREFIX FOR CURRENT DEVICE =====
-String getCurrentBarangayPrefix() {
-  for (const auto& b : barangays) {
-    if (b.brgy_id == BRGY_ID_VALUE) {
-      return b.prefix;
-    }
-  }
-  return ""; // Not found
 }
 
 // ===== UPSERT CUSTOMER FROM SYNC =====

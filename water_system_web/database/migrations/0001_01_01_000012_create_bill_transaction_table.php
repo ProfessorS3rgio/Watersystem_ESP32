@@ -14,7 +14,10 @@ return new class extends Migration
         Schema::create('bill_transaction', function (Blueprint $table) {
             $table->id('bill_transaction_id');
             $table->unsignedBigInteger('bill_id');
+            $table->string('bill_reference_number');
+            $table->string('device_uid');
             $table->enum('type', ['payment', 'void']);
+            $table->enum('source', ['Office', 'Device']);
             $table->decimal('amount', 10, 2);
             $table->decimal('cash_received', 10, 2)->nullable();
             $table->decimal('change', 10, 2);
@@ -25,6 +28,7 @@ return new class extends Migration
             $table->timestamps();
 
             $table->foreign('bill_id')->references('bill_id')->on('bill');
+            $table->foreign('device_uid')->references('device_uid')->on('device');
             $table->foreign('processed_by_user_id')->references('id')->on('users');
         });
     }

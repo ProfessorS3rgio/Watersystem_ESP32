@@ -20,6 +20,7 @@ static long g_timeOffsetSeconds = 0; // epochNow ~= millis()/1000 + offset
 struct Reading {
   int reading_id;
   int customer_id;
+  String device_uid;
   unsigned long previous_reading;
   unsigned long current_reading;
   unsigned long usage_m3;
@@ -35,30 +36,36 @@ static int loadReadingCallback(void *data, int argc, char **argv, char **azColNa
   Reading r;
   r.reading_id = atoi(argv[0]);
   r.customer_id = atoi(argv[1]);
-  r.previous_reading = strtoul(argv[2], NULL, 10);
-  r.current_reading = strtoul(argv[3], NULL, 10);
-  r.usage_m3 = strtoul(argv[4], NULL, 10);
-  r.reading_at = argv[5];
-  r.created_at = argv[6];
-  r.updated_at = argv[7];
+  r.device_uid = argv[2];
+  r.previous_reading = strtoul(argv[3], NULL, 10);
+  r.current_reading = strtoul(argv[4], NULL, 10);
+  r.usage_m3 = strtoul(argv[5], NULL, 10);
+  r.reading_at = argv[6];
+  r.created_at = argv[7];
+  r.updated_at = argv[8];
   readings.push_back(r);
   return 0;
 }
 
 void loadReadingsFromDB() {
   readings.clear();
-  const char *sql = "SELECT reading_id, customer_id, previous_reading, current_reading, usage_m3, reading_at, created_at, updated_at FROM readings ORDER BY reading_id;";
+  const char *sql = "SELECT reading_id, customer_id, device_uid, previous_reading, current_reading, usage_m3, reading_at, created_at, updated_at FROM readings ORDER BY reading_id;";
   sqlite3_exec(db, sql, loadReadingCallback, NULL, NULL);
+}
+
+static uint32_t deviceEpochNow() {
+  return (uint32_t)((long)(millis() / 1000) + g_timeOffsetSeconds);
 }
 
 void saveReadingToDB(int customer_id, unsigned long previous_reading, unsigned long current_reading, unsigned long usage_m3, String reading_at) {
   char sql[512];
-  if (reading_at == "datetime('now')") {
-    sprintf(sql, "INSERT INTO readings (customer_id, previous_reading, current_reading, usage_m3, reading_at, created_at, updated_at) VALUES (%d, %lu, %lu, %lu, strftime('%%s', 'now'), datetime('now'), datetime('now'));", customer_id, previous_reading, current_reading, usage_m3);
-  } else {
-    sprintf(sql, "INSERT INTO readings (customer_id, previous_reading, current_reading, usage_m3, reading_at, created_at, updated_at) VALUES (%d, %lu, %lu, %lu, '%s', datetime('now'), datetime('now'));", customer_id, previous_reading, current_reading, usage_m3, reading_at.c_str());
-  }
-  sqlite3_exec(db, sql, NULL, NULL, NULL);
+  String deviceUID = getDeviceUID();
+  String timestamp = String(deviceEpochNow());
+  sprintf(sql, "INSERT INTO readings (customer_id, device_uid, previous_reading, current_reading, usage_m3, reading_at, created_at, updated_at) VALUES (%d, '%s', %lu, %lu, %lu, '%s', datetime('now'), datetime('now'));", customer_id, deviceUID.c_str(), previous_reading, current_reading, usage_m3, timestamp.c_str());
+  Serial.println(sql);
+  int rc = sqlite3_exec(db, sql, NULL, NULL, NULL);
+  Serial.print(F("Reading save result: "));
+  Serial.println(rc == SQLITE_OK ? "OK" : "FAILED");
 }
 
 bool hasReadingForCustomerInYearMonth(int customer_id, int year, int month) {
@@ -83,7 +90,7 @@ void exportReadingsForSync() {
     Serial.print(F(",\"customer_id\":"));
     Serial.print(r.customer_id);
     Serial.print(F(",\"device_uid\":\""));
-    Serial.print(getDeviceUID());
+    Serial.print(r.device_uid);
     Serial.print(F("\""));
     Serial.print(F(",\"previous_reading\":"));
     Serial.print(r.previous_reading);
@@ -96,10 +103,6 @@ void exportReadingsForSync() {
     Serial.println(F("}"));
   }
   Serial.println(F("END_READINGS_JSON"));
-}
-
-static uint32_t deviceEpochNow() {
-  return (uint32_t)((long)(millis() / 1000) + g_timeOffsetSeconds);
 }
 
 // For time offset, keep SD for now or migrate to settings

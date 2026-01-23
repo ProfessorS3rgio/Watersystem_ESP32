@@ -281,11 +281,11 @@ class BillController extends Controller
     {
         $validated = $request->validate([
             'bills' => ['required', 'array', 'max:1000'],
-            'bills.*.bill_id' => ['required', 'integer'],
-            'bills.*.reference_number' => ['nullable', 'string', 'max:255'],
+            'bills.*.bill_id' => ['nullable', 'integer'],
+            'bills.*.reference_number' => ['required', 'string', 'max:255'],
             'bills.*.customer_id' => ['required', 'integer', 'exists:customer,customer_id'],
             'bills.*.reading_id' => ['nullable', 'integer', 'exists:reading,reading_id'],
-            'bills.*.bill_no' => ['nullable', 'string', 'max:255'],
+            'bills.*.device_uid' => ['nullable', 'string', 'max:255'],
             'bills.*.bill_date' => ['nullable', 'string'],
             'bills.*.rate_per_m3' => ['nullable', 'numeric'],
             'bills.*.charges' => ['nullable', 'numeric'],
@@ -301,18 +301,17 @@ class BillController extends Controller
 
         foreach ($bills as $row) {
             Bill::updateOrCreate(
-                ['bill_id' => $row['bill_id']],
+                ['reference_number' => $row['reference_number']],
                 [
-                    'reference_number' => $row['reference_number'] ?? null,
                     'customer_id' => $row['customer_id'],
                     'reading_id' => $row['reading_id'] ?? null,
-                    'bill_no' => $row['bill_no'] ?? null,
+                    'device_uid' => $row['device_uid'] ?? null,
                     'bill_date' => $row['bill_date'] ?? null,
                     'rate_per_m3' => $row['rate_per_m3'] ?? 0,
                     'charges' => $row['charges'] ?? 0,
                     'penalty' => $row['penalty'] ?? 0,
                     'total_due' => $row['total_due'] ?? 0,
-                    'status' => $row['status'] ?? 'pending',
+                    'status' => $row['status'] ?? 'Pending',
                     'created_at' => $row['created_at'] ?? now(),
                     'updated_at' => $row['updated_at'] ?? now(),
                 ]

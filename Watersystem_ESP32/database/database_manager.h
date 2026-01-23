@@ -45,12 +45,18 @@ void createAllTables() {
   sqlite3_exec(db, sql_customers, NULL, NULL, NULL);
 
   // Readings table
-  const char *sql_readings = "CREATE TABLE IF NOT EXISTS readings (reading_id INTEGER PRIMARY KEY, customer_id INTEGER, previous_reading INTEGER, current_reading INTEGER, usage_m3 INTEGER, reading_at TEXT, created_at TEXT, updated_at TEXT, FOREIGN KEY(customer_id) REFERENCES customers(customer_id));";
+  const char *sql_readings = "CREATE TABLE IF NOT EXISTS readings (reading_id INTEGER PRIMARY KEY, customer_id INTEGER, device_uid TEXT, previous_reading INTEGER, current_reading INTEGER, usage_m3 INTEGER, reading_at TEXT, created_at TEXT, updated_at TEXT, FOREIGN KEY(customer_id) REFERENCES customers(customer_id));";
   sqlite3_exec(db, sql_readings, NULL, NULL, NULL);
+  // Add device_uid column if not exists
+  const char *sql_add_device_uid_readings = "ALTER TABLE readings ADD COLUMN device_uid TEXT;";
+  sqlite3_exec(db, sql_add_device_uid_readings, NULL, NULL, NULL); // Ignore error if column exists
 
   // Bills table
-  const char *sql_bills = "CREATE TABLE IF NOT EXISTS bills (bill_id INTEGER PRIMARY KEY, reference_number TEXT UNIQUE, customer_id INTEGER, reading_id INTEGER, bill_no TEXT, bill_date TEXT, rate_per_m3 REAL, charges REAL, penalty REAL, total_due REAL, status TEXT DEFAULT 'Pending', created_at TEXT, updated_at TEXT, FOREIGN KEY(customer_id) REFERENCES customers(customer_id), FOREIGN KEY(reading_id) REFERENCES readings(reading_id));";
+  const char *sql_bills = "CREATE TABLE IF NOT EXISTS bills (bill_id INTEGER PRIMARY KEY, reference_number TEXT UNIQUE, customer_id INTEGER, reading_id INTEGER, device_uid TEXT, bill_date TEXT, rate_per_m3 REAL, charges REAL, penalty REAL, total_due REAL, status TEXT DEFAULT 'Pending', created_at TEXT, updated_at TEXT, FOREIGN KEY(customer_id) REFERENCES customers(customer_id), FOREIGN KEY(reading_id) REFERENCES readings(reading_id));";
   sqlite3_exec(db, sql_bills, NULL, NULL, NULL);
+  // Add device_uid column if not exists
+  const char *sql_add_device_uid_bills = "ALTER TABLE bills ADD COLUMN device_uid TEXT;";
+  sqlite3_exec(db, sql_add_device_uid_bills, NULL, NULL, NULL); // Ignore error if column exists
 
   // Bill transactions table
   const char *sql_bill_transactions = "CREATE TABLE IF NOT EXISTS bill_transactions (bill_transaction_id INTEGER PRIMARY KEY, bill_id INTEGER, bill_reference_number TEXT, type TEXT, source TEXT, amount REAL, cash_received REAL, change REAL, transaction_date TEXT, payment_method TEXT, processed_by_user_id INTEGER, notes TEXT, created_at TEXT, updated_at TEXT, FOREIGN KEY(bill_id) REFERENCES bills(bill_id));";

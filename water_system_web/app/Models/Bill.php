@@ -10,9 +10,10 @@ class Bill extends Model
     protected $primaryKey = 'bill_id';
 
     protected $fillable = [
+        'reference_number',
         'customer_id',
         'reading_id',
-        'bill_no',
+        'device_uid',
         'bill_date',
         'rate_per_m3',
         'charges',

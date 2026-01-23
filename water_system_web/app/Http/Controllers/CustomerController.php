@@ -81,7 +81,6 @@ class CustomerController extends Controller
                 DB::raw('r.usage_m3 as last_usage_m3'),
                 DB::raw('r.reading_at as last_reading_at'),
                 DB::raw('b.bill_id as latest_bill_id'),
-                DB::raw('b.bill_no as latest_bill_no'),
                 DB::raw('b.bill_date as latest_bill_date'),
                 DB::raw('b.due_date as latest_bill_due_date'),
                 DB::raw('b.total_due as latest_bill_total_due'),

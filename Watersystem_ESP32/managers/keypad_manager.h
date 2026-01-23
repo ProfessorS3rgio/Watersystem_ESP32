@@ -6,6 +6,7 @@
 #include "Adafruit_Thermal.h"
 #include "../database/readings_database.h"
 #include "../database/customers_database.h"
+#include "../database/barangay_database.h"
 #include <SD.h>
 
 // ===== EXTERNAL FROM CUSTOMERS DATABASE =====
