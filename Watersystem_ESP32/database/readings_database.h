@@ -10,6 +10,7 @@
 #include <sqlite3.h>
 #include <vector>
 #include "database_manager.h"
+#include <ArduinoJson.h>
 
 // Device ID for this ESP32 device (Makilas barangay)
 static const int DEVICE_ID = 2;
@@ -81,30 +82,6 @@ bool hasReadingForCustomerInYearMonth(int customer_id, int year, int month) {
   return false; // Placeholder
 }
 
-void exportReadingsForSync() {
-  // Export readings for sync as JSON
-  Serial.println(F("BEGIN_READINGS_JSON"));
-  for (const auto& r : readings) {
-    Serial.print(F("{\"reading_id\":"));
-    Serial.print(r.reading_id);
-    Serial.print(F(",\"customer_id\":"));
-    Serial.print(r.customer_id);
-    Serial.print(F(",\"device_uid\":\""));
-    Serial.print(r.device_uid);
-    Serial.print(F("\""));
-    Serial.print(F(",\"previous_reading\":"));
-    Serial.print(r.previous_reading);
-    Serial.print(F(",\"current_reading\":"));
-    Serial.print(r.current_reading);
-    Serial.print(F(",\"usage_m3\":"));
-    Serial.print(r.usage_m3);
-    Serial.print(F(",\"reading_at\":"));
-    Serial.print(r.reading_at.toInt());
-    Serial.println(F("}"));
-  }
-  Serial.println(F("END_READINGS_JSON"));
-}
-
 // For time offset, keep SD for now or migrate to settings
 static bool loadDeviceTimeOffsetFromDB() {
   if (!db) return false;
@@ -145,7 +122,7 @@ static bool saveDeviceTimeOffsetToDB() {
 }
 
 void initReadingsDatabase() {
-  loadReadingsFromDB();
+  // loadReadingsFromDB(); // Skip loading readings at boot to avoid heap exhaustion. Load on demand.
   loadDeviceTimeOffsetFromDB(); // Load from DB
 }
 

@@ -7,6 +7,7 @@
 #include "../database/readings_database.h"
 #include "../database/customers_database.h"
 #include "../database/barangay_database.h"
+#include "../database/test_data_generator.h"
 #include <SD.h>
 
 // ===== EXTERNAL FROM CUSTOMERS DATABASE =====
@@ -131,6 +132,18 @@ void handleKeypadInput(char key) {
       printer.println(F("Water Billing System"));
       printer.println(F("Test Print OK"));
       printer.feed(3);
+      delay(2000);
+      displayMenuScreen();
+    }
+    else if (key == '6') {
+      // Generate Test Data
+      tft.fillScreen(COLOR_BG);
+      tft.setTextColor(COLOR_HEADER);
+      tft.setCursor(20, 50);
+      tft.println(F("Generating test data..."));
+      generateTestReadingsAndBills(1000);
+      tft.setCursor(20, 70);
+      tft.println(F("Done!"));
       delay(2000);
       displayMenuScreen();
     }

@@ -196,7 +196,7 @@
         </button>
       </div>
       <div class="bg-gray-900 text-green-400 font-mono text-sm p-4 rounded-lg h-96 overflow-y-auto">
-        <div v-for="(log, index) in syncLogs" :key="index" class="mb-1">
+        <div v-for="(log, index) in filteredSyncLogs" :key="index" class="mb-1">
           <span class="text-gray-500">[{{ log.time }}]</span> {{ log.message }}
         </div>
         <div v-if="syncLogs.length === 0" class="text-gray-600">
@@ -345,6 +345,7 @@ export default {
     const {
       isSyncing,
       syncLogs,
+      filteredSyncLogs,
       syncData,
       addLog
     } = useSyncData()
@@ -393,6 +394,7 @@ export default {
       handleDeviceLineBills,
       isSyncing,
       syncLogs,
+      filteredSyncLogs,
       syncData,
       addLog,
       customCommand,
@@ -470,6 +472,10 @@ export default {
 
       if (t.startsWith('ACK|CHUNK|')) {
         return true; // Show chunk progress
+      }
+
+      if (t.startsWith('READINGS_CHUNK|') || t.startsWith('BILLS_CHUNK|')) {
+        return false // Hide verbose JSON chunks
       }
 
       // Everything else (Exporting..., Done., Totals, ACK/ERR) is useful.

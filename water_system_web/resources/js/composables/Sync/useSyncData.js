@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { serialService } from '../../services/serialService'
 import { databaseService } from '../../services/databaseService'
 
@@ -6,6 +6,14 @@ export function useSyncData() {
   const isSyncing = ref(false)
   const syncStartTime = ref(null)
   const syncLogs = ref([])
+
+  const isJsonLog = (message) => {
+    if (!message.startsWith('Device ← ')) return false
+    const dataPart = message.substring(10).trim()
+    return dataPart.includes('"bill_id"') || dataPart.includes('"reading_id"') || dataPart.includes('"customer_id"')
+  }
+
+  const filteredSyncLogs = computed(() => syncLogs.value.filter(log => !isJsonLog(log.message)))
 
   const addLog = (message) => {
     const time = new Date().toLocaleTimeString()
@@ -185,6 +193,7 @@ export function useSyncData() {
   return {
     isSyncing,
     syncLogs,
+    filteredSyncLogs,
     syncData,
     addLog,
     formatElapsedTime

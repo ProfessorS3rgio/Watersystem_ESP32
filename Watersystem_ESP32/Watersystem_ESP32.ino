@@ -174,12 +174,6 @@ void setup() {
   // Initialize Bills Database
   initBillsDatabase();
 
-  // Initialize Customer Types Database
-  initCustomerTypesDatabase();
-
-  // Initialize Bills Database
-  initBillsDatabase();
-
 #if WS_SERIAL_VERBOSE
   Serial.println(F("Watersystem ESP32 ready."));
   Serial.println(F("Use keypad or serial commands:"));
@@ -252,6 +246,30 @@ void loop() {
       return;
     }
 
+    if (raw == "DROPR") {
+      Serial.println(F("Dropping readings table..."));
+      if (db) {
+        sqlite3_exec(db, "DROP TABLE IF EXISTS readings;", NULL, NULL, NULL);
+        readings.clear();
+        Serial.println(F("Readings table dropped."));
+      } else {
+        Serial.println(F("Database not open."));
+      }
+      return;
+    }
+
+    if (raw == "DROPB") {
+      Serial.println(F("Dropping bills table..."));
+      if (db) {
+        sqlite3_exec(db, "DROP TABLE IF EXISTS bills;", NULL, NULL, NULL);
+        bills.clear();
+        Serial.println(F("Bills table dropped."));
+      } else {
+        Serial.println(F("Database not open."));
+      }
+      return;
+    }
+
     if (handleSyncCommands(raw)) return;
 
     // ---- Existing console commands ----
@@ -300,7 +318,7 @@ void loop() {
     else if (cmd.length() > 0) {
       Serial.print(F("Unknown: "));
       Serial.println(cmd);
-      Serial.println(F("Commands: P, D, S, L, DD, CT, B, DB, DROPDB, START"));
+      Serial.println(F("Commands: P, D, S, L, DD, CT, B, DB, DROPDB, DROPR, DROPB, START"));
     }
   }
 }

@@ -169,4 +169,44 @@ bool handleUpsertBillsJsonChunk(String payload) {
   return true;
 }
 
+// Handle EXPORT_BILLS command
+bool handleExportBills() {
+  Serial.println(F("Exporting bills..."));
+  const int CHUNK_SIZE = 10;
+  int totalBills = getTotalBills();
+  int totalChunks = (totalBills + CHUNK_SIZE - 1) / CHUNK_SIZE;
+  Serial.print(F("BEGIN_BILLS_JSON|"));
+  Serial.println(totalChunks);
+  int offset = 0;
+  for (int chunk = 0; chunk < totalChunks; ++chunk) {
+    Serial.printf("Heap free before chunk %d: %d\n", chunk, ESP.getFreeHeap());
+    std::vector<Bill> billsChunk = getBillsChunk(offset, CHUNK_SIZE);
+    DynamicJsonDocument doc(32768);
+    JsonArray arr = doc.to<JsonArray>();
+    for (const auto& b : billsChunk) {
+      JsonObject obj = arr.createNestedObject();
+      obj["bill_id"] = b.bill_id;
+      obj["reference_number"] = b.reference_number;
+      obj["customer_id"] = b.customer_id;
+      obj["reading_id"] = b.reading_id;
+      obj["device_uid"] = b.device_uid;
+      obj["bill_date"] = b.bill_date;
+      obj["rate_per_m3"] = b.rate_per_m3;
+      obj["charges"] = b.charges;
+      obj["penalty"] = b.penalty;
+      obj["total_due"] = b.total_due;
+      obj["status"] = b.status;
+    }
+    Serial.print(F("BILLS_CHUNK|"));
+    Serial.print(chunk);
+    Serial.print(F("|"));
+    serializeJson(arr, Serial);
+    Serial.println();
+    Serial.printf("Heap free after chunk %d: %d\n", chunk, ESP.getFreeHeap());
+    offset += billsChunk.size();
+  }
+  Serial.println(F("END_BILLS_JSON"));
+  return true;
+}
+
 #endif // BILL_SYNC_H

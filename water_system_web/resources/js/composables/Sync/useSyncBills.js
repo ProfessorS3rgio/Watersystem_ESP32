@@ -28,7 +28,7 @@ export function useSyncBills() {
     lastAck.value = null
     exportBeginMarker.value = 'BEGIN_BILLS_JSON'
     exportEndMarker.value = 'END_BILLS_JSON'
-    exportLinePrefix.value = '{'
+    exportLinePrefix.value = 'BILLS_CHUNK|'
 
     const promise = new Promise((resolve, reject) => {
       exportResolve.value = resolve
@@ -65,46 +65,48 @@ export function useSyncBills() {
 
   const parseBillsExportLines = (lines) => {
     const bills = []
-    let collecting = false
-    let collected = ''
+    let chunkBuffer = ''
     for (const line of lines) {
-      if (line === 'BEGIN_BILL_JSON') {
-        collecting = true
-        collected = ''
-        continue
-      }
-      if (line === 'END_BILL_JSON') {
-        collecting = false
-        console.log('Collected JSON:', collected)
-        try {
-          const bill = JSON.parse(collected)
-          console.log('Parsed bill:', bill)
-          bills.push({
-            bill_id: Number(bill.bill_id || 0),
-            reference_number: bill.reference_number || '',
-            customer_id: Number(bill.customer_id || 0),
-            reading_id: Number(bill.reading_id || 0),
-            device_uid: bill.device_uid || '',
-            bill_date: bill.bill_date || '',
-            rate_per_m3: Number(bill.rate_per_m3 || 0),
-            charges: Number(bill.charges || 0),
-            penalty: Number(bill.penalty || 0),
-            total_due: Number(bill.total_due || 0),
-            status: bill.status || 'pending',
-            created_at: bill.created_at || '',
-            updated_at: bill.updated_at || '',
-          })
-        } catch (e) {
-          console.error('Failed to parse bill JSON:', collected, e)
+      if (line.startsWith('BILLS_CHUNK|')) {
+        const parts = line.split('|', 3)
+        if (parts.length >= 3) {
+          chunkBuffer = parts[2] || ''
         }
-        collected = ''
         continue
       }
-      if (collecting) {
-        collected += line.trim()
+
+      if (chunkBuffer) {
+        if (line.startsWith('Heap free') || line === 'END_BILLS_JSON' || line === 'BEGIN_BILLS_JSON') {
+          // skip meta
+        } else {
+          chunkBuffer += String(line).trim()
+        }
+      }
+
+      if (chunkBuffer) {
+        try {
+          const chunkBills = JSON.parse(chunkBuffer)
+          for (const bill of chunkBills) {
+            bills.push({
+              bill_id: Number(bill.bill_id || 0),
+              reference_number: bill.reference_number || '',
+              customer_id: Number(bill.customer_id || 0),
+              reading_id: Number(bill.reading_id || 0),
+              device_uid: bill.device_uid || '',
+              bill_date: bill.bill_date || '',
+              rate_per_m3: Number(bill.rate_per_m3 || 0),
+              charges: Number(bill.charges || 0),
+              penalty: Number(bill.penalty || 0),
+              total_due: Number(bill.total_due || 0),
+              status: bill.status || 'pending',
+            })
+          }
+          chunkBuffer = '' // Clear after successful parse
+        } catch (e) {
+          // Not complete yet, continue accumulating
+        }
       }
     }
-    console.log('Parsed bills:', bills)
     return bills
   }
 

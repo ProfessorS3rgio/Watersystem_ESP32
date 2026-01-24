@@ -27,13 +27,39 @@ struct Customer {
 // ===== CUSTOMER DATABASE =====
 // std::vector<Customer> customers;  // Removed to save memory, load on demand
 Customer* currentCustomer = nullptr;  // Single customer loaded on demand
+std::vector<Customer> allCustomers;  // For test data generation
+
+// ===== LOAD ALL CUSTOMERS =====
+static int loadCustomerCallback(void *data, int argc, char **argv, char **azColName) {
+  Customer c;
+  c.customer_id = atoi(argv[0]);
+  c.account_no = argv[1];
+  c.customer_name = argv[2];
+  c.address = argv[3];
+  c.previous_reading = strtoul(argv[4], NULL, 10);
+  c.status = argv[5];
+  c.type_id = atoi(argv[6]);
+  c.deduction_id = atoi(argv[7]);
+  c.brgy_id = atoi(argv[8]);
+  c.created_at = argv[9];
+  c.updated_at = argv[10];
+  allCustomers.push_back(c);
+  return 0;
+}
+
+void loadAllCustomers() {
+  allCustomers.clear();
+  const char *sql = "SELECT customer_id, account_no, customer_name, address, previous_reading, status, type_id, deduction_id, brgy_id, created_at, updated_at FROM customers;";
+  sqlite3_exec(db, sql, loadCustomerCallback, NULL, NULL);
+}
 
 void initCustomersDatabase() {
   Serial.printf("Heap free before load: %d\n", ESP.getFreeHeap());
   // loadCustomersFromDB(); // Skip loading customers at boot to avoid heap exhaustion. Load on demand.
+  // loadAllCustomers();  // Load all for test data - commented out to avoid heap exhaustion
   #if WS_SERIAL_VERBOSE
     Serial.print(F("Loaded "));
-    Serial.print(customers.size());
+    Serial.print(allCustomers.size());
     Serial.println(F(" customers from database."));
   #endif
   Serial.printf("Heap free after load: %d\n", ESP.getFreeHeap());
@@ -132,6 +158,40 @@ bool removeCustomerByAccount(const String& accountNumber) {
     return true;
   }
   return false;
+}
+
+// ===== GET CUSTOMER COUNT =====
+int getCustomerCount() {
+  const char* sql = "SELECT COUNT(*) FROM customers;";
+  sqlite3_stmt* stmt;
+  int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+  if (rc != SQLITE_OK) return 0;
+  int count = 0;
+  if (sqlite3_step(stmt) == SQLITE_ROW) {
+    count = sqlite3_column_int(stmt, 0);
+  }
+  sqlite3_finalize(stmt);
+  return count;
+}
+
+// ===== GET RANDOM CUSTOMER =====
+Customer* getRandomCustomer() {
+  const char* sql = "SELECT account_no FROM customers ORDER BY RANDOM() LIMIT 1;";
+  sqlite3_stmt* stmt;
+  int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+  if (rc != SQLITE_OK) return nullptr;
+  String accountNo;
+  if (sqlite3_step(stmt) == SQLITE_ROW) {
+    accountNo = String((const char*)sqlite3_column_text(stmt, 0));
+  }
+  sqlite3_finalize(stmt);
+  if (accountNo.length() > 0) {
+    int index = findCustomerByAccount(accountNo);
+    if (index != -1) {
+      return getCustomerAt(index);
+    }
+  }
+  return nullptr;
 }
 
 #endif  // CUSTOMERS_DATABASE_H

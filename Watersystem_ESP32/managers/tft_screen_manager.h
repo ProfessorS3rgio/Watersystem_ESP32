@@ -98,14 +98,16 @@ void displayMenuScreen() {
   tft.println(F("4. Restart"));
   tft.setCursor(10, 85);
   tft.println(F("5. Printer Test"));
+  tft.setCursor(10, 100);
+  tft.println(F("6. Gen Test Data"));
   
-  tft.drawLine(0, 100, 160, 100, COLOR_LINE);
+  tft.drawLine(0, 115, 160, 115, COLOR_LINE);
   
   tft.setTextColor(COLOR_LABEL);
   tft.setTextSize(1);
-  tft.setCursor(20, 108);
+  tft.setCursor(20, 123);
   tft.println(F("Press # or press"));
-  tft.setCursor(32, 118);
+  tft.setCursor(32, 133);
   tft.println(F("C to cancel"));
 }
 

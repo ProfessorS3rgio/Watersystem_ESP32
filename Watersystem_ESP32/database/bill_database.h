@@ -10,6 +10,7 @@
 #include <SD.h>
 #include <vector>
 #include "database_manager.h"
+#include <ArduinoJson.h>
 
 // Forward declarations
 float calculateDeductions(float baseAmount, unsigned long deductionId);
@@ -88,28 +89,44 @@ void loadBillsFromDB() {
   sqlite3_exec(db, sql, loadBillCallback, NULL, NULL);
 }
 
-void initBillsDatabase() {
-  loadBillsFromDB();
+std::vector<Bill> getBillsChunk(int offset, int limit) {
+  std::vector<Bill> chunk;
+  char sql[256];
+  sprintf(sql, "SELECT bill_id, reference_number, customer_id, reading_id, device_uid, bill_date, rate_per_m3, charges, penalty, total_due, status, created_at, updated_at FROM bills ORDER BY bill_id LIMIT %d OFFSET %d;", limit, offset);
+  sqlite3_exec(db, sql, [](void *data, int argc, char **argv, char **azColName) -> int {
+    std::vector<Bill>* chunk = static_cast<std::vector<Bill>*>(data);
+    Bill b;
+    b.bill_id = atoi(argv[0]);
+    b.reference_number = argv[1];
+    b.customer_id = atoi(argv[2]);
+    b.reading_id = atoi(argv[3]);
+    b.device_uid = argv[4];
+    b.bill_date = argv[5];
+    b.rate_per_m3 = atof(argv[6]);
+    b.charges = atof(argv[7]);
+    b.penalty = atof(argv[8]);
+    b.total_due = atof(argv[9]);
+    b.status = argv[10];
+    b.created_at = argv[11];
+    b.updated_at = argv[12];
+    chunk->push_back(b);
+    return 0;
+  }, &chunk, NULL);
+  return chunk;
 }
 
-void exportBillsForSync() {
-  // Export bills for sync as JSON
-  Serial.println(F("BEGIN_BILLS_JSON"));
-  for (const auto& b : bills) {
-    // Create JSON string for each bill on a single line using char buffer
-    char json[1024];
-    char rateStr[10], chargesStr[10], penaltyStr[10], totalStr[10];
-    dtostrf(b.rate_per_m3, 1, 2, rateStr);
-    dtostrf(b.charges, 1, 2, chargesStr);
-    dtostrf(b.penalty, 1, 2, penaltyStr);
-    dtostrf(b.total_due, 1, 2, totalStr);
-    sprintf(json, "{\"bill_id\":%d,\"reference_number\":\"%s\",\"customer_id\":%d,\"reading_id\":%d,\"device_uid\":\"%s\",\"bill_date\":\"%s\",\"rate_per_m3\":%s,\"charges\":%s,\"penalty\":%s,\"total_due\":%s,\"status\":\"%s\"}",
-            b.bill_id, b.reference_number.c_str(), b.customer_id, b.reading_id, b.device_uid.c_str(), b.bill_date.c_str(), rateStr, chargesStr, penaltyStr, totalStr, b.status.c_str());
-    Serial.println(F("BEGIN_BILL_JSON"));
-    Serial.println(json);
-    Serial.println(F("END_BILL_JSON"));
-  }
-  Serial.println(F("END_BILLS_JSON"));
+int getTotalBills() {
+  int count = 0;
+  sqlite3_exec(db, "SELECT COUNT(*) FROM bills;", [](void *data, int argc, char **argv, char **azColName) -> int {
+    int* count = static_cast<int*>(data);
+    *count = atoi(argv[0]);
+    return 0;
+  }, &count, NULL);
+  return count;
+}
+
+void initBillsDatabase() {
+  // loadBillsFromDB(); // Skip loading bills at boot to avoid heap exhaustion. Load on demand.
 }
 
 // ===== GENERATE BILL REFERENCE NUMBER =====
