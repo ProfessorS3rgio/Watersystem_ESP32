@@ -18,7 +18,7 @@ export function useSyncCustomers() {
     // Register the ACK waiter BEFORE sending to avoid ACK arriving
     // while the promise hasn't been hooked (race condition).
     // Implement retries in case ACKs are lost or the web serial write fails.
-    const chunkSize = 50
+    const chunkSize = 45
     const totalChunks = Math.ceil(customers.length / chunkSize)
     const maxRetries = 3
     for (let i = 0; i < customers.length; i += chunkSize) {

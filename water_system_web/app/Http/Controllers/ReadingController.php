@@ -54,6 +54,7 @@ class ReadingController extends Controller
     {
         $validated = $request->validate([
             'readings' => ['required', 'array', 'max:2000'],
+            'readings.*.reading_id' => ['required', 'integer', 'min:1'],
             'readings.*.customer_id' => ['required', 'integer', 'min:1'],
             'readings.*.device_uid' => ['nullable', 'string'],
             'readings.*.previous_reading' => ['required', 'integer', 'min:0'],
@@ -90,61 +91,33 @@ class ReadingController extends Controller
                     ? Carbon::createFromTimestamp((int) $row['reading_at'])
                     : now();
 
-                $reading = Reading::updateOrCreate(
-                    [
+                // Check if reading exists
+                $existing = Reading::where('reading_id', (int) $row['reading_id'])->first();
+                if ($existing) {
+                    $existing->update([
                         'customer_id' => $customer->customer_id,
-                        'reading_at' => $readingAt,
-                    ],
-                    [
                         'device_uid' => $row['device_uid'] ?? null,
                         'previous_reading' => (int) $row['previous_reading'],
                         'current_reading' => (int) $row['current_reading'],
                         'usage_m3' => (int) $row['usage_m3'],
+                        'reading_at' => $readingAt,
                         'read_by_user_id' => null,
-                    ]
-                );
-
-                if ($reading->wasRecentlyCreated) {
-                    $inserted++;
-                } else {
-                    $updated++;
-                }
-
-                // Auto-create/update bill for this reading.
-                // One bill per reading event.
-                $charges = (float) ((int) $reading->usage_m3) * $ratePerM3;
-                $penalty = 0.0;
-                $totalDue = $charges + $penalty;
-
-                $bill = Bill::query()->where('reading_id', $reading->id)->first();
-                if (!$bill) {
-                    $billDate = Carbon::parse($reading->reading_at)->toDateString();
-                    $billNo = 'BILL-' . Carbon::parse($reading->reading_at)->format('Ymd') . '-' . $reading->id;
-
-                    Bill::create([
-                        'customer_id' => $customer->id,
-                        'reading_id' => $reading->id,
-                        'bill_no' => $billNo,
-                        'bill_date' => $billDate,
-                        'rate_per_m3' => $ratePerM3,
-                        'charges' => $charges,
-                        'penalty' => $penalty,
-                        'total_due' => $totalDue,
-                        'due_date' => Carbon::parse($billDate)->addDays($dueDays)->toDateString(),
-                        'status' => 'pending',
                     ]);
+                    $updated++;
                 } else {
-                    // Keep bill_no stable; don't override paid bills.
-                    if (strtolower((string) $bill->status) !== 'paid') {
-                        $bill->rate_per_m3 = $ratePerM3;
-                        $bill->charges = $charges;
-                        $bill->penalty = $penalty;
-                        $bill->total_due = $totalDue;
-                        if (!$bill->status) {
-                            $bill->status = 'pending';
-                        }
-                        $bill->save();
-                    }
+                    DB::insert("INSERT INTO reading (reading_id, customer_id, device_uid, previous_reading, current_reading, usage_m3, reading_at, read_by_user_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
+                        (int) $row['reading_id'],
+                        $customer->customer_id,
+                        $row['device_uid'] ?? null,
+                        (int) $row['previous_reading'],
+                        (int) $row['current_reading'],
+                        (int) $row['usage_m3'],
+                        $readingAt,
+                        null,
+                        now(),
+                        now(),
+                    ]);
+                    $inserted++;
                 }
             }
         });

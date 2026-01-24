@@ -29,7 +29,7 @@ static int countCallback(void *data, int argc, char **argv, char **azColName) {
 
 // Handle UPSERT_CUSTOMERS_JSON command
 bool handleUpsertCustomersJson(String payload) {
-  DynamicJsonDocument doc(131072); // 128KB for large customer lists
+  DynamicJsonDocument doc(65536); // 64KB for customer lists
   DeserializationError error = deserializeJson(doc, payload);
   if (error) {
     Serial.println(F("ERR|JSON_PARSE_FAILED"));
@@ -476,22 +476,6 @@ bool handleUpsertUpdatedCustomerJsonChunk(String payload) {
   } else {
     sqlite3_exec(db, "ROLLBACK;", NULL, NULL, NULL);
     Serial.println(F("ERR|UPSERT_FAILED"));
-  }
-  return true;
-}
-
-// Handle REMOVE_CUSTOMER command
-bool handleRemoveCustomer(String payload) {
-  payload.trim();
-  if (payload.length() > 0) {
-    if (removeCustomerByAccount(payload)) {
-      Serial.print(F("ACK|REMOVE_CUSTOMER|"));
-      Serial.println(payload);
-    } else {
-      Serial.println(F("ERR|CUSTOMER_NOT_FOUND"));
-    }
-  } else {
-    Serial.println(F("ERR|BAD_ACCOUNT_NO"));
   }
   return true;
 }

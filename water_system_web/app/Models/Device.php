@@ -7,7 +7,9 @@ use Illuminate\Database\Eloquent\Model;
 class Device extends Model
 {
     protected $table = 'device';
-    // No primary key, using device_mac as unique identifier
+    public $primaryKey = 'device_mac';
+    public $incrementing = false;
+    public $keyType = 'string';
 
     protected $fillable = [
         'brgy_id',

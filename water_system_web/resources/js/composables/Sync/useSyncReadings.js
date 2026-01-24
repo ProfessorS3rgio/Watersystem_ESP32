@@ -72,7 +72,7 @@ export function useSyncReadings() {
         readings.push({
           reading_id: Number(reading.reading_id || 0),
           customer_id: Number(reading.customer_id || 0),
-          device_id: Number(reading.device_id || 1),
+          device_uid: reading.device_uid || '',
           previous_reading: Number(reading.previous_reading || 0),
           current_reading: Number(reading.current_reading || 0),
           usage_m3: Number(reading.usage_m3 || 0),

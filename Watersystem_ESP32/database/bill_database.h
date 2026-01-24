@@ -96,34 +96,18 @@ void exportBillsForSync() {
   // Export bills for sync as JSON
   Serial.println(F("BEGIN_BILLS_JSON"));
   for (const auto& b : bills) {
-    // Create JSON object for each bill
-    Serial.print(F("{\"bill_id\":"));
-    Serial.print(b.bill_id);
-    Serial.print(F(",\"reference_number\":\""));
-    Serial.print(b.reference_number);
-    Serial.print(F("\",\"customer_id\":"));
-    Serial.print(b.customer_id);
-    Serial.print(F(",\"reading_id\":"));
-    Serial.print(b.reading_id);
-    Serial.print(F(",\"device_uid\":\""));
-    Serial.print(b.device_uid);
-    Serial.print(F("\",\"bill_date\":\""));
-    Serial.print(b.bill_date);
-    Serial.print(F("\",\"rate_per_m3\":"));
-    Serial.print(b.rate_per_m3, 2);
-    Serial.print(F(",\"charges\":"));
-    Serial.print(b.charges, 2);
-    Serial.print(F(",\"penalty\":"));
-    Serial.print(b.penalty, 2);
-    Serial.print(F(",\"total_due\":"));
-    Serial.print(b.total_due, 2);
-    Serial.print(F(",\"status\":\""));
-    Serial.print(b.status);
-    Serial.print(F("\",\"created_at\":\""));
-    Serial.print(b.created_at);
-    Serial.print(F("\",\"updated_at\":\""));
-    Serial.print(b.updated_at);
-    Serial.println(F("}"));
+    // Create JSON string for each bill on a single line using char buffer
+    char json[1024];
+    char rateStr[10], chargesStr[10], penaltyStr[10], totalStr[10];
+    dtostrf(b.rate_per_m3, 1, 2, rateStr);
+    dtostrf(b.charges, 1, 2, chargesStr);
+    dtostrf(b.penalty, 1, 2, penaltyStr);
+    dtostrf(b.total_due, 1, 2, totalStr);
+    sprintf(json, "{\"bill_id\":%d,\"reference_number\":\"%s\",\"customer_id\":%d,\"reading_id\":%d,\"device_uid\":\"%s\",\"bill_date\":\"%s\",\"rate_per_m3\":%s,\"charges\":%s,\"penalty\":%s,\"total_due\":%s,\"status\":\"%s\"}",
+            b.bill_id, b.reference_number.c_str(), b.customer_id, b.reading_id, b.device_uid.c_str(), b.bill_date.c_str(), rateStr, chargesStr, penaltyStr, totalStr, b.status.c_str());
+    Serial.println(F("BEGIN_BILL_JSON"));
+    Serial.println(json);
+    Serial.println(F("END_BILL_JSON"));
   }
   Serial.println(F("END_BILLS_JSON"));
 }

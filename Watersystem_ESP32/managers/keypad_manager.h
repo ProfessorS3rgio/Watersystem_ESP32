@@ -225,13 +225,6 @@ void handleKeypadInput(char key) {
       Serial.println(F("Starting print job..."));
       currentState = STATE_PRINTING;
 
-      // Persist the reading immediately (so the device remains the source of truth)
-      if (recordReadingForCustomerIndex(selectedCustomerIndex, currentReading)) {
-        Serial.println(F("[READING] Saved to SD log"));
-      } else {
-        Serial.println(F("[READING] Save skipped/failed"));
-      }
-
       // Track print count for device info
       incrementPrintCount();
       

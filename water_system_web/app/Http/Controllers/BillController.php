@@ -284,7 +284,7 @@ class BillController extends Controller
             'bills.*.bill_id' => ['nullable', 'integer'],
             'bills.*.reference_number' => ['required', 'string', 'max:255'],
             'bills.*.customer_id' => ['required', 'integer', 'exists:customer,customer_id'],
-            'bills.*.reading_id' => ['nullable', 'integer', 'exists:reading,reading_id'],
+            'bills.*.reading_id' => ['nullable', 'integer'],
             'bills.*.device_uid' => ['nullable', 'string', 'max:255'],
             'bills.*.bill_date' => ['nullable', 'string'],
             'bills.*.rate_per_m3' => ['nullable', 'numeric'],
@@ -298,6 +298,8 @@ class BillController extends Controller
 
         $bills = $validated['bills'];
         $processed = 0;
+
+        \Log::info('Syncing bills', ['count' => count($bills)]);
 
         foreach ($bills as $row) {
             Bill::updateOrCreate(
@@ -319,6 +321,8 @@ class BillController extends Controller
 
             $processed++;
         }
+
+        \Log::info('Bills synced', ['processed' => $processed]);
 
         return response()->json([
             'processed' => $processed,

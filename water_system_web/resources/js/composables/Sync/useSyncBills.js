@@ -65,29 +65,46 @@ export function useSyncBills() {
 
   const parseBillsExportLines = (lines) => {
     const bills = []
+    let collecting = false
+    let collected = ''
     for (const line of lines) {
-      if (!line.startsWith('{')) continue
-      try {
-        const bill = JSON.parse(line)
-        bills.push({
-          bill_id: Number(bill.bill_id || 0),
-          reference_number: bill.reference_number || '',
-          customer_id: Number(bill.customer_id || 0),
-          reading_id: Number(bill.reading_id || 0),
-          bill_no: bill.bill_no || '',
-          bill_date: bill.bill_date || '',
-          rate_per_m3: Number(bill.rate_per_m3 || 0),
-          charges: Number(bill.charges || 0),
-          penalty: Number(bill.penalty || 0),
-          total_due: Number(bill.total_due || 0),
-          status: bill.status || 'pending',
-          created_at: bill.created_at || '',
-          updated_at: bill.updated_at || '',
-        })
-      } catch (e) {
-        console.error('Failed to parse bill JSON:', line, e)
+      if (line === 'BEGIN_BILL_JSON') {
+        collecting = true
+        collected = ''
+        continue
+      }
+      if (line === 'END_BILL_JSON') {
+        collecting = false
+        console.log('Collected JSON:', collected)
+        try {
+          const bill = JSON.parse(collected)
+          console.log('Parsed bill:', bill)
+          bills.push({
+            bill_id: Number(bill.bill_id || 0),
+            reference_number: bill.reference_number || '',
+            customer_id: Number(bill.customer_id || 0),
+            reading_id: Number(bill.reading_id || 0),
+            device_uid: bill.device_uid || '',
+            bill_date: bill.bill_date || '',
+            rate_per_m3: Number(bill.rate_per_m3 || 0),
+            charges: Number(bill.charges || 0),
+            penalty: Number(bill.penalty || 0),
+            total_due: Number(bill.total_due || 0),
+            status: bill.status || 'pending',
+            created_at: bill.created_at || '',
+            updated_at: bill.updated_at || '',
+          })
+        } catch (e) {
+          console.error('Failed to parse bill JSON:', collected, e)
+        }
+        collected = ''
+        continue
+      }
+      if (collecting) {
+        collected += line.trim()
       }
     }
+    console.log('Parsed bills:', bills)
     return bills
   }
 
@@ -98,7 +115,10 @@ export function useSyncBills() {
       return
     }
 
+    console.log('Bills exported from device:', deviceBills)
+
     const processed = await databaseService.upsertBillsToDatabase(deviceBills)
+    console.log('Bills synced to database, processed:', processed)
     return processed
   }
 
@@ -115,9 +135,7 @@ export function useSyncBills() {
       return
     }
 
-    if (line.startsWith(exportLinePrefix.value)) {
-      exportLines.value.push(line)
-    }
+    exportLines.value.push(line)
   }
 
   return {

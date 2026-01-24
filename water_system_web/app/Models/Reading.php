@@ -8,6 +8,7 @@ class Reading extends Model
 {
     protected $table = 'reading';
     protected $primaryKey = 'reading_id';
+    public $incrementing = false;
 
     protected $fillable = [
         'customer_id',

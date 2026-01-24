@@ -16,6 +16,7 @@
 // Include organized sync handlers
 #include "sync/device_sync.h"
 #include "sync/reading_sync.h"
+#include "sync/bill_sync.h"
 #include "sync/deduction_sync.h"
 #include "sync/barangay_sync.h"
 #include "sync/customer_type_sync.h"
@@ -89,13 +90,13 @@ bool handleSyncCommands(String raw) {
     return handleUpsertCustomerType(payload);
   }
 
-  if (raw == "RELOAD_SD") {
-    return handleReloadSD();
+  if (raw.startsWith("UPSERT_BILLS_JSON_CHUNK|")) {
+    String payload = raw.substring(String("UPSERT_BILLS_JSON_CHUNK|").length());
+    return handleUpsertBillsJsonChunk(payload);
   }
 
-  if (raw.startsWith("REMOVE_CUSTOMER|")) {
-    String payload = raw.substring(String("REMOVE_CUSTOMER|").length());
-    return handleRemoveCustomer(payload);
+  if (raw == "RELOAD_SD") {
+    return handleReloadSD();
   }
 
   if (raw == "FORMAT_SD") {

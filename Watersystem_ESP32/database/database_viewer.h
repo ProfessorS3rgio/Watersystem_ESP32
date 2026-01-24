@@ -15,13 +15,12 @@ static int printBillCallback(void *data, int argc, char **argv, char **azColName
   Serial.print(atoi(argv[3])); Serial.print(F(" | "));
   Serial.print(argv[4]); Serial.print(F(" | "));
   Serial.print(argv[5]); Serial.print(F(" | "));
-  Serial.print(argv[6]); Serial.print(F(" | "));
+  Serial.print(atof(argv[6]), 2); Serial.print(F(" | "));
   Serial.print(atof(argv[7]), 2); Serial.print(F(" | "));
   Serial.print(atof(argv[8]), 2); Serial.print(F(" | "));
   Serial.print(atof(argv[9]), 2); Serial.print(F(" | "));
-  Serial.print(atof(argv[10]), 2); Serial.print(F(" | "));
-  Serial.print(argv[11]); Serial.print(F(" | "));
-  Serial.println(argv[12]);
+  Serial.print(argv[10]); Serial.print(F(" | "));
+  Serial.println(argv[11]);
   return 0;
 }
 
@@ -97,9 +96,9 @@ static int printDeviceInfoCallback(void *data, int argc, char **argv, char **azC
 // Function to print bills list
 void printBillsList() {
   Serial.println(F("===== BILLS DATABASE ====="));
-  Serial.println(F("ID | Ref Number    | CustID | ReadID | DeviceUID | Bill No       | Date       | Rate | Charges | Penalty | Total | Status | Created"));
-  Serial.println(F("---|---------------|--------|--------|-----------|---------------|------------|------|---------|---------|-------|--------|--------"));
-  const char *sql = "SELECT bill_id, reference_number, customer_id, reading_id, device_uid, bill_no, bill_date, rate_per_m3, charges, penalty, total_due, status, created_at FROM bills;";
+  Serial.println(F("ID | Ref Number    | CustID | ReadID | DeviceUID | Date       | Rate | Charges | Penalty | Total | Status | Created"));
+  Serial.println(F("---|---------------|--------|--------|-----------|------------|------|---------|---------|-------|--------|--------"));
+  const char *sql = "SELECT bill_id, reference_number, customer_id, reading_id, device_uid, bill_date, rate_per_m3, charges, penalty, total_due, status, created_at FROM bills;";
   sqlite3_exec(db, sql, printBillCallback, NULL, NULL);
   Serial.println(F("====================================================================================================="));
 }
