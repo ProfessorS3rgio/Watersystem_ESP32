@@ -37,6 +37,7 @@ WorkflowState currentState = STATE_WELCOME;
 String inputBuffer = "";          // Buffer for numeric input
 int selectedCustomerIndex = -1;   // Index of selected customer
 unsigned long currentReading = 0; // Current meter reading from keypad
+unsigned long correctPreviousReading = 0; // Correct previous reading for validation
 
 // ===== DISPLAY FUNCTIONS FOR WORKFLOW =====
 
@@ -187,6 +188,8 @@ void displayCustomerInfo() {
     }
   }
   
+  correctPreviousReading = displayPrevReading;
+  
   tft.setTextColor(COLOR_LABEL);
   tft.setCursor(2, 64);
   tft.print(F("Prev: "));
@@ -293,6 +296,8 @@ void displayBillCalculated() {
   
   // Generate bill using customer type logic
   bool billGenerated = generateBillForCustomer(cust->account_no, currentReading);
+  Serial.print(F("Bill generated: "));
+  Serial.println(billGenerated ? F("Success") : F("Failed"));
   if (!billGenerated) {
     // Handle error - customer not found or invalid
     tft.setTextColor(ST77XX_RED);
@@ -314,6 +319,13 @@ void displayBillCalculated() {
       Serial.println(F("Failed to save temp reading date"));
     }
   }
+  
+  Serial.print(F("Customer: "));
+  Serial.println(currentBill.customerName);
+  Serial.print(F("Usage: "));
+  Serial.println(currentBill.usage);
+  Serial.print(F("Total: P"));
+  Serial.println(currentBill.total, 2);
   
   tft.setTextColor(COLOR_HEADER);
   tft.setTextSize(1);
@@ -403,6 +415,8 @@ void processAccountNumberEntry() {
     
     Serial.print(F("Account found: "));
     Serial.println(currentCustomer->customer_name);
+    Serial.print(F("Correct previous reading: "));
+    Serial.println(correctPreviousReading);
   } else {
     // Account not found - show error and stay in entry mode
     tft.fillScreen(COLOR_BG);
@@ -423,7 +437,10 @@ void processAccountNumberEntry() {
 void processReadingEntry() {
   currentReading = inputBuffer.toInt();
   
-  if (currentReading <= currentCustomer->previous_reading) {
+  Serial.print(F("Entered reading: "));
+  Serial.println(currentReading);
+  
+  if (currentReading <= correctPreviousReading) {
     // Invalid reading - must be higher than previous
     tft.fillScreen(COLOR_BG);
     tft.setTextColor(ST77XX_RED);

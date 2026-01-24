@@ -19,6 +19,6 @@ class DatabaseSeeder extends Seeder
         $this->call(BarangaySequenceSeeder::class);
         $this->call(CustomerTypeSeeder::class);
         $this->call(DeductionSeeder::class);
-        $this->call(CustomerSeeder::class);
+        // $this->call(CustomerSeeder::class);
     }
 }
