@@ -15,12 +15,7 @@ void generateTestReadingsAndBills(int count) {
   Serial.print(count);
   Serial.println(F(" test readings and bills..."));
 
-  if (allCustomers.empty()) {
-    Serial.println(F("Loading all customers for test..."));
-    loadAllCustomers();
-  }
-
-  int customerCount = allCustomers.size();
+  int customerCount = getCustomerCount();
   if (customerCount == 0) {
     Serial.println(F("No customers found!"));
     return;
@@ -29,18 +24,24 @@ void generateTestReadingsAndBills(int count) {
   int successCount = 0;
 
   for (int i = 0; i < count; i++) {
-    // Select random customer
-    int index = random(0, customerCount);
-    Customer* c = &allCustomers[index];
+    // Select random customer account
+    String account = getRandomAccountNo();
+    if (account == "") continue;
+
+    // Get previous reading
+    unsigned long prev = getPreviousReadingForAccount(account);
 
     // Generate random current reading (previous + 1 to 100 m3)
-    unsigned long prev = c->previous_reading;
     unsigned long curr = prev + random(1, 101); // 1-100 m3 usage
 
     // Generate bill (this also handles creating/updating the reading)
-    bool billGenerated = generateBillForCustomer(c->account_no, curr);
+    bool billGenerated = generateBillForCustomer(account, curr);
     if (billGenerated) {
       successCount++;
+      Serial.print(F("Heap after insert "));
+      Serial.print(i + 1);
+      Serial.print(F(": "));
+      Serial.println(ESP.getFreeHeap());
     }
 
     // Progress indicator
@@ -49,6 +50,9 @@ void generateTestReadingsAndBills(int count) {
       Serial.print(i + 1);
       Serial.println(F("..."));
     }
+
+    // Yield to prevent watchdog reset
+    YIELD_WDT();
   }
 
   Serial.print(F("Successfully generated "));

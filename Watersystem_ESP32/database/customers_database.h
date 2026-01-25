@@ -29,6 +29,66 @@ struct Customer {
 Customer* currentCustomer = nullptr;  // Single customer loaded on demand
 std::vector<Customer> allCustomers;  // For test data generation
 
+// ===== GET CUSTOMER COUNT =====
+int getCustomerCount() {
+  const char* sql = "SELECT COUNT(*) FROM customers;";
+  sqlite3_stmt* stmt;
+  int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+  if (rc != SQLITE_OK) {
+    Serial.print(F("Failed to prepare getCustomerCount: "));
+    Serial.println(sqlite3_errmsg(db));
+    return 0;
+  }
+  rc = sqlite3_step(stmt);
+  int count = 0;
+  if (rc == SQLITE_ROW) {
+    count = sqlite3_column_int(stmt, 0);
+  }
+  sqlite3_finalize(stmt);
+  return count;
+}
+
+// ===== GET RANDOM ACCOUNT NO =====
+static String getRandomAccountNo() {
+  int count = getCustomerCount();
+  if (count == 0) return "";
+  int offset = random(0, count);
+  const char* sql = "SELECT account_no FROM customers LIMIT 1 OFFSET ?;";
+  sqlite3_stmt* stmt;
+  int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+  if (rc != SQLITE_OK) {
+    Serial.print(F("Failed to prepare getRandomAccountNo: "));
+    Serial.println(sqlite3_errmsg(db));
+    return "";
+  }
+  sqlite3_bind_int(stmt, 1, offset);
+  rc = sqlite3_step(stmt);
+  String account = "";
+  if (rc == SQLITE_ROW) {
+    account = String((const char*)sqlite3_column_text(stmt, 0));
+  }
+  sqlite3_finalize(stmt);
+  return account;
+}
+
+// ===== GET PREVIOUS READING FOR ACCOUNT =====
+static unsigned long getPreviousReadingForAccount(String account) {
+  const char* sql = "SELECT previous_reading FROM customers WHERE account_no = ?;";
+  sqlite3_stmt* stmt;
+  int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+  if (rc != SQLITE_OK) {
+    return 0;
+  }
+  sqlite3_bind_text(stmt, 1, account.c_str(), -1, SQLITE_STATIC);
+  rc = sqlite3_step(stmt);
+  unsigned long prev = 0;
+  if (rc == SQLITE_ROW) {
+    prev = (unsigned long)sqlite3_column_int64(stmt, 0);
+  }
+  sqlite3_finalize(stmt);
+  return prev;
+}
+
 // ===== LOAD ALL CUSTOMERS =====
 static int loadCustomerCallback(void *data, int argc, char **argv, char **azColName) {
   Customer c;
@@ -44,6 +104,8 @@ static int loadCustomerCallback(void *data, int argc, char **argv, char **azColN
   c.created_at = argv[9];
   c.updated_at = argv[10];
   allCustomers.push_back(c);
+  // Yield to prevent watchdog reset during loading
+  YIELD_WDT();
   return 0;
 }
 
@@ -159,39 +221,4 @@ bool removeCustomerByAccount(const String& accountNumber) {
   }
   return false;
 }
-
-// ===== GET CUSTOMER COUNT =====
-int getCustomerCount() {
-  const char* sql = "SELECT COUNT(*) FROM customers;";
-  sqlite3_stmt* stmt;
-  int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
-  if (rc != SQLITE_OK) return 0;
-  int count = 0;
-  if (sqlite3_step(stmt) == SQLITE_ROW) {
-    count = sqlite3_column_int(stmt, 0);
-  }
-  sqlite3_finalize(stmt);
-  return count;
-}
-
-// ===== GET RANDOM CUSTOMER =====
-Customer* getRandomCustomer() {
-  const char* sql = "SELECT account_no FROM customers ORDER BY RANDOM() LIMIT 1;";
-  sqlite3_stmt* stmt;
-  int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
-  if (rc != SQLITE_OK) return nullptr;
-  String accountNo;
-  if (sqlite3_step(stmt) == SQLITE_ROW) {
-    accountNo = String((const char*)sqlite3_column_text(stmt, 0));
-  }
-  sqlite3_finalize(stmt);
-  if (accountNo.length() > 0) {
-    int index = findCustomerByAccount(accountNo);
-    if (index != -1) {
-      return getCustomerAt(index);
-    }
-  }
-  return nullptr;
-}
-
 #endif  // CUSTOMERS_DATABASE_H
