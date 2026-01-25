@@ -10,40 +10,69 @@
 // Handle EXPORT_READINGS command
 bool handleExportReadings() {
   Serial.println(F("Exporting readings..."));
-  // Load readings if not loaded
-  if (readings.empty()) {
-    loadReadingsFromDB();
+  // Get total count
+  sqlite3_stmt* countStmt;
+  const char* countSql = "SELECT COUNT(*) FROM readings;";
+  int rc = sqlite3_prepare_v2(db, countSql, -1, &countStmt, NULL);
+  if (rc != SQLITE_OK) {
+    Serial.println(F("Failed to prepare count query"));
+    return false;
   }
-  const int CHUNK_SIZE = 10;
-  int totalReadings = readings.size();
+  rc = sqlite3_step(countStmt);
+  int totalReadings = 0;
+  if (rc == SQLITE_ROW) {
+    totalReadings = sqlite3_column_int(countStmt, 0);
+  }
+  sqlite3_finalize(countStmt);
+  const int CHUNK_SIZE = 150;
   int totalChunks = (totalReadings + CHUNK_SIZE - 1) / CHUNK_SIZE;
   Serial.print(F("BEGIN_READINGS_JSON|"));
   Serial.println(totalChunks);
+
+  // Prepare statement for chunked query
+  sqlite3_stmt* stmt;
+  const char* sql = "SELECT reading_id, customer_id, device_uid, previous_reading, current_reading, usage_m3, reading_at FROM readings ORDER BY reading_id LIMIT ? OFFSET ?;";
+  int rc2 = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+  if (rc2 != SQLITE_OK) {
+    Serial.println(F("Failed to prepare readings query"));
+    return false;
+  }
+
   for (int chunk = 0; chunk < totalChunks; ++chunk) {
     Serial.printf("Heap free before chunk %d: %d\n", chunk, ESP.getFreeHeap());
-    int start = chunk * CHUNK_SIZE;
-    int end = min(start + CHUNK_SIZE, totalReadings);
-    DynamicJsonDocument doc(16384);
+    int offset = chunk * CHUNK_SIZE;
+    sqlite3_bind_int(stmt, 1, CHUNK_SIZE);
+    sqlite3_bind_int(stmt, 2, offset);
+
+    DynamicJsonDocument doc(65536);  // Larger doc for 150 items
     JsonArray arr = doc.to<JsonArray>();
-    for (int i = start; i < end; ++i) {
-      const auto& r = readings[i];
+
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
       JsonObject obj = arr.createNestedObject();
-      obj["reading_id"] = r.reading_id;
-      obj["customer_id"] = r.customer_id;
-      obj["device_uid"] = r.device_uid;
-      obj["previous_reading"] = r.previous_reading;
-      obj["current_reading"] = r.current_reading;
-      obj["usage_m3"] = r.usage_m3;
-      obj["reading_at"] = r.reading_at.toInt();
+      obj["reading_id"] = (int)sqlite3_column_int(stmt, 0);
+      obj["customer_id"] = (int)sqlite3_column_int(stmt, 1);
+      obj["device_uid"] = String((const char*)sqlite3_column_text(stmt, 2));
+      obj["previous_reading"] = (unsigned long)sqlite3_column_int64(stmt, 3);
+      obj["current_reading"] = (unsigned long)sqlite3_column_int64(stmt, 4);
+      obj["usage_m3"] = (unsigned long)sqlite3_column_int64(stmt, 5);
+      obj["reading_at"] = (unsigned long)sqlite3_column_int64(stmt, 6);
     }
+
     Serial.print(F("READINGS_CHUNK|"));
     Serial.print(chunk);
     Serial.print(F("|"));
     serializeJson(arr, Serial);
     Serial.println();
     doc.clear();
+
+    // Reset statement for next chunk
+    sqlite3_reset(stmt);
+    sqlite3_clear_bindings(stmt);
+
     Serial.printf("Heap free after chunk %d: %d\n", chunk, ESP.getFreeHeap());
   }
+
+  sqlite3_finalize(stmt);
   Serial.println(F("END_READINGS_JSON"));
   return true;
 }

@@ -63,6 +63,8 @@ struct Bill {
 // ===== BILL DATABASE =====
 std::vector<Bill> bills;
 BillData currentBill; // Global for current bill display
+// Bulk insert mode: when true, avoid adding generated bills to the in-memory `bills` vector
+bool g_bulkInsertMode = false;
 
 static int loadBillCallback(void *data, int argc, char **argv, char **azColName) {
   Bill b;
@@ -157,7 +159,7 @@ bool saveBillToDB(Bill bill) {
   char sql[1024];
   sprintf(sql, "INSERT INTO bills (reference_number, customer_id, reading_id, device_uid, bill_date, rate_per_m3, charges, penalty, total_due, status, created_at, updated_at) VALUES ('%s', %d, %d, '%s', '%s', %f, %f, %f, %f, '%s', datetime('now'), datetime('now'));",
           bill.reference_number.c_str(), bill.customer_id, bill.reading_id, bill.device_uid.c_str(), bill.bill_date.c_str(), bill.rate_per_m3, bill.charges, bill.penalty, bill.total_due, bill.status.c_str());
-  Serial.println(sql);
+  // Serial.println(sql);  // Commented out to save heap memory
   int rc = sqlite3_exec(db, sql, NULL, NULL, NULL);
   Serial.print(F("Bill save result: "));
   Serial.println(rc == SQLITE_OK ? "OK" : "FAILED");
@@ -306,7 +308,7 @@ void updateExistingBill(int customerId, int readingId, float charges, float tota
   Serial.print(F(", reading "));
   Serial.println(readingId);
   String query = "UPDATE bills SET charges = " + String(charges, 2) + ", total_due = " + String(totalDue, 2) + ", rate_per_m3 = " + String(rate, 2) + ", updated_at = datetime('now') WHERE customer_id = " + String(customerId) + " AND reading_id = " + String(readingId) + ";";
-  Serial.println(query);
+  // Serial.println(query);  // Commented out to save heap memory
   sqlite3_exec(db, query.c_str(), NULL, NULL, NULL);
 }
 
@@ -442,11 +444,15 @@ bool generateBillForCustomer(String accountNo, unsigned long currentReading) {
 
     // Save bill to DB
     if (saveBillToDB(bill)) {
-      bills.push_back(bill);
-      Serial.println(F("New bill created successfully"));
+      if (!g_bulkInsertMode) {
+        bills.push_back(bill);
+        Serial.println(F("New bill created successfully"));
+      }
       return true;
     } else {
-      Serial.println(F("Failed to save new bill"));
+      if (!g_bulkInsertMode) {
+        Serial.println(F("Failed to save new bill"));
+      }
       return false;
     }
   }

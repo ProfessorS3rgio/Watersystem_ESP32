@@ -35,7 +35,7 @@ export function useSyncBills() {
       exportReject.value = reject
       exportTimeoutId.value = setTimeout(() => {
         finishExport(new Error('Timed out waiting for device export'))
-      }, 12000)
+      }, 60000)
     })
 
     await sendLine('EXPORT_BILLS')

@@ -63,7 +63,7 @@ void saveReadingToDB(int customer_id, unsigned long previous_reading, unsigned l
   String deviceUID = getDeviceUID();
   String timestamp = String(deviceEpochNow());
   sprintf(sql, "INSERT INTO readings (customer_id, device_uid, previous_reading, current_reading, usage_m3, reading_at, created_at, updated_at) VALUES (%d, '%s', %lu, %lu, %lu, '%s', datetime('now'), datetime('now'));", customer_id, deviceUID.c_str(), previous_reading, current_reading, usage_m3, timestamp.c_str());
-  Serial.println(sql);
+  // Serial.println(sql);  // Commented out to save heap memory
   int rc = sqlite3_exec(db, sql, NULL, NULL, NULL);
   Serial.print(F("Reading save result: "));
   Serial.println(rc == SQLITE_OK ? "OK" : "FAILED");

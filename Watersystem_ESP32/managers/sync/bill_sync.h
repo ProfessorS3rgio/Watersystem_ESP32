@@ -172,7 +172,7 @@ bool handleUpsertBillsJsonChunk(String payload) {
 // Handle EXPORT_BILLS command
 bool handleExportBills() {
   Serial.println(F("Exporting bills..."));
-  const int CHUNK_SIZE = 10;
+  const int CHUNK_SIZE = 150;
   int totalBills = getTotalBills();
   int totalChunks = (totalBills + CHUNK_SIZE - 1) / CHUNK_SIZE;
   Serial.print(F("BEGIN_BILLS_JSON|"));
@@ -181,7 +181,7 @@ bool handleExportBills() {
   for (int chunk = 0; chunk < totalChunks; ++chunk) {
     Serial.printf("Heap free before chunk %d: %d\n", chunk, ESP.getFreeHeap());
     std::vector<Bill> billsChunk = getBillsChunk(offset, CHUNK_SIZE);
-    DynamicJsonDocument doc(32768);
+    DynamicJsonDocument doc(65536);
     JsonArray arr = doc.to<JsonArray>();
     for (const auto& b : billsChunk) {
       JsonObject obj = arr.createNestedObject();
