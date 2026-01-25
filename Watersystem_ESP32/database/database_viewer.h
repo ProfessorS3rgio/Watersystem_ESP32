@@ -91,6 +91,24 @@ static int printDeviceInfoCallback(void *data, int argc, char **argv, char **azC
   return 0;
 }
 
+// Bill Transactions callback
+static int printBillTransactionCallback(void *data, int argc, char **argv, char **azColName) {
+  Serial.print(atoi(argv[0])); Serial.print(F(" | "));
+  Serial.print(atoi(argv[1])); Serial.print(F(" | "));
+  Serial.print(argv[2]); Serial.print(F(" | "));
+  Serial.print(argv[3]); Serial.print(F(" | "));
+  Serial.print(argv[4]); Serial.print(F(" | "));
+  Serial.print(argv[5]); Serial.print(F(" | "));
+  Serial.print(atof(argv[6]), 2); Serial.print(F(" | "));
+  Serial.print(atof(argv[7]), 2); Serial.print(F(" | "));
+  Serial.print(atof(argv[8]), 2); Serial.print(F(" | "));
+  Serial.print(argv[9]); Serial.print(F(" | "));
+  Serial.print(argv[10]); Serial.print(F(" | "));
+  Serial.print(atoi(argv[11])); Serial.print(F(" | "));
+  Serial.println(argv[12] ? argv[12] : "NULL");
+  return 0;
+}
+
 // ===== PRINT FUNCTIONS =====
 
 // Function to print bills list
@@ -166,6 +184,16 @@ void printDeviceInfoList() {
   Serial.println(F("================================"));
 }
 
+// Function to print bill transactions list
+void printBillTransactionsList() {
+  Serial.println(F("===== BILL TRANSACTIONS DATABASE ====="));
+  Serial.println(F("ID | BillID | RefNum | Type | Source | Amount | CashRec | Change | TransDate | PayMethod | ProcByDev | Notes"));
+  Serial.println(F("---|--------|--------|------|--------|--------|---------|--------|-----------|----------|----------|------"));
+  const char *sql = "SELECT bill_transaction_id, bill_id, bill_reference_number, type, source, amount, cash_received, change, transaction_date, payment_method, processed_by_device_uid, notes FROM bill_transactions;";
+  sqlite3_exec(db, sql, printBillTransactionCallback, NULL, NULL);
+  Serial.println(F("================================"));
+}
+
 // Function to display all database data via Serial
 void displayAllDatabaseData() {
   Serial.println(F("=== BARANGAYS DATABASE ==="));
@@ -190,6 +218,10 @@ void displayAllDatabaseData() {
 
   Serial.println(F("=== BILLS DATABASE ==="));
   printBillsList();
+  Serial.println();
+
+  Serial.println(F("=== BILL TRANSACTIONS DATABASE ==="));
+  printBillTransactionsList();
   Serial.println();
 
   Serial.println(F("=== DEVICE INFO DATABASE ==="));

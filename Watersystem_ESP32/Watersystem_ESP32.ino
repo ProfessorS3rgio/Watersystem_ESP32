@@ -178,7 +178,7 @@ void setup() {
   Serial.println(F("Watersystem ESP32 ready."));
   Serial.println(F("Use keypad or serial commands:"));
   Serial.println(F("Press D or B on keypad to start entering account"));
-  Serial.println(F("Commands: 'P' = Print sample, 'S' = SD status, 'L' = List customers, 'DD' = List deductions, 'CT' = List customer types, 'R' = List readings, 'B' = List bills, 'DB' = Display all databases, 'DROPDB' = Drop and recreate database"));
+  Serial.println(F("Commands: 'P' = Print sample, 'S' = SD status, 'L' = List customers, 'DD' = List deductions, 'CT' = List customer types, 'R' = List readings, 'B' = List bills, 'BT' = List transactions, 'DB' = Display all databases, 'DROPDB' = Drop and recreate database"));
 #endif
   
   // Show welcome screen on TFT
@@ -270,6 +270,33 @@ void loop() {
       return;
     }
 
+    if (raw == "DROPBT") {
+      Serial.println(F("Dropping bill_transactions table..."));
+      if (db) {
+        sqlite3_exec(db, "DROP TABLE IF EXISTS bill_transactions;", NULL, NULL, NULL);
+        Serial.println(F("Bill transactions table dropped."));
+      } else {
+        Serial.println(F("Database not open."));
+      }
+      return;
+    }
+
+    if (raw == "DROPC") {
+      Serial.println(F("Deleting all customers..."));
+      if (db) {
+        int rc = sqlite3_exec(db, "DELETE FROM customers;", NULL, NULL, NULL);
+        if (rc == SQLITE_OK) {
+          Serial.println(F("All customers deleted."));
+        } else {
+          Serial.print(F("Error deleting customers: "));
+          Serial.println(sqlite3_errmsg(db));
+        }
+      } else {
+        Serial.println(F("Database not open."));
+      }
+      return;
+    }
+
     if (handleSyncCommands(raw)) return;
 
     // ---- Existing console commands ----
@@ -302,6 +329,9 @@ void loop() {
     else if (cmd == "B" || cmd == "BILLS") {
       printBillsList();
     }
+    else if (cmd == "BT" || cmd == "TRANSACTIONS") {
+      printBillTransactionsList();
+    }
     else if (cmd == "R" || cmd == "READINGS") {
       printReadingsList();
     }
@@ -318,7 +348,7 @@ void loop() {
     else if (cmd.length() > 0) {
       Serial.print(F("Unknown: "));
       Serial.println(cmd);
-      Serial.println(F("Commands: P, D, S, L, DD, CT, B, DB, DROPDB, DROPR, DROPB, START"));
+      Serial.println(F("Commands: P, D, S, L, DD, CT, B, BT, DB, DROPDB, DROPR, DROPB, DROPBT, DROPC, START"));
     }
   }
 }

@@ -142,6 +142,8 @@ void handleKeypadInput(char key) {
       tft.setCursor(20, 50);
       tft.println(F("Generating test data..."));
       generateTestReadingsAndBills(1000);
+      // Also generate transactions for existing bills if needed
+      generateTestBillTransactions(1000);
       tft.setCursor(20, 70);
       tft.println(F("Done!"));
       delay(2000);

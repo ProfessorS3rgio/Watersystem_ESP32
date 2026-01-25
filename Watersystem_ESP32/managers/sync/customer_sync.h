@@ -217,7 +217,7 @@ bool handleUpsertNewCustomerJsonChunk(String payload) {
   jsonChunk.replace("\\|", "|");
 
   // Parse the JSON chunk (it's an array of customers)
-  DynamicJsonDocument doc(16384); // 16KB should be enough for 10 customers
+  DynamicJsonDocument doc(65536); // 64KB for up to 150 customers
   Serial.println(F("About to deserialize JSON for new customers"));
   DeserializationError error = deserializeJson(doc, jsonChunk);
   if (error) {
@@ -356,7 +356,7 @@ bool handleUpsertUpdatedCustomerJsonChunk(String payload) {
   jsonChunk.replace("\\|", "|");
 
   // Parse the JSON chunk (it's an array of customers)
-  DynamicJsonDocument doc(16384); // 16KB should be enough for 10 customers
+  DynamicJsonDocument doc(65536); // 64KB for up to 150 customers
   Serial.println(F("About to deserialize JSON for updated customers"));
   DeserializationError error = deserializeJson(doc, jsonChunk);
   if (error) {
