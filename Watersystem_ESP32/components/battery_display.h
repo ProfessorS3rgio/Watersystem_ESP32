@@ -29,12 +29,11 @@ void drawBattery(int x, int y, int level) {
   int fillW = map(level, 0, 100, 0, w - 4);
   tft.fillRoundRect(x + 2, y + 2, fillW, h - 4, radius - 1, color);
 
-  // Percentage (optional, small & subtle)
-  tft.setTextColor(ST77XX_WHITE);
+  // Percentage inside the battery
+  tft.setTextColor(ST77XX_BLACK);
   tft.setTextSize(1);
-  tft.setCursor(x + w + tipW + 6, y + 3);
-  tft.print(level);
-  tft.print('%');
+  tft.setCursor(x + 5, y + 3);
+  tft.printf("%d%%", level);
 }
 
 #endif // BATTERY_DISPLAY_H
