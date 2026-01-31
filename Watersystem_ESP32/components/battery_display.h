@@ -31,7 +31,7 @@ void drawBattery(int x, int y, int level) {
 
   // Percentage inside the battery
   tft.setTextColor(ST77XX_BLACK);
-  tft.setTextSize(1);
+  tft.setTextFont(1);
   tft.setCursor(x + 5, y + 3);
   tft.printf("%d%%", level);
 }
