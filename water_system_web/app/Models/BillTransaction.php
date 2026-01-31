@@ -12,14 +12,19 @@ class BillTransaction extends Model
 
     protected $fillable = [
         'bill_id',
+        'bill_reference_number',
         'type',
+        'source',
         'amount',
         'cash_received',
         'change',
         'transaction_date',
         'payment_method',
         'processed_by_user_id',
-        'notes'
+        'processed_by_device_uid',
+        'notes',
+        'created_at',
+        'updated_at'
     ];
 
     protected $casts = [

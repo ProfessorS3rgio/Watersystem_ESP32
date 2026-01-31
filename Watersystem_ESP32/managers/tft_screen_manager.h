@@ -2,14 +2,15 @@
 #define TFT_SCREEN_MANAGER_H
 
 #include "../configuration/config.h"
+
+// ===== EXTERNAL OBJECTS FROM MAIN .INO =====
+extern TFT_eSPI tft;
+
 #include "../database/customers_database.h"
 #include "../database/bill_database.h"
 #include "components/bmp_display.h"
 #include "components/battery_display.h"
 #include <SD.h>
-
-// ===== EXTERNAL OBJECTS FROM MAIN .INO =====
-extern Adafruit_ST7735 tft;
 
 // ===== EXTERNAL FROM CUSTOMERS DATABASE =====
 extern Customer* currentCustomer;

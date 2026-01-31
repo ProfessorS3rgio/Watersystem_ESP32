@@ -15,7 +15,6 @@ return new class extends Migration
             $table->id('bill_transaction_id');
             $table->unsignedBigInteger('bill_id');
             $table->string('bill_reference_number');
-            $table->string('device_uid');
             $table->enum('type', ['payment', 'void']);
             $table->enum('source', ['Office', 'Device']);
             $table->decimal('amount', 10, 2);
@@ -24,11 +23,11 @@ return new class extends Migration
             $table->dateTime('transaction_date');
             $table->string('payment_method');
             $table->unsignedBigInteger('processed_by_user_id')->nullable();
+            $table->string('processed_by_device_uid')->nullable();
             $table->text('notes')->nullable();
             $table->timestamps();
 
             $table->foreign('bill_id')->references('bill_id')->on('bill');
-            $table->foreign('device_uid')->references('device_uid')->on('device');
             $table->foreign('processed_by_user_id')->references('id')->on('users');
         });
     }

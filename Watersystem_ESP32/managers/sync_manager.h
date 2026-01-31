@@ -17,6 +17,7 @@
 #include "sync/device_sync.h"
 #include "sync/reading_sync.h"
 #include "sync/bill_sync.h"
+#include "sync/bill_transaction_sync.h"
 #include "sync/deduction_sync.h"
 #include "sync/barangay_sync.h"
 #include "sync/customer_type_sync.h"
@@ -50,6 +51,10 @@ bool handleSyncCommands(String raw) {
 
   if (raw == "EXPORT_BILLS") {
     return handleExportBills();
+  }
+
+  if (raw == "EXPORT_BILL_TRANSACTIONS") {
+    return handleExportBillTransactions();
   }
 
   if (raw == "READINGS_SYNCED") {
@@ -93,6 +98,11 @@ bool handleSyncCommands(String raw) {
   if (raw.startsWith("UPSERT_BILLS_JSON_CHUNK|")) {
     String payload = raw.substring(String("UPSERT_BILLS_JSON_CHUNK|").length());
     return handleUpsertBillsJsonChunk(payload);
+  }
+
+  if (raw.startsWith("UPSERT_BILL_TRANSACTIONS_JSON_CHUNK|")) {
+    String payload = raw.substring(String("UPSERT_BILL_TRANSACTIONS_JSON_CHUNK|").length());
+    return handleUpsertBillTransactionsJsonChunk(payload);
   }
 
   if (raw == "RELOAD_SD") {

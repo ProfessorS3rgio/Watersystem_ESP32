@@ -1,5 +1,4 @@
-#include <Adafruit_GFX.h>
-#include <Adafruit_ST7735.h>
+#include <TFT_eSPI.h>
 #include <SPI.h>
 #include <SD.h>
 #include "Adafruit_Thermal.h"
@@ -16,6 +15,7 @@
 #include "database/customer_type_database.h"
 #include "database/barangay_database.h"
 #include "database/database_viewer.h"
+#include "database/bill_transaction_database.h"
 #include "managers/print_manager.h"
 #include "managers/tft_screen_manager.h"
 #include "managers/sdcard_manager.h"
@@ -29,7 +29,7 @@
 
 
 // ===== TFT DISPLAY =====
-Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
+TFT_eSPI tft = TFT_eSPI();
 
 // ===== THERMAL PRINTER =====
 HardwareSerial printerSerial(2);  // Use UART2 on ESP32
@@ -137,8 +137,8 @@ void setup() {
   digitalWrite(TFT_BLK, HIGH);  // Turn on backlight
   
   // Initialize TFT
-  tft.initR(INITR_BLACKTAB);  // For 128x160 ST7735S
-  tft.setRotation(1);          // Landscape mode (160x128)
+  tft.init();  // For ILI9341
+  tft.setRotation(1);          // Landscape mode (320x240)
   tft.fillScreen(COLOR_BG);
 
   // Ensure shared SPI CS pins are in a safe state before SD init
@@ -173,6 +173,9 @@ void setup() {
 
   // Initialize Bills Database
   initBillsDatabase();
+
+  // Initialize Bill Transactions Database
+  initBillTransactionDatabase();
 
 #if WS_SERIAL_VERBOSE
   Serial.println(F("Watersystem ESP32 ready."));

@@ -22,8 +22,8 @@ void drawBattery(int x, int y, int level) {
   int radius = 3;
 
   // Outline
-  tft.drawRoundRect(x, y, w, h, radius, ST77XX_WHITE);
-  tft.fillRoundRect(x + w, y + 4, tipW, h - 8, 2, ST77XX_WHITE);
+  tft.drawRoundRect(x, y, w, h, radius, TFT_WHITE);
+  tft.fillRoundRect(x + w, y + 4, tipW, h - 8, 2, TFT_WHITE);
 
   // Fill
   int fillW = map(level, 0, 100, 0, w - 4);

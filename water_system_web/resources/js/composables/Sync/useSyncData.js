@@ -47,6 +47,7 @@ export function useSyncData() {
     pushBarangaysToDevice,
     syncReadingsFromDevice,
     syncBillsFromDevice,
+    syncBillTransactionsFromDevice,
     pushCustomersToDevice,
     refreshDeviceInfo,
     sendLineDevice,
@@ -137,6 +138,9 @@ export function useSyncData() {
 
       // Sync bills (device -> DB)
       await syncBillsFromDevice()
+
+      // Sync bill transactions (device -> DB)
+      await syncBillTransactionsFromDevice()
 
       // Separate customers into new and updated
       const { newCustomers, updatedCustomers } = separateCustomersBySyncStatus(filteredDbCustomers)

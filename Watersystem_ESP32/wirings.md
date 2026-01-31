@@ -1,17 +1,18 @@
 # ESP32 Watersystem Wiring Guide
 
-## TFT Display (ST7735)
+## TFT Display (2.8" ILI9341)
 
 | TFT Pin | ESP32       | Notes                          |
 |---------|-------------|--------------------------------|
 | VDD     | 3.3V        | Power                          |
 | GND     | GND         | Ground                         |
-| CS      | GPIO 5      | Chip Select                    |
+| CS      | GPIO 15     | Chip Select                    |
 | RST     | GPIO 4      | Reset                          |
 | DC      | GPIO 2      | Data/Command                   |
-| SDA     | GPIO 23     | MOSI (Hardware SPI)            |
-| SCL     | GPIO 18     | CLK (Hardware SPI)             |
-| BLK     | GPIO 15     | Backlight (PWM for sleep mode) |
+| MOSI    | GPIO 13     | MOSI (SPI)                     |
+| SCLK    | GPIO 14     | CLK (SPI)                      |
+| MISO    | GPIO 12     | MISO (SPI)                     |
+| BL      | GPIO 21     | Backlight (PWM for sleep mode) |
 
 ## Thermal Printer (UART2)
 
@@ -22,16 +23,16 @@
 | GND         | GND      | Common ground            |
 | VCC         | 5V-9V    | Printer power supply     |
 
-## SD Card Module (SPI - Shared Bus)
+## SD Card Module (Separate - Dedicated SPI Bus)
 
 | SD Card Pin | ESP32    | Notes                      |
 |-------------|----------|----------------------------|
 | 3V3         | 3.3V     | Power                      |
 | GND         | GND      | Ground                     |
 | CS          | GPIO 22  | Chip Select (dedicated)    |
-| MOSI        | GPIO 23  | Shared with TFT            |
-| CLK         | GPIO 18  | Shared with TFT            |
-| MISO        | GPIO 19  | SD Card data out           |
+| MOSI        | GPIO 23  | MOSI (Default SPI)         |
+| CLK         | GPIO 18  | CLK (Default SPI)          |
+| MISO        | GPIO 19  | MISO (Default SPI)         |
 
 ## 4x4 Matrix Keypad (Direct Wiring)
 
@@ -44,9 +45,9 @@
 | Pin 2 (C1) | GPIO 25  | Column 1                   |
 | Pin 3 (C2) | GPIO 32  | Column 2                   |
 | Pin 4 (C3) | GPIO 33  | Column 3                   |
-| Pin 5 (C4) | GPIO 21  | Column 4                   |
-| Pin 6 (R1) | GPIO 13  | Row 1                      |
-| Pin 7 (R2) | GPIO 14  | Row 2                      |
+| Pin 5 (C4) | GPIO 19  | Column 4                   |
+| Pin 6 (R1) | GPIO 5   | Row 1                      |
+| Pin 7 (R2) | GPIO 18  | Row 2                      |
 | Pin 8 (R3) | GPIO 27  | Row 3                      |
 | Pin 9 (R4) | GPIO 26  | Row 4                      |
 | Pin 10     | -        | NC (Not Connected)         |
@@ -64,19 +65,20 @@
 
 | GPIO | Function              | Peripheral       |
 |------|-----------------------|------------------|
-| 2    | TFT DC                | ST7735 Display   |
-| 4    | TFT RST               | ST7735 Display   |
-| 5    | TFT CS                | ST7735 Display   |
-| 13   | Keypad R1             | 4x4 Keypad       |
-| 14   | Keypad R2             | 4x4 Keypad       |
-| 15   | TFT Backlight         | ST7735 Display   |
+| 2    | TFT DC                | ILI9341 Display  |
+| 4    | TFT RST               | ILI9341 Display  |
+| 5    | Keypad R1             | 4x4 Keypad       |
+| 12   | SPI MISO              | TFT              |
+| 13   | SPI MOSI              | TFT              |
+| 14   | SPI CLK               | TFT              |
+| 15   | TFT CS                | ILI9341 Display  |
 | 16   | UART2 RX              | Thermal Printer  |
 | 17   | UART2 TX              | Thermal Printer  |
-| 18   | SPI CLK               | TFT + SD Card    |
-| 19   | SPI MISO              | SD Card Module   |
-| 21   | Keypad C4             | 4x4 Keypad       |
+| 18   | SPI CLK               | SD Card          |
+| 19   | SPI MISO              | SD Card          |
+| 21   | TFT Backlight         | ILI9341 Display  |
 | 22   | SD Card CS            | SD Card Module   |
-| 23   | SPI MOSI              | TFT + SD Card    |
+| 23   | SPI MOSI              | SD Card          |
 | 25   | Keypad C1             | 4x4 Keypad       |
 | 26   | Keypad R4             | 4x4 Keypad       |
 | 27   | Keypad R3             | 4x4 Keypad       |

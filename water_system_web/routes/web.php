@@ -50,6 +50,7 @@ Route::middleware('auth')->group(function () {
 
     Route::post('/readings/sync', [ReadingController::class, 'sync']);
     Route::post('/bills/sync', [BillController::class, 'sync']);
+    Route::post('/bill-transactions/sync', [BillTransactionController::class, 'sync']);
     Route::post('/devices/sync', [DeviceController::class, 'sync']);
 
     Route::post('/bills/{bill}/mark-paid', [BillController::class, 'markPaid']);

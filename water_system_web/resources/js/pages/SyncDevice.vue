@@ -285,6 +285,7 @@ import { useSyncDeductions } from '../composables/Sync/useSyncDeductions'
 import { useSyncBarangays } from '../composables/Sync/useSyncBarangays'
 import { useSyncReadings } from '../composables/Sync/useSyncReadings'
 import { useSyncBills } from '../composables/Sync/useSyncBills'
+import { useSyncBillTransactions } from '../composables/Sync/useSyncBillTransactions'
 import { useSyncData } from '../composables/Sync/useSyncData'
 import { useSyncController } from '../composables/Sync/useSyncController'
 
@@ -343,6 +344,11 @@ export default {
     } = useSyncBills()
 
     const {
+      syncBillTransactionsFromDevice,
+      handleDeviceLine: handleDeviceLineBillTransactions
+    } = useSyncBillTransactions()
+
+    const {
       isSyncing,
       syncLogs,
       filteredSyncLogs,
@@ -392,6 +398,8 @@ export default {
       handleDeviceLineReadings,
       syncBillsFromDevice,
       handleDeviceLineBills,
+      syncBillTransactionsFromDevice,
+      handleDeviceLineBillTransactions,
       isSyncing,
       syncLogs,
       filteredSyncLogs,
@@ -508,6 +516,7 @@ export default {
         pushBarangaysToDevice: this.pushBarangaysToDevice,
         syncReadingsFromDevice: this.syncReadingsFromDevice,
         syncBillsFromDevice: this.syncBillsFromDevice,
+        syncBillTransactionsFromDevice: this.syncBillTransactionsFromDevice,
         pushCustomersToDevice: this.pushCustomersToDevice,
         refreshDeviceInfo: this.refreshDeviceInfo,
 
@@ -543,6 +552,7 @@ export default {
       this.handleDeviceLineDevice(line)
       this.handleDeviceLineReadings(line)
       this.handleDeviceLineBills(line)
+      this.handleDeviceLineBillTransactions(line)
 
       if (line.startsWith('ERR|')) {
         // Error handling is done in the individual handlers

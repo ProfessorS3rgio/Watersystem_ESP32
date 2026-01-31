@@ -5,7 +5,7 @@
 #include <esp_task_wdt.h>
 
 // ===== EXTERNAL OBJECTS FROM MAIN .INO =====
-extern Adafruit_ST7735 tft;
+extern TFT_eSPI tft;
 
 // ===== PRINTER STATUS TRACKING =====
 volatile bool isPrinting = false;
