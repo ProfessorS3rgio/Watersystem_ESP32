@@ -302,6 +302,23 @@ void loop() {
 
     if (handleSyncCommands(raw)) return;
 
+    // Simulate keypad input if single character matches keypad key
+    if (raw.length() == 1) {
+      char key = raw[0];
+      char validKeys[] = {'1','2','3','A','4','5','6','B','7','8','9','C','*','0','#','D'};
+      bool isValid = false;
+      for (char vk : validKeys) {
+        if (key == vk) {
+          isValid = true;
+          break;
+        }
+      }
+      if (isValid) {
+        handleKeypadInput(key);
+        return;
+      }
+    }
+
     // ---- Existing console commands ----
 
     String cmd = raw;

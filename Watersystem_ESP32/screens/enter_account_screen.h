@@ -10,37 +10,39 @@ extern String inputBuffer;
 void displayEnterAccountScreen() {
   tft.fillScreen(COLOR_BG);
   
+  
+  tft.setFreeFont(&FreeSansBold9pt7b);
   tft.setTextColor(COLOR_HEADER);
-  tft.setTextSize(1);
-  tft.setCursor(20, 10);
+  tft.setCursor(80, 20);
   tft.println(F("ENTER ACCOUNT #"));
   
-  tft.drawLine(0, 20, 160, 20, COLOR_LINE);
+  tft.drawLine(0, 30, 320, 30, COLOR_LINE);
   
+  tft.setFreeFont(&FreeSans9pt7b);
   tft.setTextColor(COLOR_LABEL);
-  tft.setCursor(5, 35);
+  tft.setCursor(20, 50);
   tft.println(F("Account Number:"));
   
   // Input box
-  tft.drawRect(10, 50, 140, 30, COLOR_LINE);
+  tft.drawRect(20, 60, 280, 60, COLOR_LINE);
   
+  tft.setFreeFont(&FreeSans18pt7b);
   tft.setTextColor(COLOR_TEXT);
-  tft.setTextSize(2);
-  tft.setCursor(20, 58);
+  tft.setCursor(55, 100);
   if (inputBuffer.length() > 0) {
     tft.println(inputBuffer);
   } else {
     // Placeholder
     tft.setTextColor(COLOR_LABEL);
-    tft.println(F("___"));
+    tft.println(F("___________"));
   }
   
-  tft.setTextSize(1);
+  tft.setFreeFont(&FreeSans9pt7b);
   tft.setTextColor(COLOR_LABEL);
-  tft.setCursor(10, 100);
-  tft.println(F("D-Confirm B-Clear"));
-  tft.setCursor(32, 112);
-  tft.println(F("C-Cancel"));
+  tft.setCursor(35, 180);
+  tft.println(F("D-Confirm  B-Clear  C-Cancel"));
+  
+
 }
 
 #endif // ENTER_ACCOUNT_SCREEN_H

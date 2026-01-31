@@ -9,35 +9,39 @@ extern TFT_eSPI tft;
 void displayMenuScreen() {
   tft.fillScreen(COLOR_BG);
   
+  // ===== TOP BORDER =====
+  // tft.fillRect(0, 0, 320, 5, TFT_BLUE);
+  
+  tft.setFreeFont(&FreeSansBold9pt7b);
   tft.setTextColor(COLOR_HEADER);
-  tft.setTextSize(1);
-  tft.setCursor(55, 5);
+  tft.setCursor(130, 20);
   tft.println(F("MENU"));
   
-  tft.drawLine(0, 16, 160, 16, COLOR_LINE);
+  tft.drawLine(0, 30, 320, 30, COLOR_LINE);
   
+  tft.setFreeFont(&FreeSans9pt7b);
   tft.setTextColor(COLOR_TEXT);
-  tft.setCursor(10, 25);
+  tft.setCursor(20, 50);
   tft.println(F("1. About"));
-  tft.setCursor(10, 40);
+  tft.setCursor(20, 75);
   tft.println(F("2. Update"));
-  tft.setCursor(10, 55);
+  tft.setCursor(20, 100);
   tft.println(F("3. Bill Rate"));
-  tft.setCursor(10, 70);
+  tft.setCursor(20, 125);
   tft.println(F("4. Restart"));
-  tft.setCursor(10, 85);
+  tft.setCursor(20, 150);
   tft.println(F("5. Printer Test"));
-  tft.setCursor(10, 100);
+  tft.setCursor(20, 175);
   tft.println(F("6. Gen Test Data"));
   
-  tft.drawLine(0, 115, 160, 115, COLOR_LINE);
+  tft.drawLine(0, 200, 320, 200, COLOR_LINE);
   
   tft.setTextColor(COLOR_LABEL);
-  tft.setTextSize(1);
-  tft.setCursor(20, 123);
-  tft.println(F("Press # or press"));
-  tft.setCursor(32, 133);
-  tft.println(F("C to cancel"));
+  tft.setCursor(67, 223);
+  tft.println(F("Press # or C to cancel"));
+  
+  // ===== BOTTOM BORDER =====
+  // tft.fillRect(0, 235, 320, 5, TFT_BLUE);
 }
 
 #endif // MENU_SCREEN_H

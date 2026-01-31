@@ -12,7 +12,7 @@ void showWelcomeScreen() {
   tft.fillScreen(TFT_BLACK);  // Ensure black background
   
   // ===== TOP BORDER =====
-  tft.fillRect(0, 0, 320, 10, TFT_RED);
+  tft.fillRect(0, 0, 320, 5, TFT_BLUE);
   
   // ===== DISPLAY LOGO FROM SD CARD =====
   // Draw logo from BMP file on the left side
@@ -50,7 +50,7 @@ void showWelcomeScreen() {
   tft.println(F("A - Menu   B - Bill   D - Payment"));
   
   // ===== BOTTOM BORDER =====
-  tft.fillRect(0, 230, 320, 10, TFT_RED);
+  tft.fillRect(0, 230, 320, 5, TFT_BLUE);
   
 }
 
