@@ -20,11 +20,11 @@
 // MISO = GPIO 12
 // CLK  = GPIO 14
 
-// ===== SD CARD PINS (SPI - Dedicated Bus) =====
-#define SD_CS     22     // SD Card Chip Select
-// MOSI = GPIO 23 (default SPI)
-// MISO = GPIO 19
-// CLK  = GPIO 18 (default SPI)
+// ===== SD CARD PINS (SPI - Shared Bus with TFT) =====
+#define SD_CS     5      // SD Card Chip Select (shared SPI bus)
+// MOSI = GPIO 13 (shared)
+// MISO = GPIO 12 (shared)
+// CLK  = GPIO 14 (shared)
 
 // ===== THERMAL PRINTER PINS (UART2) =====
 #define PRINTER_RX  16   // ESP32 RX <- Printer TX
@@ -56,6 +56,7 @@
 #define DB_ROOT         "/WATER_DB"
 #define DB_ASSETS       "/WATER_DB/ASSETS"
 #define DB_PATH         "/sd/watersystem.db"
+#define DEVICE_INFO_FILE "/WATER_DB/device_info.psv"
 #define YIELD_WDT() vTaskDelay(1)
 
 #include <sqlite3.h>

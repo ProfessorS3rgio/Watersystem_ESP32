@@ -5,6 +5,7 @@
 #include "../managers/sdcard_manager.h"
 #include "device_info.h"
 #include <sqlite3.h>
+#include <SD.h>
 
 void createAllTables();
 void initializeDefaultDevice();

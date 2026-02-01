@@ -2,7 +2,10 @@
 #define SDCARD_MANAGER_H
 
 #include <SD.h>
+#include <TFT_eSPI.h>
 #include "../configuration/config.h"
+
+extern TFT_eSPI tft;
 
 // Global SD card status
 bool sdCardPresent = false;
@@ -20,6 +23,7 @@ void initSDCard();
 void initSDCardDatabase();
 void checkSDCardStatus();
 bool isSDCardReady();
+bool ensureSdMounted();
 
 // ===== SD CARD INITIALIZATION =====
 void initSDCard() {
@@ -28,9 +32,12 @@ void initSDCard() {
 #endif
   
   // Deselect TFT before initializing SD
+  pinMode(TFT_CS, OUTPUT);
+  pinMode(SD_CS, OUTPUT);
   digitalWrite(TFT_CS, HIGH);
+  digitalWrite(SD_CS, HIGH);
   
-  if (!SD.begin(SD_CS)) {
+  if (!SD.begin(SD_CS, tft.getSPIinstance())) {
     Serial.println(F("SD card initialization failed!"));
     Serial.println(F("Check: 1) Card inserted? 2) Wiring correct? 3) Card formatted as FAT32?"));
     sdCardPresent = false;
@@ -161,9 +168,12 @@ void checkSDCardStatus() {
   Serial.println(F("===== SD Card Status ====="));
   
   // Try to reinitialize to check current status
+  pinMode(TFT_CS, OUTPUT);
+  pinMode(SD_CS, OUTPUT);
   digitalWrite(TFT_CS, HIGH);
+  digitalWrite(SD_CS, HIGH);
   
-  if (!SD.begin(SD_CS)) {
+  if (!SD.begin(SD_CS, tft.getSPIinstance())) {
     Serial.println(F("Status: NOT CONNECTED or NO CARD"));
     sdCardPresent = false;
   } else {
@@ -197,6 +207,29 @@ void checkSDCardStatus() {
 
 // ===== SD CARD STATUS QUERY =====
 bool isSDCardReady() {
+  return sdCardPresent;
+}
+
+// Ensure SD is mounted (shared SPI bus with TFT)
+bool ensureSdMounted() {
+  pinMode(TFT_CS, OUTPUT);
+  pinMode(SD_CS, OUTPUT);
+  digitalWrite(TFT_CS, HIGH);
+  digitalWrite(SD_CS, HIGH);
+
+  if (sdCardPresent && SD.cardType() != CARD_NONE) {
+    return true;
+  }
+
+  if (!SD.begin(SD_CS, tft.getSPIinstance())) {
+    Serial.println(F("[SD_MGR] ERROR: SD.begin() failed in ensureSdMounted!"));
+    sdCardPresent = false;
+    return false;
+  }
+  sdCardPresent = (SD.cardType() != CARD_NONE);
+  if (!sdCardPresent) {
+    Serial.println(F("[SD_MGR] ERROR: SD card type is CARD_NONE!"));
+  }
   return sdCardPresent;
 }
 

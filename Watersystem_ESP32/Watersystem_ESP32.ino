@@ -59,6 +59,133 @@ static bool checkPrinterCommunication(uint16_t timeoutMs = 250) {
   return false;
 }
 
+// Function to print device info from PSV file - must be in main .ino for SD access
+void printDeviceInfoFromPSV() {
+  Serial.println(F("===== DEVICE INFO (PSV FILE) ====="));
+  Serial.println(F("Key                | Value"));
+  Serial.println(F("-------------------|-------"));
+
+  if (!isSDCardReady()) {
+    Serial.println(F("SD card not ready"));
+    Serial.println(F("================================"));
+    return;
+  }
+
+  File file = SD.open(DEVICE_INFO_FILE, FILE_READ);
+  if (!file) {
+    Serial.println(F("Device info file not found"));
+    Serial.println(F("================================"));
+    return;
+  }
+
+  while (file.available()) {
+    String line = file.readStringUntil('\n');
+    line.trim();
+    if (line.length() == 0) continue;
+    int sep = line.indexOf('|');
+    if (sep != -1) {
+      String key = line.substring(0, sep);
+      String value = line.substring(sep + 1);
+      // Pad key to 19 chars
+      while (key.length() < 19) key += " ";
+      Serial.print(key);
+      Serial.print(F(" | "));
+      Serial.println(value);
+    }
+  }
+  file.close();
+  Serial.println(F("================================"));
+}
+
+// Test function to insert data into SQLite - must be in main .ino for testing
+static int testPrintCallback(void *data, int argc, char **argv, char **azColName) {
+  for (int i = 0; i < argc; i++) {
+    Serial.print(azColName[i]);
+    Serial.print(F(" = "));
+    Serial.print(argv[i] ? argv[i] : "NULL");
+    if (i < argc - 1) Serial.print(F(", "));
+  }
+  Serial.println();
+  return 0;
+}
+
+void testSQLiteInMain() {
+  Serial.println(F("\n===== SQLITE TEST IN MAIN .INO ====="));
+  
+  if (!db) {
+    Serial.println(F("ERROR: Database not open!"));
+    return;
+  }
+  
+  // Create test table
+  Serial.println(F("Creating test table..."));
+  const char* createSQL = "CREATE TABLE IF NOT EXISTS test_table ("
+                          "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                          "name TEXT NOT NULL, "
+                          "value INTEGER, "
+                          "created_at DATETIME DEFAULT CURRENT_TIMESTAMP);";
+  
+  char *errMsg = nullptr;
+  int rc = sqlite3_exec(db, createSQL, NULL, NULL, &errMsg);
+  if (rc != SQLITE_OK) {
+    Serial.print(F("ERROR creating table: "));
+    Serial.println(errMsg);
+    sqlite3_free(errMsg);
+    return;
+  }
+  Serial.println(F("Table created successfully!"));
+  
+  // Insert test data
+  Serial.println(F("\nInserting test data..."));
+  const char* insertSQL[] = {
+    "INSERT INTO test_table (name, value) VALUES ('Test 1', 100);",
+    "INSERT INTO test_table (name, value) VALUES ('Test 2', 200);",
+    "INSERT INTO test_table (name, value) VALUES ('Test 3', 300);",
+    NULL
+  };
+  
+  for (int i = 0; insertSQL[i] != NULL; i++) {
+    rc = sqlite3_exec(db, insertSQL[i], NULL, NULL, &errMsg);
+    if (rc != SQLITE_OK) {
+      Serial.print(F("ERROR inserting row "));
+      Serial.print(i + 1);
+      Serial.print(F(": "));
+      Serial.println(errMsg);
+      sqlite3_free(errMsg);
+    } else {
+      Serial.print(F("Row "));
+      Serial.print(i + 1);
+      Serial.println(F(" inserted successfully!"));
+    }
+  }
+  
+  // Read back the data
+  Serial.println(F("\nReading test data..."));
+  Serial.println(F("ID | Name   | Value | Created At"));
+  Serial.println(F("---|--------|-------|------------"));
+  
+  const char* selectSQL = "SELECT id, name, value, created_at FROM test_table;";
+  rc = sqlite3_exec(db, selectSQL, testPrintCallback, NULL, &errMsg);
+  if (rc != SQLITE_OK) {
+    Serial.print(F("ERROR reading data: "));
+    Serial.println(errMsg);
+    sqlite3_free(errMsg);
+  }
+  
+  // Clean up - drop test table
+  Serial.println(F("\nCleaning up (dropping test table)..."));
+  rc = sqlite3_exec(db, "DROP TABLE test_table;", NULL, NULL, &errMsg);
+  if (rc != SQLITE_OK) {
+    Serial.print(F("ERROR dropping table: "));
+    Serial.println(errMsg);
+    sqlite3_free(errMsg);
+  } else {
+    Serial.println(F("Test table dropped successfully!"));
+  }
+  
+  Serial.println(F("===== TEST COMPLETE =====\n"));
+}
+
 static void showBootScreen() {
   tft.fillScreen(COLOR_BG);
   tft.setTextSize(1);
@@ -157,25 +284,87 @@ void setup() {
   initReadingsDatabase();
 
   // Initialize Device Info (about/last sync/print count)
+  Serial.println(F("\n[SETUP] Checking for old test file..."));
+  if (SD.exists(DEVICE_INFO_FILE)) {
+    if (SD.remove(DEVICE_INFO_FILE)) {
+      Serial.println(F("[SETUP] Removed old test file"));
+    }
+  }
   initDeviceInfo();
 
-  // Initialize Customers Database
-  initCustomersDatabase();
+  // DEBUG: Test reading device info file in setup
+  Serial.println(F("\n[SETUP DEBUG] Testing device info file read..."));
+  if (ensureSdMounted()) {
+    Serial.println(F("[SETUP] SD mounted OK"));
+    if (SD.exists(DEVICE_INFO_FILE)) {
+      Serial.print(F("[SETUP] File exists: "));
+      Serial.println(DEVICE_INFO_FILE);
+      File f = SD.open(DEVICE_INFO_FILE, FILE_READ);
+      if (f) {
+        Serial.println(F("[SETUP] File opened successfully!"));
+        Serial.println(F("[SETUP] File contents:"));
+        int lines = 0;
+        while (f.available()) {
+          String line = f.readStringUntil('\n');
+          line.trim();
+          if (line.length() > 0) {
+            Serial.print(F("[SETUP] "));
+            Serial.println(line);
+            lines++;
+          }
+        }
+        f.close();
+        Serial.print(F("[SETUP] Total lines: "));
+        Serial.println(lines);
+      } else {
+        Serial.println(F("[SETUP] ERROR: Could not open file!"));
+      }
+    } else {
+      Serial.print(F("[SETUP] ERROR: File does not exist: "));
+      Serial.println(DEVICE_INFO_FILE);
+      Serial.println(F("[SETUP] Listing /WATER_DB directory:"));
+      File db_dir = SD.open(DB_ROOT);
+      if (db_dir && db_dir.isDirectory()) {
+        File file = db_dir.openNextFile();
+        int count = 0;
+        while (file) {
+          Serial.print(F("[SETUP] - "));
+          Serial.println(file.name());
+          count++;
+          file = db_dir.openNextFile();
+        }
+        db_dir.close();
+        Serial.print(F("[SETUP] Files in /WATER_DB: "));
+        Serial.println(count);
+      } else {
+        Serial.println(F("[SETUP] /WATER_DB directory not found!"));
+      }
+    }
+  } else {
+    Serial.println(F("[SETUP] ERROR: Could not mount SD card!"));
+  }
+  Serial.println(F("[SETUP] Device info debug complete.\n"));
 
-  // Initialize Deductions Database
-  initDeductionsDatabase();
+  // Test SQLite in main .ino file
+  testSQLiteInMain();
 
-  // Initialize Barangays Database
-  initBarangaysDatabase();
+  // // Initialize Customers Database
+  // initCustomersDatabase();
 
-  // Initialize Customer Types Database
-  initCustomerTypesDatabase();
+  // // Initialize Deductions Database
+  // initDeductionsDatabase();
 
-  // Initialize Bills Database
-  initBillsDatabase();
+  // // Initialize Barangays Database
+  // initBarangaysDatabase();
 
-  // Initialize Bill Transactions Database
-  initBillTransactionDatabase();
+  // // Initialize Customer Types Database
+  // initCustomerTypesDatabase();
+
+  // // Initialize Bills Database
+  // initBillsDatabase();
+
+  // // Initialize Bill Transactions Database
+  // initBillTransactionDatabase();
 
 #if WS_SERIAL_VERBOSE
   Serial.println(F("Watersystem ESP32 ready."));
@@ -365,10 +554,14 @@ void loop() {
       Serial.println(F("Displaying all database data..."));
       displayAllDatabaseData();
     }
+    else if (cmd == "TESTDB") {
+      Serial.println(F("Testing SQLite in main .ino..."));
+      testSQLiteInMain();
+    }
     else if (cmd.length() > 0) {
       Serial.print(F("Unknown: "));
       Serial.println(cmd);
-      Serial.println(F("Commands: P, D, S, L, DD, CT, B, BT, DB, DROPDB, DROPR, DROPB, DROPBT, DROPC, START"));
+      Serial.println(F("Commands: P, D, S, L, DD, CT, B, BT, DB, TESTDB, DROPDB, DROPR, DROPB, DROPBT, DROPC, START"));
     }
   }
 }

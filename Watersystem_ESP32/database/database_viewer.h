@@ -4,6 +4,7 @@
 #include <Arduino.h>
 #include <sqlite3.h>
 #include "database_manager.h"
+#include <SD.h>
 
 // ===== CALLBACK FUNCTIONS FOR PRINTING =====
 
@@ -171,17 +172,14 @@ void printBarangaysList() {
   Serial.println(F("================================"));
 }
 
-// Function to print device info list
-void printDeviceInfoList() {
-  // Ensure default values exist
-  initializeDefaultDevice();
+// Forward declaration - actual implementation in main .ino file
+extern void printDeviceInfoFromPSV();
 
-  Serial.println(F("===== DEVICE INFO DATABASE ====="));
-  Serial.println(F("BrgyID | DeviceMAC          | DeviceUID          | Firmware | Name             | PrintCnt | CustCnt | LastSync | Created | Updated"));
-  Serial.println(F("-------|---------------------|---------------------|----------|------------------|---------|--------|----------|---------|--------"));
-  const char *sql = "SELECT brgy_id, device_mac, device_uid, firmware_version, device_name, print_count, customer_count, last_sync, created_at, updated_at FROM device_info;";
-  sqlite3_exec(db, sql, printDeviceInfoCallback, NULL, NULL);
-  Serial.println(F("================================"));
+// Function to print device info list - calls main .ino function
+void printDeviceInfoList() {
+  // Call the function in main .ino where SD was initialized
+  // This avoids SD library access issues from included header files
+  printDeviceInfoFromPSV();
 }
 
 // Function to print bill transactions list
@@ -196,6 +194,10 @@ void printBillTransactionsList() {
 
 // Function to display all database data via Serial
 void displayAllDatabaseData() {
+  Serial.println(F("=== DEVICE INFO DATABASE ==="));
+  printDeviceInfoList();
+  Serial.println();
+
   Serial.println(F("=== BARANGAYS DATABASE ==="));
   printBarangaysList();
   Serial.println();
@@ -222,10 +224,6 @@ void displayAllDatabaseData() {
 
   Serial.println(F("=== BILL TRANSACTIONS DATABASE ==="));
   printBillTransactionsList();
-  Serial.println();
-
-  Serial.println(F("=== DEVICE INFO DATABASE ==="));
-  printDeviceInfoList();
   Serial.println();
 }
 

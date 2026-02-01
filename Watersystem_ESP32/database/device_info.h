@@ -4,10 +4,9 @@
 #include <SD.h>
 #include "../configuration/config.h"
 #include "../managers/sdcard_manager.h"
-#include <sqlite3.h>
 
-// Device info now stored in SQLite database table 'device_info'
-// Table: (brgy_id INTEGER, device_mac TEXT UNIQUE, device_uid TEXT, firmware_version TEXT, device_name TEXT, print_count INTEGER, customer_count INTEGER, last_sync TEXT, created_at TEXT, updated_at TEXT)
+// Device info stored in PSV file on SD card: /WATER_DB/device_info.psv
+// Format: key|value per line
 
 static const char* DEVICE_TYPE_VALUE = "ESP32 Water System";
 static const char* FIRMWARE_VERSION_VALUE = "v1.0.0";
@@ -30,68 +29,129 @@ static String getDeviceUID() {
 static uint32_t g_lastSyncEpoch = 0;
 static uint32_t g_printCount = 0;
 
-// Helper functions for DB operations
-static void setDeviceInfoValue(const char* key, const String& value) {
-  if (!db) return;
-  char sql[256];
-  String mac = getDeviceUID();
-  if (strcmp(key, "print_count") == 0) {
-    sprintf(sql, "UPDATE device_info SET print_count = %s, updated_at = datetime('now') WHERE device_mac = '%s';", value.c_str(), mac.c_str());
-  } else if (strcmp(key, "last_sync_epoch") == 0) {
-    sprintf(sql, "UPDATE device_info SET last_sync = '%s', updated_at = datetime('now') WHERE device_mac = '%s';", value.c_str(), mac.c_str());
-  } else {
-    // For other keys, do nothing or handle if needed
-    return;
+static void ensureDeviceInfoDir() {
+  if (!SD.exists(DB_ROOT)) {
+    SD.mkdir(DB_ROOT);
   }
-  sqlite3_exec(db, sql, NULL, NULL, NULL);
 }
 
-static String getDeviceInfoValue(const char* key) {
-  if (!db) return "";
-  if (strcmp(key, "device_id") == 0) return String(DEVICE_ID_VALUE);
-  if (strcmp(key, "brgy_id") == 0) return String(BRGY_ID_VALUE);
-  char sql[128];
-  const char* column = "";
-  if (strcmp(key, "device_mac") == 0) column = "device_mac";
-  else if (strcmp(key, "device_uid") == 0) column = "device_uid";
-  else if (strcmp(key, "firmware_version") == 0) column = "firmware_version";
-  else if (strcmp(key, "device_name") == 0) column = "device_name";
-  else if (strcmp(key, "print_count") == 0) column = "print_count";
-  else if (strcmp(key, "customer_count") == 0) column = "customer_count";
-  else if (strcmp(key, "last_sync_epoch") == 0) column = "last_sync";
-  else return "";
+
+// Helper function to initialize device info file with defaults
+static void initializeDeviceInfoFile() {
+  if (!ensureSdMounted()) return;
   
-  sprintf(sql, "SELECT %s FROM device_info WHERE device_mac = '%s';", column, getDeviceUID().c_str());
-  sqlite3_stmt* stmt;
-  int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
-  if (rc != SQLITE_OK) return "";
+  ensureDeviceInfoDir();
+  
+  // Try to open as READ first to check if it exists
+  File existing = SD.open(DEVICE_INFO_FILE, FILE_READ);
+  if (existing) {
+    Serial.println(F("[DEVICE_INFO] File already exists, skipping creation"));
+    existing.close();
+    return;
+  }
+
+  Serial.println(F("[DEVICE_INFO] Creating new device info file..."));
+  File file = SD.open(DEVICE_INFO_FILE, FILE_WRITE);
+  if (!file) {
+    Serial.println(F("[DEVICE_INFO] ERROR: Could not create file!"));
+    return;
+  }
+
+  file.println("device_id|" + String(DEVICE_ID_VALUE));
+  file.println("brgy_id|" + String(BRGY_ID_VALUE));
+  file.println("device_mac|" + getDeviceUID());
+  file.println("device_uid|" + getDeviceUID());
+  file.println("firmware_version|" + String(FIRMWARE_VERSION_VALUE));
+  file.println("device_name|ESP32 Water Device");
+  file.println("print_count|0");
+  file.println("customer_count|0");
+  file.println("last_sync_epoch|0");
+
+  file.close();
+  Serial.println(F("[DEVICE_INFO] File created successfully"));
+}
+
+// Helper function to read value for a key from file
+static String readDeviceInfoValue(const char* key) {
+  if (!ensureSdMounted()) return "";
+  
+  File file = SD.open(DEVICE_INFO_FILE, FILE_READ);
+  if (!file) return "";
+
   String value = "";
-  if (sqlite3_step(stmt) == SQLITE_ROW) {
-    if (sqlite3_column_type(stmt, 0) == SQLITE_INTEGER) {
-      value = String(sqlite3_column_int(stmt, 0));
-    } else {
-      value = String((const char*)sqlite3_column_text(stmt, 0));
+  while (file.available()) {
+    String line = file.readStringUntil('\n');
+    line.trim();
+    if (line.length() == 0) continue;
+    int sep = line.indexOf('|');
+    if (sep == -1) continue;
+    String k = line.substring(0, sep);
+    if (k == key) {
+      value = line.substring(sep + 1);
+      break;
     }
   }
-  sqlite3_finalize(stmt);
+  file.close();
   return value;
 }
 
-static void loadDeviceInfoFromDB() {
-  if (!db) return;
-  g_lastSyncEpoch = getDeviceInfoValue("last_sync_epoch").toInt();
-  g_printCount = getDeviceInfoValue("print_count").toInt();
-  // Initialize defaults if not set
-  if (g_lastSyncEpoch == 0) {
-    setDeviceInfoValue("last_sync_epoch", "0");
+// Helper function to write value for a key to file
+static void writeDeviceInfoValue(const char* key, const String& value) {
+  if (!ensureSdMounted()) return;
+
+  File file = SD.open(DEVICE_INFO_FILE, FILE_READ);
+  if (!file) return;
+
+  String content = "";
+  bool found = false;
+  while (file.available()) {
+    String line = file.readStringUntil('\n');
+    line.trim();
+    if (line.length() == 0) continue;
+    int sep = line.indexOf('|');
+    if (sep != -1) {
+      String k = line.substring(0, sep);
+      if (k == key) {
+        content += k + "|" + value + "\n";
+        found = true;
+      } else {
+        content += line + "\n";
+      }
+    } else {
+      content += line + "\n";
+    }
   }
-  if (g_printCount == 0) {
-    setDeviceInfoValue("print_count", "0");
+  file.close();
+
+  if (!found) {
+    content += String(key) + "|" + value + "\n";
+  }
+
+  file = SD.open(DEVICE_INFO_FILE, FILE_WRITE);
+  if (file) {
+    file.print(content);
+    file.close();
   }
 }
 
+// Helper functions for DB operations (now file-based)
+static void setDeviceInfoValue(const char* key, const String& value) {
+  writeDeviceInfoValue(key, value);
+}
+
+static String getDeviceInfoValue(const char* key) {
+  return readDeviceInfoValue(key);
+}
+
+static void loadDeviceInfoFromFile() {
+  g_lastSyncEpoch = getDeviceInfoValue("last_sync_epoch").toInt();
+  g_printCount = getDeviceInfoValue("print_count").toInt();
+  // Values are initialized in file, so no need to set defaults here
+}
+
 static void initDeviceInfo() {
-  loadDeviceInfoFromDB();
+  initializeDeviceInfoFile();
+  loadDeviceInfoFromFile();
 }
 
 static void incrementPrintCount() {
