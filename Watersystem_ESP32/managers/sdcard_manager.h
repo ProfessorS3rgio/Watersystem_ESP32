@@ -2,10 +2,12 @@
 #define SDCARD_MANAGER_H
 
 #include <SD.h>
+#include <SPI.h>
 #include <TFT_eSPI.h>
 #include "../configuration/config.h"
 
 extern TFT_eSPI tft;
+static SPIClass spiSD(VSPI);
 
 // Global SD card status
 bool sdCardPresent = false;
@@ -37,7 +39,9 @@ void initSDCard() {
   digitalWrite(TFT_CS, HIGH);
   digitalWrite(SD_CS, HIGH);
   
-  if (!SD.begin(SD_CS, tft.getSPIinstance())) {
+  // Initialize dedicated VSPI for SD with custom pins
+  spiSD.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
+  if (!SD.begin(SD_CS, spiSD)) {
     Serial.println(F("SD card initialization failed!"));
     Serial.println(F("Check: 1) Card inserted? 2) Wiring correct? 3) Card formatted as FAT32?"));
     sdCardPresent = false;
@@ -173,7 +177,9 @@ void checkSDCardStatus() {
   digitalWrite(TFT_CS, HIGH);
   digitalWrite(SD_CS, HIGH);
   
-  if (!SD.begin(SD_CS, tft.getSPIinstance())) {
+  // Ensure VSPI is configured for SD
+  spiSD.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
+  if (!SD.begin(SD_CS, spiSD)) {
     Serial.println(F("Status: NOT CONNECTED or NO CARD"));
     sdCardPresent = false;
   } else {
@@ -217,15 +223,19 @@ bool ensureSdMounted() {
   digitalWrite(TFT_CS, HIGH);
   digitalWrite(SD_CS, HIGH);
 
+  // Already mounted and valid
   if (sdCardPresent && SD.cardType() != CARD_NONE) {
     return true;
   }
 
-  if (!SD.begin(SD_CS, tft.getSPIinstance())) {
+  // Configure VSPI and mount SD
+  spiSD.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
+  if (!SD.begin(SD_CS, spiSD)) {
     Serial.println(F("[SD_MGR] ERROR: SD.begin() failed in ensureSdMounted!"));
     sdCardPresent = false;
     return false;
   }
+
   sdCardPresent = (SD.cardType() != CARD_NONE);
   if (!sdCardPresent) {
     Serial.println(F("[SD_MGR] ERROR: SD card type is CARD_NONE!"));

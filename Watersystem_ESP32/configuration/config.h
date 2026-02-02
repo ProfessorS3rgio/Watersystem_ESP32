@@ -20,11 +20,11 @@
 // MISO = GPIO 12
 // CLK  = GPIO 14
 
-// ===== SD CARD PINS (SPI - Shared Bus with TFT) =====
-#define SD_CS     5      // SD Card Chip Select (shared SPI bus)
-// MOSI = GPIO 13 (shared)
-// MISO = GPIO 12 (shared)
-// CLK  = GPIO 14 (shared)
+// ===== SD CARD PINS (Dedicated SPI - VSPI) =====
+#define SD_CS     25      // SD Card Chip Select
+#define SD_SCK    22      // SD Card Clock
+#define SD_MISO   26      // SD Card Master In Slave Out
+#define SD_MOSI   27      // SD Card Master Out Slave In
 
 // ===== THERMAL PRINTER PINS (UART2) =====
 #define PRINTER_RX  16   // ESP32 RX <- Printer TX

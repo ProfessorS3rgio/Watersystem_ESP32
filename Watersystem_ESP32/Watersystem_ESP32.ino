@@ -532,6 +532,10 @@ void loop() {
     else if (cmd == "DD" || cmd == "DEDUCTIONS") {
       printDeductionsList();
     }
+    else if (cmd == "ADDDED" || cmd == "ADD_DEDUCTION") {
+      insertRandomDeduction();
+      printDeductionsList();
+    }
     else if (cmd == "CT" || cmd == "CUSTOMER_TYPES") {
       printCustomerTypesList();
     }

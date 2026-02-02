@@ -9,6 +9,7 @@
 
 void createAllTables();
 void initializeDefaultDevice();
+void insertRandomDeduction();
 
 void initDatabase() {
   if (!db) {
@@ -85,6 +86,48 @@ void initializeDefaultDevice() {
   sprintf(insert_sql, "INSERT OR REPLACE INTO device_info (brgy_id, device_mac, device_uid, firmware_version, device_name, print_count, customer_count, last_sync, updated_at) VALUES (2, '%s', '%s', 'v1.0.0', 'ESP32 Water System', 0, 0, '0', datetime('now'));", macAddress.c_str(), macAddress.c_str());
   sqlite3_exec(db, insert_sql, NULL, NULL, NULL);
   Serial.println(F("Initialized default device record"));
+}
+
+// Insert a random row into deductions table for testing
+void insertRandomDeduction() {
+  if (!db) {
+    Serial.println(F("ERROR: Database not open!"));
+    return;
+  }
+  if (!isSDCardReady()) {
+    Serial.println(F("ERROR: SD not ready; cannot insert deduction"));
+    return;
+  }
+
+  // Seed randomness lightly
+  randomSeed(millis());
+  const char* types[] = {"percent", "fixed"};
+  int tIndex = random(0, 2);
+  const char* dtype = types[tIndex];
+  float dvalue = (tIndex == 0) ? (float)random(1, 50) : (float)random(10, 500);
+
+  char nameBuf[48];
+  sprintf(nameBuf, "Test Deduction %lu", (unsigned long)random(1000, 9999));
+
+  char sql[256];
+  sprintf(sql,
+          "INSERT INTO deductions (name, type, value, created_at, updated_at) "
+          "VALUES ('%s','%s',%.2f, datetime('now'), datetime('now'));",
+          nameBuf, dtype, dvalue);
+
+  char *errMsg = nullptr;
+  int rc = sqlite3_exec(db, sql, NULL, NULL, &errMsg);
+  if (rc != SQLITE_OK) {
+    Serial.print(F("ERROR inserting deduction: "));
+    if (errMsg) { Serial.println(errMsg); sqlite3_free(errMsg); }
+  } else {
+    Serial.print(F("Inserted deduction: "));
+    Serial.print(nameBuf);
+    Serial.print(F(" ("));
+    Serial.print(dtype);
+    Serial.print(F(", value="));
+    Serial.println(dvalue, 2);
+  }
 }
 
 #endif  // DATABASE_MANAGER_H
