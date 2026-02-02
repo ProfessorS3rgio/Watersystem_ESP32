@@ -115,7 +115,7 @@ void handleKeypadInput(char key) {
     else if (key == '4') {
       // Restart
       tft.fillScreen(COLOR_BG);
-      tft.setTextColor(ST77XX_RED);
+      tft.setTextColor(TFT_RED);
       tft.setCursor(35, 50);
       tft.println(F("Restarting..."));
       delay(1000);

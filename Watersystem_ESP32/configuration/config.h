@@ -11,19 +11,20 @@
 #define WS_SERIAL_VERBOSE 0
 #endif
 
-// ===== TFT DISPLAY PINS (ST7735) =====
-#define TFT_CS    5      // Chip Select
-#define TFT_RST   4      // Reset
-#define TFT_DC    2      // Data/Command
-#define TFT_BLK   15     // Backlight (PWM for sleep mode)
-// SDA (MOSI) = GPIO 23 (hardware SPI)
-// SCL (CLK)  = GPIO 18 (hardware SPI)
+// ===== TFT DISPLAY PINS (ILI9341) =====
+#define TFT_CS    15
+#define TFT_RST   4
+#define TFT_DC    2
+#define TFT_BLK   21
+#define TFT_MOSI  13
+#define TFT_SCLK  14
+#define TFT_MISO  12   // SD card only (safe to define)
 
-// ===== SD CARD PINS (SPI - Shared Bus) =====
+// ===== SD CARD PINS (SPI - Separate Bus) =====
 #define SD_CS     22     // SD Card Chip Select
-// MOSI = GPIO 23 (shared with TFT)
-// MISO = GPIO 19
-// CLK  = GPIO 18 (shared with TFT)
+#define SD_MOSI   23
+#define SD_MISO   19
+#define SD_CLK    18
 
 // ===== THERMAL PRINTER PINS (UART2) =====
 #define PRINTER_RX  16   // ESP32 RX <- Printer TX
@@ -40,12 +41,22 @@
 // Col Pins: GPIO 25, 32, 33, 21 (C1, C2, C3, C4)
 
 // ===== TFT COLORS =====
-#define COLOR_BG      ST77XX_BLACK
-#define COLOR_TEXT    ST77XX_WHITE
-#define COLOR_HEADER  ST77XX_CYAN
-#define COLOR_AMOUNT  ST77XX_GREEN
-#define COLOR_LABEL   ST77XX_YELLOW
-#define COLOR_LINE    ST77XX_BLUE
+#define TFT_BLACK   0x0000
+#define TFT_WHITE   0xFFFF
+#define TFT_RED     0xF800
+#define TFT_GREEN   0x07E0
+#define TFT_BLUE    0x001F
+#define TFT_CYAN    0x07FF
+#define TFT_MAGENTA 0xF81F
+#define TFT_YELLOW  0xFFE0
+#define TFT_ORANGE  0xFD20
+
+#define COLOR_BG      TFT_BLACK
+#define COLOR_TEXT    TFT_WHITE
+#define COLOR_HEADER  TFT_CYAN
+#define COLOR_AMOUNT  TFT_GREEN
+#define COLOR_LABEL   TFT_YELLOW
+#define COLOR_LINE    TFT_BLUE
 
 // ===== LOGO BITMAP =====
 #define LOGO_WIDTH 384

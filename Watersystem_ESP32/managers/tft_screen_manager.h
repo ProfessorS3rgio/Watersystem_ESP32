@@ -4,12 +4,14 @@
 #include "../configuration/config.h"
 #include "../database/customers_database.h"
 #include "../database/bill_database.h"
+#include <Adafruit_ILI9341.h>
+
+// ===== EXTERNAL OBJECTS FROM MAIN .INO =====
+extern Adafruit_ILI9341 tft;
+
 #include "components/bmp_display.h"
 #include "components/battery_display.h"
 #include <SD.h>
-
-// ===== EXTERNAL OBJECTS FROM MAIN .INO =====
-extern Adafruit_ST7735 tft;
 
 // ===== EXTERNAL FROM CUSTOMERS DATABASE =====
 extern Customer* currentCustomer;
@@ -277,7 +279,7 @@ void displayReadingAlreadyDoneScreen() {
     tft.println(cust->customer_name);
   }
 
-  tft.setTextColor(ST77XX_RED);
+  tft.setTextColor(TFT_RED);
   tft.setCursor(10, 62);
   tft.println(F("This month already"));
   tft.setCursor(10, 74);
@@ -302,7 +304,7 @@ void displayBillCalculated() {
   Serial.println(billGenerated ? F("Success") : F("Failed"));
   if (!billGenerated) {
     // Handle error - customer not found or invalid
-    tft.setTextColor(ST77XX_RED);
+    tft.setTextColor(TFT_RED);
     tft.setTextSize(1);
     tft.setCursor(20, 50);
     tft.println(F("Bill generation failed!"));
@@ -422,7 +424,7 @@ void processAccountNumberEntry() {
   } else {
     // Account not found - show error and stay in entry mode
     tft.fillScreen(COLOR_BG);
-    tft.setTextColor(ST77XX_RED);
+    tft.setTextColor(TFT_RED);
     tft.setTextSize(1);
     tft.setCursor(25, 50);
     tft.println(F("Account NOT FOUND"));
@@ -445,7 +447,7 @@ void processReadingEntry() {
   if (currentReading <= correctPreviousReading) {
     // Invalid reading - must be higher than previous
     tft.fillScreen(COLOR_BG);
-    tft.setTextColor(ST77XX_RED);
+    tft.setTextColor(TFT_RED);
     tft.setTextSize(1);
     tft.setCursor(20, 50);
     tft.println(F("Invalid reading!"));
@@ -514,7 +516,7 @@ void showWelcomeScreen() {
   drawBattery(50, 88, 100);  // x, y, battery level (0-100)
   
   // ===== INSTRUCTIONS =====
-  tft.setTextColor(ST77XX_MAGENTA);
+  tft.setTextColor(TFT_MAGENTA);
   tft.setTextSize(1);
   tft.setCursor(20, 115);  // Moved to bottom
   tft.println(F("A-Menu  D/B-Billing"));
@@ -579,7 +581,7 @@ void displayBillOnTFT() {
   tft.setTextColor(COLOR_LABEL);
   tft.setCursor(2, 82);
   tft.print(F("Due: "));
-  tft.setTextColor(ST77XX_RED);
+  tft.setTextColor(TFT_RED);
   tft.println(currentBill.dueDate);
   
   tft.drawLine(0, 94, 160, 94, COLOR_LINE);

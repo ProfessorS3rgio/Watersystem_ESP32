@@ -1,17 +1,17 @@
 # ESP32 Watersystem Wiring Guide
 
-## TFT Display (ST7735)
+## TFT Display (ILI9341)
 
 | TFT Pin | ESP32       | Notes                          |
 |---------|-------------|--------------------------------|
 | VDD     | 3.3V        | Power                          |
 | GND     | GND         | Ground                         |
-| CS      | GPIO 5      | Chip Select                    |
+| CS      | GPIO 15     | Chip Select                    |
 | RST     | GPIO 4      | Reset                          |
 | DC      | GPIO 2      | Data/Command                   |
-| SDA     | GPIO 23     | MOSI (Hardware SPI)            |
-| SCL     | GPIO 18     | CLK (Hardware SPI)             |
-| BLK     | GPIO 15     | Backlight (PWM for sleep mode) |
+| MOSI    | GPIO 13     | MOSI (SPI)                     |
+| SCK     | GPIO 14     | CLK (SPI)                      |
+| BLK     | GPIO 21     | Backlight                      |
 
 ## Thermal Printer (UART2)
 
@@ -22,16 +22,16 @@
 | GND         | GND      | Common ground            |
 | VCC         | 5V-9V    | Printer power supply     |
 
-## SD Card Module (SPI - Shared Bus)
+## SD Card Module (SPI - Separate Bus)
 
 | SD Card Pin | ESP32    | Notes                      |
 |-------------|----------|----------------------------|
 | 3V3         | 3.3V     | Power                      |
 | GND         | GND      | Ground                     |
 | CS          | GPIO 22  | Chip Select (dedicated)    |
-| MOSI        | GPIO 23  | Shared with TFT            |
-| CLK         | GPIO 18  | Shared with TFT            |
-| MISO        | GPIO 19  | SD Card data out           |
+| MOSI        | GPIO 23  | SD SPI                     |
+| CLK         | GPIO 18  | SD SPI                     |
+| MISO        | GPIO 19  | SD SPI                     |
 
 ## 4x4 Matrix Keypad (Direct Wiring)
 

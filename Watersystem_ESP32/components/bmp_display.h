@@ -3,7 +3,6 @@
 
 #include <SD.h>
 #include <Adafruit_GFX.h>
-#include <Adafruit_ST7735.h>
 
 // BMP helper functions
 uint16_t read16(File &f);

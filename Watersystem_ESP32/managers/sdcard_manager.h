@@ -4,6 +4,8 @@
 #include <SD.h>
 #include "../configuration/config.h"
 
+extern SPIClass SPI_SD;
+
 // Global SD card status
 bool sdCardPresent = false;
 
@@ -30,7 +32,9 @@ void initSDCard() {
   // Deselect TFT before initializing SD
   digitalWrite(TFT_CS, HIGH);
   
-  if (!SD.begin(SD_CS)) {
+  SPI_SD.begin(SD_CLK, SD_MISO, SD_MOSI, SD_CS);
+  
+  if (!SD.begin(SD_CS, SPI_SD)) {
     Serial.println(F("SD card initialization failed!"));
     Serial.println(F("Check: 1) Card inserted? 2) Wiring correct? 3) Card formatted as FAT32?"));
     sdCardPresent = false;
@@ -163,7 +167,9 @@ void checkSDCardStatus() {
   // Try to reinitialize to check current status
   digitalWrite(TFT_CS, HIGH);
   
-  if (!SD.begin(SD_CS)) {
+  SPI_SD.begin(SD_CLK, SD_MISO, SD_MOSI, SD_CS);
+  
+  if (!SD.begin(SD_CS, SPI_SD)) {
     Serial.println(F("Status: NOT CONNECTED or NO CARD"));
     sdCardPresent = false;
   } else {

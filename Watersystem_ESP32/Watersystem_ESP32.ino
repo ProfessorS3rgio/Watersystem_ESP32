@@ -1,6 +1,7 @@
 #include <Adafruit_GFX.h>
-#include <Adafruit_ST7735.h>
+#include <Adafruit_ILI9341.h>
 #include <SPI.h>
+SPIClass SPI_SD(VSPI);
 #include <SD.h>
 #include "Adafruit_Thermal.h"
 #include <Keypad.h>
@@ -29,7 +30,7 @@
 
 
 // ===== TFT DISPLAY =====
-Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
+Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC, TFT_MOSI, TFT_SCLK, TFT_RST, TFT_MISO);
 
 // ===== THERMAL PRINTER =====
 HardwareSerial printerSerial(2);  // Use UART2 on ESP32
@@ -64,7 +65,7 @@ static void showBootScreen() {
   tft.setTextSize(1);
 
   int y = 2;
-  tft.setTextColor(ST77XX_GREEN);
+  tft.setTextColor(TFT_GREEN);
   tft.setCursor(2, y);
   tft.println(F("[BOOT] Watersystem ESP32"));
   y += 12;
@@ -77,13 +78,13 @@ static void showBootScreen() {
   tft.setCursor(2, y);
   tft.print(F("[SD ] Status: "));
   if (isSDCardReady()) {
-    tft.setTextColor(ST77XX_GREEN);
+    tft.setTextColor(TFT_GREEN);
     tft.println(F("OK"));
   } else {
-    tft.setTextColor(ST77XX_RED);
+    tft.setTextColor(TFT_RED);
     tft.println(F("FAIL"));
   }
-  tft.setTextColor(ST77XX_GREEN);
+  tft.setTextColor(TFT_GREEN);
 
   y += 12;
   tft.setCursor(2, y);
@@ -99,13 +100,13 @@ static void showBootScreen() {
   tft.setCursor(2, y);
   tft.print(F("[PRN] UART: "));
   if (checkPrinterCommunication()) {
-    tft.setTextColor(ST77XX_GREEN);
+    tft.setTextColor(TFT_GREEN);
     tft.println(F("OK"));
   } else {
-    tft.setTextColor(ST77XX_RED);
+    tft.setTextColor(TFT_RED);
     tft.println(F("NO RESP"));
   }
-  tft.setTextColor(ST77XX_GREEN);
+  tft.setTextColor(TFT_GREEN);
 
   y += 12;
   tft.setCursor(2, y);
@@ -136,9 +137,12 @@ void setup() {
   pinMode(TFT_BLK, OUTPUT);
   digitalWrite(TFT_BLK, HIGH);  // Turn on backlight
   
+  // Initialize SPI (SCK, MISO, MOSI)
+  SPI.begin(TFT_SCLK, TFT_MISO, TFT_MOSI);
+  
   // Initialize TFT
-  tft.initR(INITR_BLACKTAB);  // For 128x160 ST7735S
-  tft.setRotation(1);          // Landscape mode (160x128)
+  tft.begin();  // For 320x240 ILI9341
+  tft.setRotation(1);          // Landscape mode (240x320)
   tft.fillScreen(COLOR_BG);
 
   // Ensure shared SPI CS pins are in a safe state before SD init
