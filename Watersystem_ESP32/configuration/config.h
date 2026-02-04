@@ -75,4 +75,13 @@
 #include <sqlite3.h>
 sqlite3 *db = nullptr;
 
+extern RTC_DS3231 rtc;
+
+String getCurrentDateTimeString() {
+  DateTime now = rtc.now();
+  char buf[20];
+  sprintf(buf, "%04d-%02d-%02d %02d:%02d:%02d", now.year(), now.month(), now.day(), now.hour(), now.minute(), now.second());
+  return String(buf);
+}
+
 #endif  // CONFIG_H

@@ -157,8 +157,9 @@ bool saveBillToDB(Bill bill) {
   Serial.print(F("Saving bill for reading "));
   Serial.println(bill.reading_id);
   char sql[1024];
-  sprintf(sql, "INSERT INTO bills (reference_number, customer_id, reading_id, device_uid, bill_date, rate_per_m3, charges, penalty, total_due, status, created_at, updated_at) VALUES ('%s', %d, %d, '%s', '%s', %f, %f, %f, %f, '%s', datetime('now'), datetime('now'));",
-          bill.reference_number.c_str(), bill.customer_id, bill.reading_id, bill.device_uid.c_str(), bill.bill_date.c_str(), bill.rate_per_m3, bill.charges, bill.penalty, bill.total_due, bill.status.c_str());
+  String nowStr = getCurrentDateTimeString();
+  sprintf(sql, "INSERT INTO bills (reference_number, customer_id, reading_id, device_uid, bill_date, rate_per_m3, charges, penalty, total_due, status, created_at, updated_at) VALUES ('%s', %d, %d, '%s', '%s', %f, %f, %f, %f, '%s', '%s', '%s');",
+          bill.reference_number.c_str(), bill.customer_id, bill.reading_id, bill.device_uid.c_str(), bill.bill_date.c_str(), bill.rate_per_m3, bill.charges, bill.penalty, bill.total_due, bill.status.c_str(), nowStr.c_str(), nowStr.c_str());
   // Serial.println(sql);  // Commented out to save heap memory
   int rc = sqlite3_exec(db, sql, NULL, NULL, NULL);
   Serial.print(F("Bill save result: "));
@@ -258,7 +259,8 @@ bool hasReadingThisMonth(int customerId) {
 
 // ===== UPDATE EXISTING READING =====
 void updateExistingReading(int readingId, unsigned long currentReading, unsigned long usage) {
-  String query = "UPDATE readings SET current_reading = " + String(currentReading) + ", usage_m3 = " + String(usage) + ", updated_at = datetime('now') WHERE reading_id = " + String(readingId) + ";";
+  String nowStr = getCurrentDateTimeString();
+  String query = "UPDATE readings SET current_reading = " + String(currentReading) + ", usage_m3 = " + String(usage) + ", updated_at = '" + nowStr + "' WHERE reading_id = " + String(readingId) + ";";
   sqlite3_exec(db, query.c_str(), NULL, NULL, NULL);
 }
 
@@ -307,7 +309,8 @@ void updateExistingBill(int customerId, int readingId, float charges, float tota
   Serial.print(customerId);
   Serial.print(F(", reading "));
   Serial.println(readingId);
-  String query = "UPDATE bills SET charges = " + String(charges, 2) + ", total_due = " + String(totalDue, 2) + ", rate_per_m3 = " + String(rate, 2) + ", updated_at = datetime('now') WHERE customer_id = " + String(customerId) + " AND reading_id = " + String(readingId) + ";";
+  String nowStr = getCurrentDateTimeString();
+  String query = "UPDATE bills SET charges = " + String(charges, 2) + ", total_due = " + String(totalDue, 2) + ", rate_per_m3 = " + String(rate, 2) + ", updated_at = '" + nowStr + "' WHERE customer_id = " + String(customerId) + " AND reading_id = " + String(readingId) + ";";
   // Serial.println(query);  // Commented out to save heap memory
   sqlite3_exec(db, query.c_str(), NULL, NULL, NULL);
 }
@@ -335,7 +338,7 @@ bool generateBillForCustomer(String accountNo, unsigned long currentReading) {
   // Check if customer already has reading this month
   bool hasExistingReading = hasReadingThisMonth(customer->customer_id);
   int readingId;
-  String readingAt = "datetime('now')"; // Use current database time
+  String readingAt = getCurrentDateTimeString(); // Use current RTC time
 
   unsigned long existingCurrReading = 0;
   unsigned long existingUsage = 0;
@@ -435,7 +438,7 @@ bool generateBillForCustomer(String accountNo, unsigned long currentReading) {
     bill.customer_id = customer->customer_id;
     bill.reading_id = readingId;
     bill.device_uid = getDeviceUID();
-    bill.bill_date = "2026-01-19";
+    bill.bill_date = getCurrentDateTimeString().substring(0,10);
     bill.rate_per_m3 = customerType->rate_per_m3;
     bill.charges = charges;
     bill.penalty = 0.0;

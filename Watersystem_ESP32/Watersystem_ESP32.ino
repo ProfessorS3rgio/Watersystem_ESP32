@@ -162,6 +162,12 @@ void setup() {
     Serial.println(F("Couldn't find RTC"));
   } else {
     Serial.println(F("RTC initialized"));
+    if (rtc.lostPower()) {
+      rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+      Serial.println(F("RTC time set to compile time"));
+    } else {
+      Serial.println(F("RTC time preserved"));
+    }
   }
   
   // Initialize TFT Backlight
@@ -213,7 +219,7 @@ void setup() {
   Serial.println(F("Watersystem ESP32 ready."));
   Serial.println(F("Use keypad or serial commands:"));
   Serial.println(F("Press D or B on keypad to start entering account"));
-  Serial.println(F("Commands: 'P' = Print sample, 'S' = SD status, 'L' = List customers, 'DD' = List deductions, 'CT' = List customer types, 'R' = List readings, 'B' = List bills, 'BT' = List transactions, 'DB' = Display all databases, 'DROPDB' = Drop and recreate database"));
+  Serial.println(F("Commands: 'P' = Print sample, 'S' = SD status, 'L' = List customers, 'DD' = List deductions, 'CT' = List customer types, 'R' = List readings, 'B' = List bills, 'BT' = List transactions, 'DB' = Display all databases (100 rows), 'DB_ALL' = Display all databases (full), 'DROPDB' = Drop and recreate database"));
 #endif
   
   // Show welcome screen on TFT
@@ -388,13 +394,34 @@ void loop() {
       displayEnterAccountScreen();
     }
     else if (cmd == "DB" || cmd == "DATABASE") {
-      Serial.println(F("Displaying all database data..."));
+      Serial.println(F("Displaying all database data (limited to 100 rows per table)..."));
       displayAllDatabaseData();
+    }
+    else if (cmd == "DB_ALL") {
+      Serial.println(F("Displaying all database data (full)..."));
+      displayAllDatabaseDataFull();
+    }
+    else if (cmd == "TIME") {
+      String dt = getCurrentDateTimeString();
+      Serial.print(F("Current time: "));
+      Serial.println(dt);
+    }
+    else if (raw.startsWith("SET_TIME ")) {
+      String payload = raw.substring(String("SET_TIME ").length());
+      // Assume format YYYY-MM-DD HH:MM:SS
+      int year = payload.substring(0,4).toInt();
+      int month = payload.substring(5,7).toInt();
+      int day = payload.substring(8,10).toInt();
+      int hour = payload.substring(11,13).toInt();
+      int minute = payload.substring(14,16).toInt();
+      int second = payload.substring(17,19).toInt();
+      rtc.adjust(DateTime(year, month, day, hour, minute, second));
+      Serial.println(F("RTC time set"));
     }
     else if (cmd.length() > 0) {
       Serial.print(F("Unknown: "));
       Serial.println(cmd);
-      Serial.println(F("Commands: P, D, S, L, DD, CT, B, BT, DB, DROPDB, DROPR, DROPB, DROPBT, DROPC, START"));
+      Serial.println(F("Commands: P, D, S, L, DD, CT, B, BT, DB, DB_ALL, DROPDB, DROPR, DROPB, DROPBT, DROPC, START, TIME, SET_TIME <YYYY-MM-DD HH:MM:SS>"));
     }
   }
 }

@@ -62,7 +62,8 @@ void saveReadingToDB(int customer_id, unsigned long previous_reading, unsigned l
   char sql[512];
   String deviceUID = getDeviceUID();
   String timestamp = String(deviceEpochNow());
-  sprintf(sql, "INSERT INTO readings (customer_id, device_uid, previous_reading, current_reading, usage_m3, reading_at, created_at, updated_at) VALUES (%d, '%s', %lu, %lu, %lu, '%s', datetime('now'), datetime('now'));", customer_id, deviceUID.c_str(), previous_reading, current_reading, usage_m3, timestamp.c_str());
+  String nowStr = getCurrentDateTimeString();
+  sprintf(sql, "INSERT INTO readings (customer_id, device_uid, previous_reading, current_reading, usage_m3, reading_at, created_at, updated_at) VALUES (%d, '%s', %lu, %lu, %lu, '%s', '%s', '%s');", customer_id, deviceUID.c_str(), previous_reading, current_reading, usage_m3, timestamp.c_str(), nowStr.c_str(), nowStr.c_str());
   // Serial.println(sql);  // Commented out to save heap memory
   int rc = sqlite3_exec(db, sql, NULL, NULL, NULL);
   Serial.print(F("Reading save result: "));
@@ -110,7 +111,8 @@ static bool saveDeviceTimeOffsetToDB() {
   if (!db) return false;
 
   char sql[256];
-  sprintf(sql, "INSERT OR REPLACE INTO device_info (key, value, created_at, updated_at) VALUES ('time_offset', '%d', datetime('now'), datetime('now'));", g_timeOffsetSeconds);
+  String nowStr = getCurrentDateTimeString();
+  sprintf(sql, "INSERT OR REPLACE INTO device_info (key, value, created_at, updated_at) VALUES ('time_offset', '%d', '%s', '%s');", g_timeOffsetSeconds, nowStr.c_str(), nowStr.c_str());
 
   int rc = sqlite3_exec(db, sql, NULL, NULL, NULL);
   if (rc == SQLITE_OK) {
@@ -154,7 +156,8 @@ bool recordReadingForCustomerIndex(int customerIndex, unsigned long currentReadi
 
   // Update customer previous_reading
   char sql[256];
-  sprintf(sql, "UPDATE customers SET previous_reading = %lu, updated_at = datetime('now') WHERE customer_id = %d;", currentReading, c->customer_id);
+  String nowStr = getCurrentDateTimeString();
+  sprintf(sql, "UPDATE customers SET previous_reading = %lu, updated_at = '%s' WHERE customer_id = %d;", currentReading, nowStr.c_str(), c->customer_id);
   sqlite3_exec(db, sql, NULL, NULL, NULL);
 
   // Insert reading
@@ -170,7 +173,9 @@ bool recordReadingForCustomerIndex(int customerIndex, unsigned long currentReadi
 
 // ===== MARK ALL READINGS SYNCED =====
 bool markAllReadingsSynced() {
-  const char *sql = "UPDATE readings SET updated_at = datetime('now');";
+  String nowStr = getCurrentDateTimeString();
+  char sql[128];
+  sprintf(sql, "UPDATE readings SET updated_at = '%s';", nowStr.c_str());
   int rc = sqlite3_exec(db, sql, NULL, NULL, NULL);
   return rc == SQLITE_OK;
 }

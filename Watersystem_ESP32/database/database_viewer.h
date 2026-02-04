@@ -67,7 +67,9 @@ static int printReadingCallback(void *data, int argc, char **argv, char **azColN
   Serial.print(atoi(argv[3])); Serial.print(F(" | "));
   Serial.print(atoi(argv[4])); Serial.print(F(" | "));
   Serial.print(atoi(argv[5])); Serial.print(F(" | "));
-  Serial.println(argv[6]);
+  Serial.print(argv[6]); Serial.print(F(" | "));
+  Serial.print(argv[7]); Serial.print(F(" | "));
+  Serial.println(argv[8]);
   return 0;
 }
 
@@ -111,8 +113,18 @@ static int printBillTransactionCallback(void *data, int argc, char **argv, char 
 
 // ===== PRINT FUNCTIONS =====
 
-// Function to print bills list
+// Function to print bills list (limited to 100)
 void printBillsList() {
+  Serial.println(F("===== BILLS DATABASE ====="));
+  Serial.println(F("ID | Ref Number    | CustID | ReadID | DeviceUID | Date       | Rate | Charges | Penalty | Total | Status | Created"));
+  Serial.println(F("---|---------------|--------|--------|-----------|------------|------|---------|---------|-------|--------|--------"));
+  const char *sql = "SELECT bill_id, reference_number, customer_id, reading_id, device_uid, bill_date, rate_per_m3, charges, penalty, total_due, status, created_at FROM bills LIMIT 100;";
+  sqlite3_exec(db, sql, printBillCallback, NULL, NULL);
+  Serial.println(F("====================================================================================================="));
+}
+
+// Function to print bills list (full)
+void printBillsListFull() {
   Serial.println(F("===== BILLS DATABASE ====="));
   Serial.println(F("ID | Ref Number    | CustID | ReadID | DeviceUID | Date       | Rate | Charges | Penalty | Total | Status | Created"));
   Serial.println(F("---|---------------|--------|--------|-----------|------------|------|---------|---------|-------|--------|--------"));
@@ -121,8 +133,18 @@ void printBillsList() {
   Serial.println(F("====================================================================================================="));
 }
 
-// Function to print customers list
+// Function to print customers list (limited to 100)
 void printCustomersList() {
+  Serial.println(F("===== CUSTOMERS DATABASE ====="));
+  Serial.println(F("ID | Account  | Name              | Type | Deduction | Address         | Prev Read | Status | Barangay"));
+  Serial.println(F("---|----------|-------------------|------|----------|-----------------|----------|--------|---------"));
+  const char *sql = "SELECT c.customer_id, c.account_no, c.customer_name, c.type_id, c.deduction_id, c.address, c.previous_reading, c.status, b.barangay FROM customers c LEFT JOIN barangay_sequence b ON c.brgy_id = b.brgy_id LIMIT 100;";
+  sqlite3_exec(db, sql, printCustomerCallback, NULL, NULL);
+  Serial.println(F("================================"));
+}
+
+// Function to print customers list (full)
+void printCustomersListFull() {
   Serial.println(F("===== CUSTOMERS DATABASE ====="));
   Serial.println(F("ID | Account  | Name              | Type | Deduction | Address         | Prev Read | Status | Barangay"));
   Serial.println(F("---|----------|-------------------|------|----------|-----------------|----------|--------|---------"));
@@ -131,8 +153,18 @@ void printCustomersList() {
   Serial.println(F("================================"));
 }
 
-// Function to print deductions list
+// Function to print deductions list (limited to 100)
 void printDeductionsList() {
+  Serial.println(F("===== DEDUCTIONS DATABASE ====="));
+  Serial.println(F("ID | Name          | Type      | Value | Created"));
+  Serial.println(F("---|---------------|-----------|-------|--------"));
+  const char *sql = "SELECT deduction_id, name, type, value, created_at FROM deductions LIMIT 100;";
+  sqlite3_exec(db, sql, printDeductionCallback, NULL, NULL);
+  Serial.println(F("================================"));
+}
+
+// Function to print deductions list (full)
+void printDeductionsListFull() {
   Serial.println(F("===== DEDUCTIONS DATABASE ====="));
   Serial.println(F("ID | Name          | Type      | Value | Created"));
   Serial.println(F("---|---------------|-----------|-------|--------"));
@@ -141,8 +173,18 @@ void printDeductionsList() {
   Serial.println(F("================================"));
 }
 
-// Function to print customer types list
+// Function to print customer types list (limited to 100)
 void printCustomerTypesList() {
+  Serial.println(F("===== CUSTOMER TYPES DATABASE ====="));
+  Serial.println(F("ID | Name          | Rate/m3 | Min m3 | Min Charge | Created"));
+  Serial.println(F("---|---------------|---------|--------|-----------|--------"));
+  const char *sql = "SELECT type_id, type_name, rate_per_m3, min_m3, min_charge, created_at FROM customer_types LIMIT 100;";
+  sqlite3_exec(db, sql, printCustomerTypeCallback, NULL, NULL);
+  Serial.println(F("====================================="));
+}
+
+// Function to print customer types list (full)
+void printCustomerTypesListFull() {
   Serial.println(F("===== CUSTOMER TYPES DATABASE ====="));
   Serial.println(F("ID | Name          | Rate/m3 | Min m3 | Min Charge | Created"));
   Serial.println(F("---|---------------|---------|--------|-----------|--------"));
@@ -151,18 +193,38 @@ void printCustomerTypesList() {
   Serial.println(F("====================================="));
 }
 
-// Function to print readings list
+// Function to print readings list (limited to 100)
 void printReadingsList() {
   Serial.println(F("===== READINGS DATABASE ====="));
-  Serial.println(F("ID | CustID | DeviceUID | Prev | Curr | Usage | Reading At"));
-  Serial.println(F("---|--------|-----------|------|------|-------|-----------"));
-  const char *sql = "SELECT reading_id, customer_id, device_uid, previous_reading, current_reading, usage_m3, reading_at FROM readings;";
+  Serial.println(F("ID | CustID | DeviceUID | Prev | Curr | Usage | Reading At | Created | Updated"));
+  Serial.println(F("---|--------|-----------|------|------|-------|-----------|---------|--------"));
+  const char *sql = "SELECT reading_id, customer_id, device_uid, previous_reading, current_reading, usage_m3, reading_at, created_at, updated_at FROM readings LIMIT 100;";
   sqlite3_exec(db, sql, printReadingCallback, NULL, NULL);
-  Serial.println(F("========================================================"));
+  Serial.println(F("=================================================================================="));
 }
 
-// Function to print barangays list
+// Function to print readings list (full)
+void printReadingsListFull() {
+  Serial.println(F("===== READINGS DATABASE ====="));
+  Serial.println(F("ID | CustID | DeviceUID | Prev | Curr | Usage | Reading At | Created | Updated"));
+  Serial.println(F("---|--------|-----------|------|------|-------|-----------|---------|--------"));
+  const char *sql = "SELECT reading_id, customer_id, device_uid, previous_reading, current_reading, usage_m3, reading_at, created_at, updated_at FROM readings;";
+  sqlite3_exec(db, sql, printReadingCallback, NULL, NULL);
+  Serial.println(F("=================================================================================="));
+}
+
+// Function to print barangays list (limited to 100)
 void printBarangaysList() {
+  Serial.println(F("===== BARANGAYS DATABASE ====="));
+  Serial.println(F("ID | Barangay    | Prefix | Next Num | Updated"));
+  Serial.println(F("---|-------------|--------|----------|--------"));
+  const char *sql = "SELECT brgy_id, barangay, prefix, next_number, updated_at FROM barangay_sequence LIMIT 100;";
+  sqlite3_exec(db, sql, printBarangayCallback, NULL, NULL);
+  Serial.println(F("================================"));
+}
+
+// Function to print barangays list (full)
+void printBarangaysListFull() {
   Serial.println(F("===== BARANGAYS DATABASE ====="));
   Serial.println(F("ID | Barangay    | Prefix | Next Num | Updated"));
   Serial.println(F("---|-------------|--------|----------|--------"));
@@ -184,8 +246,18 @@ void printDeviceInfoList() {
   Serial.println(F("================================"));
 }
 
-// Function to print bill transactions list
+// Function to print bill transactions list (limited to 100)
 void printBillTransactionsList() {
+  Serial.println(F("===== BILL TRANSACTIONS DATABASE ====="));
+  Serial.println(F("ID | BillID | RefNum | Type | Source | Amount | CashRec | Change | TransDate | PayMethod | ProcByDev | Notes"));
+  Serial.println(F("---|--------|--------|------|--------|--------|---------|--------|-----------|----------|----------|------"));
+  const char *sql = "SELECT bill_transaction_id, bill_id, bill_reference_number, type, source, amount, cash_received, change, transaction_date, payment_method, processed_by_device_uid, notes FROM bill_transactions LIMIT 100;";
+  sqlite3_exec(db, sql, printBillTransactionCallback, NULL, NULL);
+  Serial.println(F("================================"));
+}
+
+// Function to print bill transactions list (full)
+void printBillTransactionsListFull() {
   Serial.println(F("===== BILL TRANSACTIONS DATABASE ====="));
   Serial.println(F("ID | BillID | RefNum | Type | Source | Amount | CashRec | Change | TransDate | PayMethod | ProcByDev | Notes"));
   Serial.println(F("---|--------|--------|------|--------|--------|---------|--------|-----------|----------|----------|------"));
@@ -194,7 +266,7 @@ void printBillTransactionsList() {
   Serial.println(F("================================"));
 }
 
-// Function to display all database data via Serial
+// Function to display all database data via Serial (limited to 100 per table)
 void displayAllDatabaseData() {
   Serial.println(F("=== BARANGAYS DATABASE ==="));
   printBarangaysList();
@@ -222,6 +294,41 @@ void displayAllDatabaseData() {
 
   Serial.println(F("=== BILL TRANSACTIONS DATABASE ==="));
   printBillTransactionsList();
+  Serial.println();
+
+  Serial.println(F("=== DEVICE INFO DATABASE ==="));
+  printDeviceInfoList();
+  Serial.println();
+}
+
+// Function to display all database data via Serial (full)
+void displayAllDatabaseDataFull() {
+  Serial.println(F("=== BARANGAYS DATABASE ==="));
+  printBarangaysListFull();
+  Serial.println();
+
+  Serial.println(F("=== DEDUCTIONS DATABASE ==="));
+  printDeductionsListFull();
+  Serial.println();
+
+  Serial.println(F("=== CUSTOMER TYPES DATABASE ==="));
+  printCustomerTypesListFull();
+  Serial.println();
+
+  Serial.println(F("=== CUSTOMERS DATABASE ==="));
+  printCustomersListFull();
+  Serial.println();
+
+  Serial.println(F("=== READINGS DATABASE ==="));
+  printReadingsListFull();
+  Serial.println();
+
+  Serial.println(F("=== BILLS DATABASE ==="));
+  printBillsListFull();
+  Serial.println();
+
+  Serial.println(F("=== BILL TRANSACTIONS DATABASE ==="));
+  printBillTransactionsListFull();
   Serial.println();
 
   Serial.println(F("=== DEVICE INFO DATABASE ==="));
