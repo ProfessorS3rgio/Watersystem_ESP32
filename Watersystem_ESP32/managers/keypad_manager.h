@@ -47,7 +47,7 @@ char keys[KEYPAD_ROWS][KEYPAD_COLS] = {
 };
 
 byte rowPins[KEYPAD_ROWS] = {13, 14, 27, 26};  // R1, R2, R3, R4
-byte colPins[KEYPAD_COLS] = {25, 32, 33, 21};  // C1, C2, C3, C4
+byte colPins[KEYPAD_COLS] = {25, 32, 33, 5};  // C1, C2, C3, C4
 
 Keypad keypad = Keypad(makeKeymap(keys), rowPins, colPins, KEYPAD_ROWS, KEYPAD_COLS);
 

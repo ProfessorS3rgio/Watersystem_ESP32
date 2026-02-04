@@ -7,6 +7,17 @@ SPIClass SPI_SD(VSPI);
 #include <Keypad.h>
 #include <time.h>
 
+// TFT_eSPI configuration (must be before #include <TFT_eSPI.h>)
+#define ILI9341_DRIVER
+#define TFT_CS    15
+#define TFT_DC    2
+#define TFT_RST   4
+#define TFT_BL    21
+#define TFT_MOSI  13
+#define TFT_SCLK  14
+#define TFT_MISO  12
+#include <TFT_eSPI.h>
+
 // ===== REFACTORED HEADER FILES =====
 #include "configuration/config.h"
 #include "database/customers_database.h"
@@ -30,7 +41,7 @@ SPIClass SPI_SD(VSPI);
 
 
 // ===== TFT DISPLAY =====
-Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC, TFT_MOSI, TFT_SCLK, TFT_RST, TFT_MISO);
+TFT_eSPI tft = TFT_eSPI();
 
 // ===== THERMAL PRINTER =====
 HardwareSerial printerSerial(2);  // Use UART2 on ESP32
@@ -126,7 +137,14 @@ static void showBootScreen() {
   delay(300);
 }
 
-
+// ===== KEYPAD SIMULATION HELPER =====
+bool isValidKeypadKey(char key) {
+  const char validKeys[] = {'1','2','3','A','4','5','6','B','7','8','9','C','*','0','#','D'};
+  for (char k : validKeys) {
+    if (k == key) return true;
+  }
+  return false;
+}
 
 void setup() {
   Serial.begin(SERIAL_BAUD);
@@ -201,6 +219,17 @@ void loop() {
   if (Serial.available()) {
     String raw = Serial.readStringUntil('\n');
     raw.trim();
+
+    // Simulate keypad press if single character
+    if (raw.length() == 1) {
+      char key = raw[0];
+      if (isValidKeypadKey(key)) {
+        Serial.print(F("Simulating keypad press: "));
+        Serial.println(key);
+        handleKeypadInput(key);
+        return;
+      }
+    }
 
     // Check for DROPDB command first (local command, not sync)
     if (raw == "DROPDB") {

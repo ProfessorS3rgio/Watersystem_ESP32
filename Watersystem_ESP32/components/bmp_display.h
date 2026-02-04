@@ -2,7 +2,7 @@
 #define BMP_DISPLAY_H
 
 #include <SD.h>
-#include <Adafruit_GFX.h>
+
 
 // BMP helper functions
 uint16_t read16(File &f);

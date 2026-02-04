@@ -38,7 +38,7 @@
 #define KEYPAD_ROWS 4
 #define KEYPAD_COLS 4
 // Row Pins: GPIO 13, 14, 27, 26 (R1, R2, R3, R4)
-// Col Pins: GPIO 25, 32, 33, 21 (C1, C2, C3, C4)
+// Col Pins: GPIO 25, 32, 33, 5 (C1, C2, C3, C4)
 
 // ===== TFT COLORS =====
 #define TFT_BLACK   0x0000

@@ -2,11 +2,11 @@
 #define PRINT_MANAGER_H
 
 #include "../configuration/config.h"
-#include <Adafruit_ILI9341.h>
+#include <TFT_eSPI.h>
 #include <esp_task_wdt.h>
 
 // ===== EXTERNAL OBJECTS FROM MAIN .INO =====
-extern Adafruit_ILI9341 tft;
+extern TFT_eSPI tft;
 
 // ===== PRINTER STATUS TRACKING =====
 volatile bool isPrinting = false;

@@ -2,6 +2,7 @@
 #define BATTERY_DISPLAY_H
 
 #include <Adafruit_GFX.h>
+#include <Adafruit_ST7735.h>
 
 // Function to draw battery indicator on TFT
 void drawBattery(int x, int y, int level) {
@@ -10,9 +11,9 @@ void drawBattery(int x, int y, int level) {
 
   // Colors by level
   uint16_t color =
-    (level > 60) ? TFT_GREEN :
-    (level > 30) ? TFT_YELLOW :
-                   TFT_RED;
+    (level > 60) ? ST77XX_GREEN :
+    (level > 30) ? ST77XX_YELLOW :
+                   ST77XX_RED;
 
   // Dimensions
   int w = 34;
@@ -28,12 +29,11 @@ void drawBattery(int x, int y, int level) {
   int fillW = map(level, 0, 100, 0, w - 4);
   tft.fillRoundRect(x + 2, y + 2, fillW, h - 4, radius - 1, color);
 
-  // Percentage (optional, small & subtle)
-  tft.setTextColor(TFT_WHITE);
-  tft.setTextSize(1);
-  tft.setCursor(x + w + tipW + 6, y + 3);
-  tft.print(level);
-  tft.print('%');
+  // Percentage inside the battery
+  tft.setTextColor(ST77XX_BLACK);
+  tft.setTextFont(1);
+  tft.setCursor(x + 5, y + 3);
+  tft.printf("%d%%", level);
 }
 
 #endif // BATTERY_DISPLAY_H
