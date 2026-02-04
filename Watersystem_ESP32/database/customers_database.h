@@ -27,6 +27,7 @@ struct Customer {
 // ===== CUSTOMER DATABASE =====
 // std::vector<Customer> customers;  // Removed to save memory, load on demand
 Customer* currentCustomer = nullptr;  // Single customer loaded on demand
+float paymentAmount = 0.0;  // Payment amount for transactions
 std::vector<Customer> allCustomers;  // For test data generation
 
 // ===== GET CUSTOMER COUNT =====

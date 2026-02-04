@@ -52,8 +52,16 @@ bool handleSyncCommands(String raw) {
     return handleExportBills();
   }
 
+  if (raw == "EXPORT_BILL_TRANSACTIONS") {
+    return handleExportBillTransactions();
+  }
+
   if (raw == "BILLS_SYNCED") {
     return handleBillsSynced();
+  }
+
+  if (raw == "BILL_TRANSACTIONS_SYNCED") {
+    return handleBillTransactionsSynced();
   }
 
   if (raw == "READINGS_SYNCED") {

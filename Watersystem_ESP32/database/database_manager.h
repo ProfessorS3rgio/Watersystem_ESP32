@@ -59,7 +59,7 @@ void createAllTables() {
   sqlite3_exec(db, sql_add_device_uid_bills, NULL, NULL, NULL); // Ignore error if column exists
 
   // Bill transactions table
-  const char *sql_bill_transactions = "CREATE TABLE IF NOT EXISTS bill_transactions (bill_transaction_id INTEGER PRIMARY KEY, bill_id INTEGER, bill_reference_number TEXT, type TEXT, source TEXT, amount REAL, cash_received REAL, change REAL, transaction_date TEXT, payment_method TEXT, processed_by_device_uid TEXT, notes TEXT, created_at TEXT, updated_at TEXT, FOREIGN KEY(bill_id) REFERENCES bills(bill_id), FOREIGN KEY(bill_reference_number) REFERENCES bills(reference_number));";
+  const char *sql_bill_transactions = "CREATE TABLE IF NOT EXISTS bill_transactions (bill_transaction_id INTEGER PRIMARY KEY, bill_id INTEGER, bill_reference_number TEXT, type TEXT, source TEXT, amount REAL, cash_received REAL, change REAL, transaction_date TEXT, payment_method TEXT, processed_by_device_uid TEXT, notes TEXT, created_at TEXT, updated_at TEXT, synced INTEGER DEFAULT 0, last_sync TEXT, FOREIGN KEY(bill_id) REFERENCES bills(bill_id), FOREIGN KEY(bill_reference_number) REFERENCES bills(reference_number));";
   sqlite3_exec(db, sql_bill_transactions, NULL, NULL, NULL);
 
   // Device info table

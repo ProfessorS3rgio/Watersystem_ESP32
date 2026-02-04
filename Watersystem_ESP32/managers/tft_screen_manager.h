@@ -18,6 +18,8 @@ extern TFT_eSPI tft;
 #include "../screens/enter_reading_screen.h"
 #include "../screens/reading_already_done_screen.h"
 #include "../screens/bill_calculated_screen.h"
+#include "../screens/enter_payment_screen.h"
+#include "../screens/payment_summary_screen.h"
 #include "../screens/view_rate_screen.h"
 #include "../screens/bill_display_screen.h"
 #include <SD.h>
@@ -41,7 +43,9 @@ enum WorkflowState {
   STATE_ENTER_READING,     // Waiting for current meter reading entry
   STATE_BILL_CALCULATED,   // Bill calculated, ready to print
   STATE_PRINTING,          // Printing bill
-  STATE_VIEW_RATE          // Viewing current rate
+  STATE_VIEW_RATE,         // Viewing current rate
+  STATE_ENTER_PAYMENT,     // Waiting for payment amount entry
+  STATE_PAYMENT_SUMMARY    // Payment summary, ready to confirm
 };
 
 WorkflowState currentState = STATE_WELCOME;

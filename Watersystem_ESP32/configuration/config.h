@@ -76,6 +76,7 @@
 sqlite3 *db = nullptr;
 
 extern RTC_DS3231 rtc;
+extern float paymentAmount;
 
 String getCurrentDateTimeString() {
   DateTime now = rtc.now();

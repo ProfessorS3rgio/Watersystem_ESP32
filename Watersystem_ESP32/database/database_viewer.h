@@ -105,14 +105,17 @@ static int printBillTransactionCallback(void *data, int argc, char **argv, char 
   Serial.print(argv[2]); Serial.print(F(" | "));
   Serial.print(argv[3]); Serial.print(F(" | "));
   Serial.print(argv[4]); Serial.print(F(" | "));
-  Serial.print(argv[5]); Serial.print(F(" | "));
+  Serial.print(atof(argv[5]), 2); Serial.print(F(" | "));
   Serial.print(atof(argv[6]), 2); Serial.print(F(" | "));
   Serial.print(atof(argv[7]), 2); Serial.print(F(" | "));
-  Serial.print(atof(argv[8]), 2); Serial.print(F(" | "));
+  Serial.print(argv[8]); Serial.print(F(" | "));
   Serial.print(argv[9]); Serial.print(F(" | "));
   Serial.print(argv[10]); Serial.print(F(" | "));
-  Serial.print(atoi(argv[11])); Serial.print(F(" | "));
-  Serial.println(argv[12] ? argv[12] : "NULL");
+  Serial.print(argv[11]); Serial.print(F(" | "));
+  Serial.print(argv[12]); Serial.print(F(" | "));
+  Serial.print(argv[13]); Serial.print(F(" | "));
+  Serial.print(atoi(argv[14])); Serial.print(F(" | "));
+  Serial.println(argv[15] ? argv[15] : "");
   return 0;
 }
 
@@ -254,9 +257,9 @@ void printDeviceInfoList() {
 // Function to print bill transactions list (limited to 100)
 void printBillTransactionsList() {
   Serial.println(F("===== BILL TRANSACTIONS DATABASE ====="));
-  Serial.println(F("ID | BillID | RefNum | Type | Source | Amount | CashRec | Change | TransDate | PayMethod | ProcByDev | Notes"));
-  Serial.println(F("---|--------|--------|------|--------|--------|---------|--------|-----------|----------|----------|------"));
-  const char *sql = "SELECT bill_transaction_id, bill_id, bill_reference_number, type, source, amount, cash_received, change, transaction_date, payment_method, processed_by_device_uid, notes FROM bill_transactions LIMIT 100;";
+  Serial.println(F("ID | BillID | RefNum | Type | Source | Amount | CashRec | Change | TransDate | PayMethod | ProcByDev | Notes | Created | Updated | Synced | Last Sync"));
+  Serial.println(F("---|--------|--------|------|--------|--------|---------|--------|-----------|----------|----------|-------|--------|--------|--------|----------"));
+  const char *sql = "SELECT bill_transaction_id, bill_id, bill_reference_number, type, source, amount, cash_received, change, transaction_date, payment_method, processed_by_device_uid, notes, created_at, updated_at, synced, last_sync FROM bill_transactions LIMIT 100;";
   sqlite3_exec(db, sql, printBillTransactionCallback, NULL, NULL);
   Serial.println(F("================================"));
 }
@@ -264,9 +267,9 @@ void printBillTransactionsList() {
 // Function to print bill transactions list (full)
 void printBillTransactionsListFull() {
   Serial.println(F("===== BILL TRANSACTIONS DATABASE ====="));
-  Serial.println(F("ID | BillID | RefNum | Type | Source | Amount | CashRec | Change | TransDate | PayMethod | ProcByDev | Notes"));
-  Serial.println(F("---|--------|--------|------|--------|--------|---------|--------|-----------|----------|----------|------"));
-  const char *sql = "SELECT bill_transaction_id, bill_id, bill_reference_number, type, source, amount, cash_received, change, transaction_date, payment_method, processed_by_device_uid, notes FROM bill_transactions;";
+  Serial.println(F("ID | BillID | RefNum | Type | Source | Amount | CashRec | Change | TransDate | PayMethod | ProcByDev | Notes | Created | Updated | Synced | Last Sync"));
+  Serial.println(F("---|--------|--------|------|--------|--------|---------|--------|-----------|----------|----------|-------|--------|--------|--------|----------"));
+  const char *sql = "SELECT bill_transaction_id, bill_id, bill_reference_number, type, source, amount, cash_received, change, transaction_date, payment_method, processed_by_device_uid, notes, created_at, updated_at, synced, last_sync FROM bill_transactions;";
   sqlite3_exec(db, sql, printBillTransactionCallback, NULL, NULL);
   Serial.println(F("================================"));
 }
