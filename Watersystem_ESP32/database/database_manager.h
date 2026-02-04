@@ -45,14 +45,14 @@ void createAllTables() {
   sqlite3_exec(db, sql_customers, NULL, NULL, NULL);
 
   // Readings table
-  const char *sql_readings = "CREATE TABLE IF NOT EXISTS readings (reading_id INTEGER PRIMARY KEY, customer_id INTEGER, device_uid TEXT, previous_reading INTEGER, current_reading INTEGER, usage_m3 INTEGER, reading_at TEXT, created_at TEXT, updated_at TEXT, FOREIGN KEY(customer_id) REFERENCES customers(customer_id));";
+  const char *sql_readings = "CREATE TABLE IF NOT EXISTS readings (reading_id INTEGER PRIMARY KEY, customer_id INTEGER, device_uid TEXT, previous_reading INTEGER, current_reading INTEGER, usage_m3 INTEGER, reading_at TEXT, created_at TEXT, updated_at TEXT, synced INTEGER DEFAULT 0, last_sync TEXT, FOREIGN KEY(customer_id) REFERENCES customers(customer_id));";
   sqlite3_exec(db, sql_readings, NULL, NULL, NULL);
   // Add device_uid column if not exists
   const char *sql_add_device_uid_readings = "ALTER TABLE readings ADD COLUMN device_uid TEXT;";
   sqlite3_exec(db, sql_add_device_uid_readings, NULL, NULL, NULL); // Ignore error if column exists
 
   // Bills table
-  const char *sql_bills = "CREATE TABLE IF NOT EXISTS bills (bill_id INTEGER PRIMARY KEY, reference_number TEXT UNIQUE, customer_id INTEGER, reading_id INTEGER, device_uid TEXT, bill_date TEXT, rate_per_m3 REAL, charges REAL, penalty REAL, total_due REAL, status TEXT DEFAULT 'Pending', created_at TEXT, updated_at TEXT, FOREIGN KEY(customer_id) REFERENCES customers(customer_id), FOREIGN KEY(reading_id) REFERENCES readings(reading_id));";
+  const char *sql_bills = "CREATE TABLE IF NOT EXISTS bills (bill_id INTEGER PRIMARY KEY, reference_number TEXT UNIQUE, customer_id INTEGER, reading_id INTEGER, device_uid TEXT, bill_date TEXT, rate_per_m3 REAL, charges REAL, penalty REAL, total_due REAL, status TEXT DEFAULT 'Pending', created_at TEXT, updated_at TEXT, synced INTEGER DEFAULT 0, last_sync TEXT, FOREIGN KEY(customer_id) REFERENCES customers(customer_id), FOREIGN KEY(reading_id) REFERENCES readings(reading_id));";
   sqlite3_exec(db, sql_bills, NULL, NULL, NULL);
   // Add device_uid column if not exists
   const char *sql_add_device_uid_bills = "ALTER TABLE bills ADD COLUMN device_uid TEXT;";
@@ -80,8 +80,9 @@ sqlite3_exec(db, "PRAGMA mmap_size = 0;", NULL, NULL, NULL);
 void initializeDefaultDevice() {
   // Insert or replace default device record
   String macAddress = getDeviceUID();
+  String nowStr = getCurrentDateTimeString();
   char insert_sql[512];
-  sprintf(insert_sql, "INSERT OR REPLACE INTO device_info (brgy_id, device_mac, device_uid, firmware_version, device_name, print_count, customer_count, last_sync, updated_at) VALUES (2, '%s', '%s', 'v1.0.0', 'ESP32 Water System', 0, 0, '0', datetime('now'));", macAddress.c_str(), macAddress.c_str());
+  sprintf(insert_sql, "INSERT OR REPLACE INTO device_info (brgy_id, device_mac, device_uid, firmware_version, device_name, print_count, customer_count, last_sync, created_at, updated_at) VALUES (2, '%s', '%s', 'v1.0.0', 'ESP32 Water System', 0, 0, '0', '%s', '%s');", macAddress.c_str(), macAddress.c_str(), nowStr.c_str(), nowStr.c_str());
   sqlite3_exec(db, insert_sql, NULL, NULL, NULL);
   Serial.println(F("Initialized default device record"));
 }

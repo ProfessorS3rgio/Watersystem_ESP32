@@ -58,6 +58,8 @@ struct Bill {
   String status;
   String created_at;
   String updated_at;
+  bool synced;
+  String last_sync;
 };
 
 // ===== BILL DATABASE =====
@@ -81,20 +83,22 @@ static int loadBillCallback(void *data, int argc, char **argv, char **azColName)
   b.status = argv[10];
   b.created_at = argv[11];
   b.updated_at = argv[12];
+  b.synced = atoi(argv[13]);
+  b.last_sync = argv[14] ? argv[14] : "";
   bills.push_back(b);
   return 0;
 }
 
 void loadBillsFromDB() {
   bills.clear();
-  const char *sql = "SELECT bill_id, reference_number, customer_id, reading_id, device_uid, bill_date, rate_per_m3, charges, penalty, total_due, status, created_at, updated_at FROM bills;";
+  const char *sql = "SELECT bill_id, reference_number, customer_id, reading_id, device_uid, bill_date, rate_per_m3, charges, penalty, total_due, status, created_at, updated_at, synced, last_sync FROM bills;";
   sqlite3_exec(db, sql, loadBillCallback, NULL, NULL);
 }
 
 std::vector<Bill> getBillsChunk(int offset, int limit) {
   std::vector<Bill> chunk;
   char sql[256];
-  sprintf(sql, "SELECT bill_id, reference_number, customer_id, reading_id, device_uid, bill_date, rate_per_m3, charges, penalty, total_due, status, created_at, updated_at FROM bills ORDER BY bill_id LIMIT %d OFFSET %d;", limit, offset);
+  sprintf(sql, "SELECT bill_id, reference_number, customer_id, reading_id, device_uid, bill_date, rate_per_m3, charges, penalty, total_due, status, created_at, updated_at, synced, last_sync FROM bills ORDER BY bill_id LIMIT %d OFFSET %d;", limit, offset);
   sqlite3_exec(db, sql, [](void *data, int argc, char **argv, char **azColName) -> int {
     std::vector<Bill>* chunk = static_cast<std::vector<Bill>*>(data);
     Bill b;
@@ -111,6 +115,8 @@ std::vector<Bill> getBillsChunk(int offset, int limit) {
     b.status = argv[10];
     b.created_at = argv[11];
     b.updated_at = argv[12];
+    b.synced = atoi(argv[13]);
+    b.last_sync = argv[14] ? argv[14] : "";
     chunk->push_back(b);
     return 0;
   }, &chunk, NULL);
@@ -158,7 +164,7 @@ bool saveBillToDB(Bill bill) {
   Serial.println(bill.reading_id);
   char sql[1024];
   String nowStr = getCurrentDateTimeString();
-  sprintf(sql, "INSERT INTO bills (reference_number, customer_id, reading_id, device_uid, bill_date, rate_per_m3, charges, penalty, total_due, status, created_at, updated_at) VALUES ('%s', %d, %d, '%s', '%s', %f, %f, %f, %f, '%s', '%s', '%s');",
+  sprintf(sql, "INSERT INTO bills (reference_number, customer_id, reading_id, device_uid, bill_date, rate_per_m3, charges, penalty, total_due, status, created_at, updated_at, synced, last_sync) VALUES ('%s', %d, %d, '%s', '%s', %f, %f, %f, %f, '%s', '%s', '%s', 0, NULL);",
           bill.reference_number.c_str(), bill.customer_id, bill.reading_id, bill.device_uid.c_str(), bill.bill_date.c_str(), bill.rate_per_m3, bill.charges, bill.penalty, bill.total_due, bill.status.c_str(), nowStr.c_str(), nowStr.c_str());
   // Serial.println(sql);  // Commented out to save heap memory
   int rc = sqlite3_exec(db, sql, NULL, NULL, NULL);
@@ -461,6 +467,15 @@ bool generateBillForCustomer(String accountNo, unsigned long currentReading) {
   }
 
   return true; // Successfully updated existing reading/bill
+}
+
+// ===== MARK ALL BILLS SYNCED =====
+bool markAllBillsSynced() {
+  String nowStr = getCurrentDateTimeString();
+  char sql[128];
+  sprintf(sql, "UPDATE bills SET synced = 1, last_sync = '%s', updated_at = '%s';", nowStr.c_str(), nowStr.c_str());
+  int rc = sqlite3_exec(db, sql, NULL, NULL, NULL);
+  return rc == SQLITE_OK;
 }
 
 #endif  // BILL_DATABASE_H

@@ -31,7 +31,7 @@ bool handleExportReadings() {
 
   // Prepare statement for chunked query
   sqlite3_stmt* stmt;
-  const char* sql = "SELECT reading_id, customer_id, device_uid, previous_reading, current_reading, usage_m3, reading_at FROM readings ORDER BY reading_id LIMIT ? OFFSET ?;";
+  const char* sql = "SELECT reading_id, customer_id, device_uid, previous_reading, current_reading, usage_m3, reading_at, synced, last_sync FROM readings WHERE synced = 0 ORDER BY reading_id LIMIT ? OFFSET ?;";
   int rc2 = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
   if (rc2 != SQLITE_OK) {
     Serial.println(F("Failed to prepare readings query"));
@@ -56,6 +56,8 @@ bool handleExportReadings() {
       obj["current_reading"] = (unsigned long)sqlite3_column_int64(stmt, 4);
       obj["usage_m3"] = (unsigned long)sqlite3_column_int64(stmt, 5);
       obj["reading_at"] = (unsigned long)sqlite3_column_int64(stmt, 6);
+      obj["synced"] = (int)sqlite3_column_int(stmt, 7);
+      obj["last_sync"] = sqlite3_column_text(stmt, 8) ? String((const char*)sqlite3_column_text(stmt, 8)) : "";
     }
 
     Serial.print(F("READINGS_CHUNK|"));

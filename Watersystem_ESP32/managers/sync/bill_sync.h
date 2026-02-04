@@ -172,40 +172,88 @@ bool handleUpsertBillsJsonChunk(String payload) {
 // Handle EXPORT_BILLS command
 bool handleExportBills() {
   Serial.println(F("Exporting bills..."));
+  // Get total count
+  sqlite3_stmt* countStmt;
+  const char* countSql = "SELECT COUNT(*) FROM bills WHERE synced = 0;";
+  int rc = sqlite3_prepare_v2(db, countSql, -1, &countStmt, NULL);
+  if (rc != SQLITE_OK) {
+    Serial.println(F("Failed to prepare count query"));
+    return false;
+  }
+  rc = sqlite3_step(countStmt);
+  int totalBills = 0;
+  if (rc == SQLITE_ROW) {
+    totalBills = sqlite3_column_int(countStmt, 0);
+  }
+  sqlite3_finalize(countStmt);
   const int CHUNK_SIZE = 150;
-  int totalBills = getTotalBills();
   int totalChunks = (totalBills + CHUNK_SIZE - 1) / CHUNK_SIZE;
   Serial.print(F("BEGIN_BILLS_JSON|"));
   Serial.println(totalChunks);
-  int offset = 0;
+
+  // Prepare statement for chunked query
+  sqlite3_stmt* stmt;
+  const char* sql = "SELECT bill_id, reference_number, customer_id, reading_id, device_uid, bill_date, rate_per_m3, charges, penalty, total_due, status, synced, last_sync FROM bills WHERE synced = 0 ORDER BY bill_id LIMIT ? OFFSET ?;";
+  int rc2 = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+  if (rc2 != SQLITE_OK) {
+    Serial.println(F("Failed to prepare bills query"));
+    return false;
+  }
+
   for (int chunk = 0; chunk < totalChunks; ++chunk) {
     Serial.printf("Heap free before chunk %d: %d\n", chunk, ESP.getFreeHeap());
-    std::vector<Bill> billsChunk = getBillsChunk(offset, CHUNK_SIZE);
-    DynamicJsonDocument doc(65536);
+    int offset = chunk * CHUNK_SIZE;
+    sqlite3_bind_int(stmt, 1, CHUNK_SIZE);
+    sqlite3_bind_int(stmt, 2, offset);
+
+    DynamicJsonDocument doc(65536);  // Larger doc for 150 items
     JsonArray arr = doc.to<JsonArray>();
-    for (const auto& b : billsChunk) {
+
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
       JsonObject obj = arr.createNestedObject();
-      obj["bill_id"] = b.bill_id;
-      obj["reference_number"] = b.reference_number;
-      obj["customer_id"] = b.customer_id;
-      obj["reading_id"] = b.reading_id;
-      obj["device_uid"] = b.device_uid;
-      obj["bill_date"] = b.bill_date;
-      obj["rate_per_m3"] = b.rate_per_m3;
-      obj["charges"] = b.charges;
-      obj["penalty"] = b.penalty;
-      obj["total_due"] = b.total_due;
-      obj["status"] = b.status;
+      obj["bill_id"] = (int)sqlite3_column_int(stmt, 0);
+      obj["reference_number"] = String((const char*)sqlite3_column_text(stmt, 1));
+      obj["customer_id"] = (int)sqlite3_column_int(stmt, 2);
+      obj["reading_id"] = (int)sqlite3_column_int(stmt, 3);
+      obj["device_uid"] = String((const char*)sqlite3_column_text(stmt, 4));
+      obj["bill_date"] = String((const char*)sqlite3_column_text(stmt, 5));
+      obj["rate_per_m3"] = (float)sqlite3_column_double(stmt, 6);
+      obj["charges"] = (float)sqlite3_column_double(stmt, 7);
+      obj["penalty"] = (float)sqlite3_column_double(stmt, 8);
+      obj["total_due"] = (float)sqlite3_column_double(stmt, 9);
+      obj["status"] = String((const char*)sqlite3_column_text(stmt, 10));
+      obj["synced"] = (int)sqlite3_column_int(stmt, 11);
+      obj["last_sync"] = sqlite3_column_text(stmt, 12) ? String((const char*)sqlite3_column_text(stmt, 12)) : "";
     }
+
     Serial.print(F("BILLS_CHUNK|"));
     Serial.print(chunk);
     Serial.print(F("|"));
     serializeJson(arr, Serial);
     Serial.println();
+    doc.clear();
+
+    // Reset statement for next chunk
+    sqlite3_reset(stmt);
+    sqlite3_clear_bindings(stmt);
+
     Serial.printf("Heap free after chunk %d: %d\n", chunk, ESP.getFreeHeap());
-    offset += billsChunk.size();
   }
+
+  sqlite3_finalize(stmt);
   Serial.println(F("END_BILLS_JSON"));
+  return true;
+}
+
+// Handle BILLS_SYNCED command
+bool handleBillsSynced() {
+  bool ok = markAllBillsSynced();
+  if (ok) {
+    setLastSyncEpoch(deviceEpochNow());
+    Serial.println(F("ACK|BILLS_SYNCED"));
+  } else {
+    Serial.println(F("ERR|BILLS_SYNC_FAILED"));
+  }
   return true;
 }
 

@@ -20,7 +20,10 @@ static int printBillCallback(void *data, int argc, char **argv, char **azColName
   Serial.print(atof(argv[8]), 2); Serial.print(F(" | "));
   Serial.print(atof(argv[9]), 2); Serial.print(F(" | "));
   Serial.print(argv[10]); Serial.print(F(" | "));
-  Serial.println(argv[11]);
+  Serial.print(argv[11]); Serial.print(F(" | "));
+  Serial.print(argv[12]); Serial.print(F(" | "));
+  Serial.print(atoi(argv[13])); Serial.print(F(" | "));
+  Serial.println(argv[14] ? argv[14] : "");
   return 0;
 }
 
@@ -69,7 +72,9 @@ static int printReadingCallback(void *data, int argc, char **argv, char **azColN
   Serial.print(atoi(argv[5])); Serial.print(F(" | "));
   Serial.print(argv[6]); Serial.print(F(" | "));
   Serial.print(argv[7]); Serial.print(F(" | "));
-  Serial.println(argv[8]);
+  Serial.print(argv[8]); Serial.print(F(" | "));
+  Serial.print(atoi(argv[9])); Serial.print(F(" | "));
+  Serial.println(argv[10] ? argv[10] : "");
   return 0;
 }
 
@@ -116,9 +121,9 @@ static int printBillTransactionCallback(void *data, int argc, char **argv, char 
 // Function to print bills list (limited to 100)
 void printBillsList() {
   Serial.println(F("===== BILLS DATABASE ====="));
-  Serial.println(F("ID | Ref Number    | CustID | ReadID | DeviceUID | Date       | Rate | Charges | Penalty | Total | Status | Created"));
-  Serial.println(F("---|---------------|--------|--------|-----------|------------|------|---------|---------|-------|--------|--------"));
-  const char *sql = "SELECT bill_id, reference_number, customer_id, reading_id, device_uid, bill_date, rate_per_m3, charges, penalty, total_due, status, created_at FROM bills LIMIT 100;";
+  Serial.println(F("ID | Ref Number    | CustID | ReadID | DeviceUID | Date       | Rate | Charges | Penalty | Total | Status | Created | Updated | Synced | Last Sync"));
+  Serial.println(F("---|---------------|--------|--------|-----------|------------|------|---------|---------|-------|--------|--------|--------|--------|----------"));
+  const char *sql = "SELECT bill_id, reference_number, customer_id, reading_id, device_uid, bill_date, rate_per_m3, charges, penalty, total_due, status, created_at, updated_at, synced, last_sync FROM bills LIMIT 100;";
   sqlite3_exec(db, sql, printBillCallback, NULL, NULL);
   Serial.println(F("====================================================================================================="));
 }
@@ -126,9 +131,9 @@ void printBillsList() {
 // Function to print bills list (full)
 void printBillsListFull() {
   Serial.println(F("===== BILLS DATABASE ====="));
-  Serial.println(F("ID | Ref Number    | CustID | ReadID | DeviceUID | Date       | Rate | Charges | Penalty | Total | Status | Created"));
-  Serial.println(F("---|---------------|--------|--------|-----------|------------|------|---------|---------|-------|--------|--------"));
-  const char *sql = "SELECT bill_id, reference_number, customer_id, reading_id, device_uid, bill_date, rate_per_m3, charges, penalty, total_due, status, created_at FROM bills;";
+  Serial.println(F("ID | Ref Number    | CustID | ReadID | DeviceUID | Date       | Rate | Charges | Penalty | Total | Status | Created | Updated | Synced | Last Sync"));
+  Serial.println(F("---|---------------|--------|--------|-----------|------------|------|---------|---------|-------|--------|--------|--------|--------|----------"));
+  const char *sql = "SELECT bill_id, reference_number, customer_id, reading_id, device_uid, bill_date, rate_per_m3, charges, penalty, total_due, status, created_at, updated_at, synced, last_sync FROM bills;";
   sqlite3_exec(db, sql, printBillCallback, NULL, NULL);
   Serial.println(F("====================================================================================================="));
 }
@@ -196,9 +201,9 @@ void printCustomerTypesListFull() {
 // Function to print readings list (limited to 100)
 void printReadingsList() {
   Serial.println(F("===== READINGS DATABASE ====="));
-  Serial.println(F("ID | CustID | DeviceUID | Prev | Curr | Usage | Reading At | Created | Updated"));
-  Serial.println(F("---|--------|-----------|------|------|-------|-----------|---------|--------"));
-  const char *sql = "SELECT reading_id, customer_id, device_uid, previous_reading, current_reading, usage_m3, reading_at, created_at, updated_at FROM readings LIMIT 100;";
+  Serial.println(F("ID | CustID | DeviceUID | Prev | Curr | Usage | Reading At | Created | Updated | Synced | Last Sync"));
+  Serial.println(F("---|--------|-----------|------|------|-------|-----------|---------|--------|--------|----------"));
+  const char *sql = "SELECT reading_id, customer_id, device_uid, previous_reading, current_reading, usage_m3, reading_at, created_at, updated_at, synced, last_sync FROM readings LIMIT 100;";
   sqlite3_exec(db, sql, printReadingCallback, NULL, NULL);
   Serial.println(F("=================================================================================="));
 }
@@ -206,9 +211,9 @@ void printReadingsList() {
 // Function to print readings list (full)
 void printReadingsListFull() {
   Serial.println(F("===== READINGS DATABASE ====="));
-  Serial.println(F("ID | CustID | DeviceUID | Prev | Curr | Usage | Reading At | Created | Updated"));
-  Serial.println(F("---|--------|-----------|------|------|-------|-----------|---------|--------"));
-  const char *sql = "SELECT reading_id, customer_id, device_uid, previous_reading, current_reading, usage_m3, reading_at, created_at, updated_at FROM readings;";
+  Serial.println(F("ID | CustID | DeviceUID | Prev | Curr | Usage | Reading At | Created | Updated | Synced | Last Sync"));
+  Serial.println(F("---|--------|-----------|------|------|-------|-----------|---------|--------|--------|----------"));
+  const char *sql = "SELECT reading_id, customer_id, device_uid, previous_reading, current_reading, usage_m3, reading_at, created_at, updated_at, synced, last_sync FROM readings;";
   sqlite3_exec(db, sql, printReadingCallback, NULL, NULL);
   Serial.println(F("=================================================================================="));
 }

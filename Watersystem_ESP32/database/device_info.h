@@ -35,10 +35,11 @@ static void setDeviceInfoValue(const char* key, const String& value) {
   if (!db) return;
   char sql[256];
   String mac = getDeviceUID();
+  String nowStr = getCurrentDateTimeString();
   if (strcmp(key, "print_count") == 0) {
-    sprintf(sql, "UPDATE device_info SET print_count = %s, updated_at = datetime('now') WHERE device_mac = '%s';", value.c_str(), mac.c_str());
+    sprintf(sql, "UPDATE device_info SET print_count = %s, updated_at = '%s' WHERE device_mac = '%s';", value.c_str(), nowStr.c_str(), mac.c_str());
   } else if (strcmp(key, "last_sync_epoch") == 0) {
-    sprintf(sql, "UPDATE device_info SET last_sync = '%s', updated_at = datetime('now') WHERE device_mac = '%s';", value.c_str(), mac.c_str());
+    sprintf(sql, "UPDATE device_info SET last_sync = '%s', updated_at = '%s' WHERE device_mac = '%s';", value.c_str(), nowStr.c_str(), mac.c_str());
   } else {
     // For other keys, do nothing or handle if needed
     return;
