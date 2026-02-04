@@ -31,14 +31,18 @@
 #define PRINTER_TX  17   // ESP32 TX -> Printer RX
 #define PRINTER_BAUD 9600
 
+// ===== RTC MODULE PINS (I2C) =====
+#define RTC_SDA 26
+#define RTC_SCL 27
+
 // ===== 4x4 KEYPAD PINS (Direct Wiring) =====
 // Keypad pinout (left to right, keys facing you):
 // [NC] [C1] [C2] [C3] [C4] [R1] [R2] [R3] [R4] [NC]
 //  1    2    3    4    5    6    7    8    9    10
 #define KEYPAD_ROWS 4
 #define KEYPAD_COLS 4
-// Row Pins: GPIO 13, 14, 27, 26 (R1, R2, R3, R4)
-// Col Pins: GPIO 25, 32, 33, 5 (C1, C2, C3, C4)
+// Row Pins: GPIO 26, 27, 32, 33 (R1, R2, R3, R4)
+// Col Pins: GPIO 25, 5, 34, 35 (C1, C2, C3, C4)
 
 // ===== TFT COLORS =====
 #define TFT_BLACK   0x0000

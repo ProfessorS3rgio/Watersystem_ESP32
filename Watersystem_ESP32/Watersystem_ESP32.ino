@@ -6,6 +6,8 @@ SPIClass SPI_SD(VSPI);
 #include "Adafruit_Thermal.h"
 #include <Keypad.h>
 #include <time.h>
+#include <Wire.h>
+#include <RTClib.h>
 
 // TFT_eSPI configuration (must be before #include <TFT_eSPI.h>)
 #define ILI9341_DRIVER
@@ -46,6 +48,9 @@ TFT_eSPI tft = TFT_eSPI();
 // ===== THERMAL PRINTER =====
 HardwareSerial printerSerial(2);  // Use UART2 on ESP32
 Adafruit_Thermal printer(&printerSerial);
+
+// ===== RTC MODULE =====
+RTC_DS3231 rtc;
 
 // ===== BOOT SCREEN HELPERS =====
 static bool checkPrinterCommunication(uint16_t timeoutMs = 250) {
@@ -151,6 +156,14 @@ void setup() {
   Serial.setRxBufferSize(262144); // 256KB for large JSON payloads
   Serial.setTimeout(30000); // 30 seconds timeout for long transmissions
   
+  // Initialize I2C for RTC
+  Wire.begin(RTC_SDA, RTC_SCL);
+  if (! rtc.begin()) {
+    Serial.println(F("Couldn't find RTC"));
+  } else {
+    Serial.println(F("RTC initialized"));
+  }
+  
   // Initialize TFT Backlight
   pinMode(TFT_BLK, OUTPUT);
   digitalWrite(TFT_BLK, HIGH);  // Turn on backlight
@@ -210,10 +223,10 @@ void setup() {
 
 void loop() {
   // ===== KEYPAD INPUT =====
-  char key = keypad.getKey();
-  if (key) {
-    handleKeypadInput(key);
-  }
+  // char key = keypad.getKey();  // Commented out since keypad is disabled
+  // if (key) {
+  //   handleKeypadInput(key);
+  // }
   
   // ===== SERIAL INPUT =====
   if (Serial.available()) {

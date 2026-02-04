@@ -17,7 +17,7 @@ void displayEnterAccountScreen() {
   tft.setCursor(80, 20);
   tft.println(F("ENTER ACCOUNT #"));
   
-  tft.drawLine(0, 30, 240, 30, COLOR_LINE);
+  tft.drawLine(0, 30, 320, 30, COLOR_LINE);
   
   tft.setTextFont(2);  // Sans-serif font for labels
   tft.setTextSize(1);
@@ -26,7 +26,7 @@ void displayEnterAccountScreen() {
   tft.println(F("Account Number:"));
   
   // Input box
-  tft.drawRect(20, 60, 200, 60, COLOR_LINE);
+  tft.drawRect(20, 60, 280, 60, COLOR_LINE);
   
   tft.setTextFont(4);  // Sans-serif font for input
   tft.setTextSize(2);
@@ -43,7 +43,7 @@ void displayEnterAccountScreen() {
   tft.setTextFont(2);  // Sans-serif font for instructions
   tft.setTextSize(1);
   tft.setTextColor(COLOR_LABEL);
-  tft.setCursor(35, 260);
+  tft.setCursor(35, 180);
   tft.println(F("D-Confirm  B-Clear  C-Cancel"));
   
 
