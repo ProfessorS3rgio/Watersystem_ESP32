@@ -9,6 +9,7 @@
 #include "../database/barangay_database.h"
 #include "../database/bill_transactions_database.h"
 #include "../database/test_data_generator.h"
+#include "../printer/receipt_printer.h"
 #include <SD.h>
 
 // ===== EXTERNAL FROM CUSTOMERS DATABASE =====
@@ -299,34 +300,50 @@ void handleKeypadInput(char key) {
   else if (currentState == STATE_PAYMENT_CONFIRMATION) {
     // Payment confirmation
     if (key == 'D') {  // Print receipt and save transaction
-      // Save payment transaction
-      BillTransaction bt;
-      bt.bill_id = 0;  // TODO: Get actual bill_id from refNumber
-      bt.bill_reference_number = currentBill.refNumber;
-      bt.type = "payment";
-      bt.source = "Device";
-      bt.amount = currentBill.total;
-      bt.cash_received = paymentAmount;
-      bt.change = paymentAmount - currentBill.total;
-      bt.transaction_date = getCurrentDateTimeString();
-      bt.payment_method = "cash";
-      bt.processed_by_device_uid = getDeviceUID();
-      bt.notes = "Payment processed";
-      
-      if (saveBillTransactionToDB(bt)) {
+      float changeAmount = paymentAmount - currentBill.total;
+      if (changeAmount < 0.0f) changeAmount = 0.0f;
+
+      bool saved = recordPaymentTransactionByBillRef(currentBill.refNumber, currentBill.total, paymentAmount, changeAmount);
+      if (saved) {
         Serial.println(F("Payment transaction saved successfully"));
       } else {
         Serial.println(F("Failed to save payment transaction"));
       }
-      
-      // TODO: Print receipt
+
+      // Populate receipt data from current bill + payment
+      currentReceipt.receiptNumber = String("OR-") + currentBill.refNumber;
+      currentReceipt.paymentDateTime = getCurrentDateTimeString();
+      currentReceipt.billRefNumber = currentBill.refNumber;
+
+      currentReceipt.customerName = currentBill.customerName;
+      currentReceipt.accountNo = currentBill.accountNo;
+      currentReceipt.customerType = currentBill.customerType;
+      currentReceipt.address = currentBill.address;
+      currentReceipt.collector = currentBill.collector;
+
+      currentReceipt.prevReading = currentBill.prevReading;
+      currentReceipt.currReading = currentBill.currReading;
+      currentReceipt.usage = currentBill.usage;
+
+      currentReceipt.rate = currentBill.rate;
+      currentReceipt.subtotal = currentBill.subtotal;
+      currentReceipt.deductions = currentBill.deductions;
+      currentReceipt.penalty = currentBill.penalty;
+      currentReceipt.total = currentBill.total;
+
+      currentReceipt.amountPaid = paymentAmount;
+      currentReceipt.change = changeAmount;
+
+      // Print receipt (even if DB save failed, still allow printing)
+      printReceipt();
+
       tft.fillScreen(COLOR_BG);
-      tft.setTextColor(TFT_GREEN);
-      tft.setCursor(40, 50);
-      tft.println(F("Receipt Printed"));
+      tft.setTextColor(saved ? TFT_GREEN : TFT_YELLOW);
+      tft.setCursor(30, 50);
+      tft.println(saved ? F("Receipt Printed") : F("Receipt Printed"));
       tft.setCursor(30, 70);
-      tft.println(F("Transaction Saved"));
-      delay(2000);
+      tft.println(saved ? F("Transaction Saved") : F("Txn Save Failed"));
+      delay(1500);
       resetWorkflow();
     }
     else if (key == 'C') {  // Cancel

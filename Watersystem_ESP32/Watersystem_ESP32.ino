@@ -29,6 +29,7 @@ SPIClass SPI_SD(VSPI);
 #include "database/customer_type_database.h"
 #include "database/barangay_database.h"
 #include "database/database_viewer.h"
+#include "database/bill_transactions_database.h"
 #include "managers/print_manager.h"
 #include "managers/tft_screen_manager.h"
 #include "managers/sdcard_manager.h"
@@ -38,6 +39,7 @@ SPIClass SPI_SD(VSPI);
 #include "components/battery_display.h"
 #include "components/bmp_display.h"
 #include "printer/bill_printer.h"
+#include "printer/receipt_printer.h"
 
 
 
@@ -48,6 +50,9 @@ TFT_eSPI tft = TFT_eSPI();
 // ===== THERMAL PRINTER =====
 HardwareSerial printerSerial(2);  // Use UART2 on ESP32
 Adafruit_Thermal printer(&printerSerial);
+
+// ===== RECEIPT DATA =====
+ReceiptData currentReceipt;
 
 // ===== RTC MODULE =====
 RTC_DS3231 rtc;

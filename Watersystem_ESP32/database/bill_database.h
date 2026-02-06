@@ -625,7 +625,7 @@ bool getBillForCustomer(String accountNo) {
     currentBill.minM3 = sqlite3_column_int(stmt, 11);
     currentBill.deductionName = (const char*)sqlite3_column_text(stmt, 12);
     // Stored total_due already reflects discounts; compute for display.
-    float computedDeduction = currentBill.subtotal - currentBill.total;
+    float computedDeduction = (currentBill.subtotal + currentBill.penalty) - currentBill.total;
     currentBill.deductions = (computedDeduction > 0.0f) ? computedDeduction : 0.0f;
     currentBill.readingDateTime = (const char*)sqlite3_column_text(stmt, 15);
 

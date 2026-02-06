@@ -14,7 +14,6 @@ extern unsigned long currentReading;
 extern float paymentAmount;  // Assume this is set externally
 
 // ===== FUNCTIONS FROM OTHER MODULES =====
-bool generateBillForCustomer(String accountNo, unsigned long currentReading);
 bool isSDCardReady();
 void deselectTftSelectSd();
 
@@ -24,19 +23,9 @@ void displayPaymentConfirmation() {
   Customer* cust = currentCustomer;
   if (cust == nullptr) return;
   
-  // Generate bill using customer type logic (should already be generated)
-  bool billGenerated = generateBillForCustomer(cust->account_no, currentReading);
-  if (!billGenerated) {
-    // Handle error
-    tft.setTextColor(ST77XX_RED);
-    tft.setTextSize(1);
-    tft.setCursor(20, 50);
-    tft.println(F("Bill generation failed!"));
-    return;
-  }
-  
   // Calculate change
   float change = paymentAmount - currentBill.total;
+  if (change < 0.0f) change = 0.0f;
   
   Serial.print(F("Payment: P"));
   Serial.println(paymentAmount, 2);

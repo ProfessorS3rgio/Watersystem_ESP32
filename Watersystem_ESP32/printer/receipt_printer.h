@@ -1,3 +1,11 @@
+// NOTE: Receipt printing relies on shared helpers from bill printing.
+#ifndef RECEIPT_PRINTER_H
+#define RECEIPT_PRINTER_H
+
+#include <Adafruit_Thermal.h>
+#include "../database/bill_transactions_database.h"
+#include "bill_printer.h"  // centerString(), formatDateTime12Hour(), getPeriodCovered(), customFeed(), logo
+
 void printReceipt() {
   printer.wake();
   printer.setDefault();
@@ -135,3 +143,5 @@ void printReceipt() {
 
   vTaskDelay(pdMS_TO_TICKS(500)); // replace delay()
 }
+
+#endif  // RECEIPT_PRINTER_H

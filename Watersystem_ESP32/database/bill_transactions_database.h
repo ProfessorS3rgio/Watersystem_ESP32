@@ -2,8 +2,78 @@
 #define BILL_TRANSACTIONS_DATABASE_H
 
 #include "../configuration/config.h"
+#include <Arduino.h>
 #include <vector>
 #include <sqlite3.h>
+#include "device_info.h"      // getDeviceUID(), getCurrentDateTimeString()
+
+// ===== RECEIPT DATA (used by receipt_printer + payment flow) =====
+struct ReceiptData {
+  String receiptNumber;
+  String paymentDateTime;
+
+  String customerName;
+  String accountNo;
+  String customerType;
+  String address;
+  String collector;
+
+  unsigned long prevReading;
+  unsigned long currReading;
+  unsigned long usage;
+
+  float rate;
+  float subtotal;
+  float deductions;
+  float penalty;
+  float total;
+
+  float amountPaid;
+  float change;
+
+  String billRefNumber;
+};
+
+extern ReceiptData currentReceipt;
+
+static int getBillIdByReferenceNumber(const String& billRef) {
+  const char* sql = "SELECT bill_id FROM bills WHERE reference_number = ? LIMIT 1;";
+  sqlite3_stmt* stmt;
+  int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+  if (rc != SQLITE_OK) {
+    Serial.print(F("Failed to prepare getBillIdByReferenceNumber: "));
+    Serial.println(sqlite3_errmsg(db));
+    return 0;
+  }
+
+  sqlite3_bind_text(stmt, 1, billRef.c_str(), -1, SQLITE_TRANSIENT);
+
+  int billId = 0;
+  if (sqlite3_step(stmt) == SQLITE_ROW) {
+    billId = sqlite3_column_int(stmt, 0);
+  }
+  sqlite3_finalize(stmt);
+  return billId;
+}
+
+static bool markBillPaidById(int billId) {
+  const char* sql = "UPDATE bills SET status = 'Paid', updated_at = ? WHERE bill_id = ?;";
+  sqlite3_stmt* stmt;
+  int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+  if (rc != SQLITE_OK) {
+    Serial.print(F("Failed to prepare markBillPaidById: "));
+    Serial.println(sqlite3_errmsg(db));
+    return false;
+  }
+
+  String nowStr = getCurrentDateTimeString();
+  sqlite3_bind_text(stmt, 1, nowStr.c_str(), -1, SQLITE_TRANSIENT);
+  sqlite3_bind_int(stmt, 2, billId);
+
+  rc = sqlite3_step(stmt);
+  sqlite3_finalize(stmt);
+  return rc == SQLITE_DONE;
+}
 
 // ===== BILL TRANSACTION DATA STRUCTURE =====
 struct BillTransaction {
@@ -11,7 +81,7 @@ struct BillTransaction {
   int bill_id;
   String bill_reference_number;
   String type;  // e.g., "payment", "adjustment"
-  String source;  // e.g., "cash", "online"
+  String source;  // "Office" | "Device"
   float amount;
   float cash_received;
   float change;
@@ -57,17 +127,48 @@ void loadBillTransactionsFromDB() {
 }
 
 bool saveBillTransactionToDB(BillTransaction transaction) {
-  char sql[1024];
+  const char* sql =
+    "INSERT INTO bill_transactions ("
+    "bill_id, bill_reference_number, type, source, amount, cash_received, change, "
+    "transaction_date, payment_method, processed_by_device_uid, notes, created_at, updated_at, synced, last_sync"
+    ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL);";
+
+  sqlite3_stmt* stmt;
+  int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+  if (rc != SQLITE_OK) {
+    Serial.print(F("Failed to prepare saveBillTransactionToDB: "));
+    Serial.println(sqlite3_errmsg(db));
+    return false;
+  }
+
   String nowStr = getCurrentDateTimeString();
-  sprintf(sql, "INSERT INTO bill_transactions (bill_id, bill_reference_number, type, source, amount, cash_received, change, transaction_date, payment_method, processed_by_device_uid, notes, created_at, updated_at, synced, last_sync) VALUES (%d, '%s', '%s', '%s', %f, %f, %f, '%s', '%s', '%s', '%s', '%s', '%s', 0, NULL);",
-          transaction.bill_id, transaction.bill_reference_number.c_str(), transaction.type.c_str(), transaction.source.c_str(),
-          transaction.amount, transaction.cash_received, transaction.change, transaction.transaction_date.c_str(),
-          transaction.payment_method.c_str(), transaction.processed_by_device_uid.c_str(), transaction.notes.c_str(),
-          nowStr.c_str(), nowStr.c_str());
-  int rc = sqlite3_exec(db, sql, NULL, NULL, NULL);
+  if (transaction.transaction_date.length() == 0) {
+    transaction.transaction_date = nowStr;
+  }
+
+  // This code runs on the ESP32 device, so the transaction source is always Device.
+  transaction.source = "Device";
+
+  sqlite3_bind_int(stmt, 1, transaction.bill_id);
+  sqlite3_bind_text(stmt, 2, transaction.bill_reference_number.c_str(), -1, SQLITE_TRANSIENT);
+  sqlite3_bind_text(stmt, 3, transaction.type.c_str(), -1, SQLITE_TRANSIENT);
+  sqlite3_bind_text(stmt, 4, transaction.source.c_str(), -1, SQLITE_TRANSIENT);
+  sqlite3_bind_double(stmt, 5, transaction.amount);
+  sqlite3_bind_double(stmt, 6, transaction.cash_received);
+  sqlite3_bind_double(stmt, 7, transaction.change);
+  sqlite3_bind_text(stmt, 8, transaction.transaction_date.c_str(), -1, SQLITE_TRANSIENT);
+  sqlite3_bind_text(stmt, 9, transaction.payment_method.c_str(), -1, SQLITE_TRANSIENT);
+  sqlite3_bind_text(stmt, 10, transaction.processed_by_device_uid.c_str(), -1, SQLITE_TRANSIENT);
+  sqlite3_bind_text(stmt, 11, transaction.notes.c_str(), -1, SQLITE_TRANSIENT);
+  sqlite3_bind_text(stmt, 12, nowStr.c_str(), -1, SQLITE_TRANSIENT);
+  sqlite3_bind_text(stmt, 13, nowStr.c_str(), -1, SQLITE_TRANSIENT);
+
+  rc = sqlite3_step(stmt);
+  sqlite3_finalize(stmt);
+
   Serial.print(F("Bill transaction save result: "));
-  Serial.println(rc == SQLITE_OK ? "OK" : "FAILED");
-  return rc == SQLITE_OK;
+  Serial.println(rc == SQLITE_DONE ? "OK" : "FAILED");
+  return rc == SQLITE_DONE;
 }
 
 // Function to create a payment transaction
@@ -76,7 +177,7 @@ bool recordPaymentTransaction(int billId, String billRef, float amount, float ca
   bt.bill_id = billId;
   bt.bill_reference_number = billRef;
   bt.type = "payment";
-  bt.source = "cash";
+  bt.source = "Device";
   bt.amount = amount;
   bt.cash_received = cashReceived;
   bt.change = changeAmount;
@@ -85,7 +186,22 @@ bool recordPaymentTransaction(int billId, String billRef, float amount, float ca
   bt.processed_by_device_uid = getDeviceUID();
   bt.notes = "Payment recorded via ESP32 device";
   
-  return saveBillTransactionToDB(bt);
+  bool ok = saveBillTransactionToDB(bt);
+  if (ok) {
+    (void)markBillPaidById(billId);
+  }
+  return ok;
+}
+
+// Convenience: record a cash payment by bill reference number (looks up bill_id internally)
+bool recordPaymentTransactionByBillRef(const String& billRef, float amountDue, float cashReceived, float changeAmount) {
+  int billId = getBillIdByReferenceNumber(billRef);
+  if (billId <= 0) {
+    Serial.print(F("Failed to find bill_id for ref: "));
+    Serial.println(billRef);
+    return false;
+  }
+  return recordPaymentTransaction(billId, billRef, amountDue, cashReceived, changeAmount);
 }
 
 // ===== MARK ALL BILL TRANSACTIONS SYNCED =====
