@@ -53,6 +53,7 @@ String inputBuffer = "";          // Buffer for numeric input
 int selectedCustomerIndex = -1;   // Index of selected customer
 unsigned long currentReading = 0; // Current meter reading from keypad
 unsigned long correctPreviousReading = 0; // Correct previous reading for validation
+bool isPaymentFlow = false;       // Flag to distinguish billing vs payment flow
 
 // ===== DISPLAY FUNCTIONS FOR WORKFLOW =====
 
@@ -63,14 +64,21 @@ unsigned long correctPreviousReading = 0; // Correct previous reading for valida
 void processAccountNumberEntry() {
   // Account found
   if (selectedCustomerIndex != -1) {
-    currentState = STATE_ACCOUNT_FOUND;
     inputBuffer = "";  // Clear buffer for next input
-    displayCustomerInfo();
+    if (isPaymentFlow) {
+      currentState = STATE_ENTER_PAYMENT;
+      displayEnterPaymentScreen();
+    } else {
+      currentState = STATE_ACCOUNT_FOUND;
+      displayCustomerInfo();
+    }
     
     Serial.print(F("Account found: "));
     Serial.println(currentCustomer->customer_name);
-    Serial.print(F("Correct previous reading: "));
-    Serial.println(correctPreviousReading);
+    if (!isPaymentFlow) {
+      Serial.print(F("Correct previous reading: "));
+      Serial.println(correctPreviousReading);
+    }
   } else {
     // Account not found - show error and stay in entry mode
     tft.fillScreen(COLOR_BG);
@@ -126,6 +134,7 @@ void resetWorkflow() {
   inputBuffer = "";
   selectedCustomerIndex = -1;
   currentReading = 0;
+  isPaymentFlow = false;
   showWelcomeScreen();
 }
 

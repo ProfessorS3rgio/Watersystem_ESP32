@@ -7,10 +7,11 @@
 #include <sqlite3.h>
 
 // Device info now stored in SQLite database table 'device_info'
-// Table: (brgy_id INTEGER, device_mac TEXT UNIQUE, device_uid TEXT, firmware_version TEXT, device_name TEXT, print_count INTEGER, customer_count INTEGER, last_sync TEXT, created_at TEXT, updated_at TEXT)
+// Table: (brgy_id INTEGER, device_mac TEXT UNIQUE, device_uid TEXT, firmware_version TEXT, device_name TEXT, collector TEXT, print_count INTEGER, customer_count INTEGER, last_sync TEXT, created_at TEXT, updated_at TEXT)
 
 static const char* DEVICE_TYPE_VALUE = "ESP32 Water System";
 static const char* FIRMWARE_VERSION_VALUE = "v1.0.0";
+static const char* COLLECTOR_NAME_VALUE = "Aurelio Macasling";
 static const unsigned long DEVICE_ID_VALUE = 2;  // Makilas barangay device
 static const unsigned long BRGY_ID_VALUE = 2;    // Makilas barangay
 
@@ -51,6 +52,7 @@ static String getDeviceInfoValue(const char* key) {
   if (!db) return "";
   if (strcmp(key, "device_id") == 0) return String(DEVICE_ID_VALUE);
   if (strcmp(key, "brgy_id") == 0) return String(BRGY_ID_VALUE);
+  if (strcmp(key, "collector") == 0) return COLLECTOR_NAME_VALUE;
   char sql[128];
   const char* column = "";
   if (strcmp(key, "device_mac") == 0) column = "device_mac";
@@ -188,6 +190,9 @@ static void exportDeviceInfoForSync() {
 
   Serial.print(F("INFO|device_mac|"));
   Serial.println(getDeviceUID());
+
+  Serial.print(F("INFO|collector|"));
+  Serial.println(COLLECTOR_NAME_VALUE);
 
   Serial.print(F("INFO|last_sync_epoch|"));
   Serial.println((unsigned long)g_lastSyncEpoch);

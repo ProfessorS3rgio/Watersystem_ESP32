@@ -28,6 +28,7 @@ struct BillData {
   String address;
   String collector;
   String dueDate;
+  String billDate;  // Added for disconnection date calculation
   unsigned long prevReading;
   unsigned long currReading;
   float rate;
@@ -41,6 +42,7 @@ struct BillData {
   unsigned long minM3;
   String deductionName;
   String readingDateTime;
+  String refNumber;
 };
 
 // ===== BILL STRUCTURE FOR STORAGE =====
@@ -158,6 +160,40 @@ String generateBillReferenceNumber(String accountNo) {
   return String(ref);
 }
 
+// ===== CALCULATE DUE DATE =====
+String calculateDueDate(String billDate, int daysToAdd) {
+  // billDate format: "YYYY-MM-DD"
+  if (billDate.length() != 10) return billDate; // Invalid format
+  
+  int year = billDate.substring(0,4).toInt();
+  int month = billDate.substring(5,7).toInt();
+  int day = billDate.substring(8,10).toInt();
+  
+  // Add days
+  day += daysToAdd;
+  
+  // Handle month/day overflow
+  int daysInMonth[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+  
+  // Check for leap year
+  if (month == 2 && ((year % 4 == 0 && year % 100 != 0) || year % 400 == 0)) {
+    daysInMonth[1] = 29;
+  }
+  
+  while (day > daysInMonth[month - 1]) {
+    day -= daysInMonth[month - 1];
+    month++;
+    if (month > 12) {
+      month = 1;
+      year++;
+    }
+  }
+  
+  char dueDate[11];
+  sprintf(dueDate, "%04d-%02d-%02d", year, month, day);
+  return String(dueDate);
+}
+
 // ===== SAVE BILL TO DATABASE =====
 bool saveBillToDB(Bill bill) {
   Serial.print(F("Saving bill for reading "));
@@ -202,6 +238,21 @@ float calculateBillAmount(unsigned long customerTypeId, unsigned long deductionI
   float deductionAmount = calculateDeductions(baseAmount, deductionId);
 
   return baseAmount - deductionAmount;
+}
+
+// ===== GET BILL DATE BY CUSTOMER AND READING =====
+String getBillDateByCustomerAndReading(int customerId, int readingId) {
+  String billDate = "";
+  char sql[256];
+  sprintf(sql, "SELECT bill_date FROM bills WHERE customer_id = %d AND reading_id = %d;", customerId, readingId);
+  sqlite3_exec(db, sql, [](void *data, int argc, char **argv, char **azColName) -> int {
+    String* billDate = static_cast<String*>(data);
+    if (argc > 0 && argv[0]) {
+      *billDate = argv[0];
+    }
+    return 0;
+  }, &billDate, NULL);
+  return billDate;
 }
 
 // ===== CALCULATE DEDUCTIONS =====
@@ -360,6 +411,7 @@ bool generateBillForCustomer(String accountNo, unsigned long currentReading) {
     }
     // Recalculate usage based on existing previous reading
     usage = currentReading - oldPreviousReading;
+    if (usage <= 0) return false; // Invalid usage for existing reading
     Serial.print(F("New usage: "));
     Serial.println(usage);
     // Get reading ID first
@@ -394,6 +446,42 @@ bool generateBillForCustomer(String accountNo, unsigned long currentReading) {
   if (hasExistingReading) {
     updateExistingBill(customer->customer_id, readingId, charges, totalDue, customerType->rate_per_m3);
     Serial.println(F("Updated existing bill"));
+    
+    // Populate currentBill for display/printing
+    String existingBillDate = getBillDateByCustomerAndReading(customer->customer_id, readingId);
+    if (existingBillDate == "") {
+      existingBillDate = getCurrentDateTimeString().substring(0,10); // Fallback
+    }
+    currentBill.customerName = customer->customer_name;
+    currentBill.accountNo = customer->account_no;
+    currentBill.address = customer->address;
+    currentBill.collector = COLLECTOR_NAME_VALUE;
+    currentBill.dueDate = calculateDueDate(existingBillDate, 5);
+    currentBill.billDate = existingBillDate;
+    currentBill.prevReading = oldPreviousReading;
+    currentBill.currReading = currentReading;
+    currentBill.rate = customerType->rate_per_m3;
+    currentBill.penalty = 0.0; // Existing bills don't have penalty in update
+    currentBill.subtotal = charges;
+    currentBill.deductions = deductionAmount;
+    currentBill.total = totalDue;
+    currentBill.usage = usage;
+    currentBill.customerType = customerType->type_name;
+    currentBill.minCharge = customerType->min_charge;
+    currentBill.minM3 = customerType->min_m3;
+    currentBill.readingDateTime = readingAt;
+    // For existing bills, we need to get the reference number
+    String refNum = "";
+    char sql[256];
+    sprintf(sql, "SELECT reference_number FROM bills WHERE customer_id = %d AND reading_id = %d;", customer->customer_id, readingId);
+    sqlite3_exec(db, sql, [](void *data, int argc, char **argv, char **azColName) -> int {
+      String* refNum = static_cast<String*>(data);
+      if (argc > 0 && argv[0]) {
+        *refNum = argv[0];
+      }
+      return 0;
+    }, &refNum, NULL);
+    currentBill.refNumber = refNum;
   }
 
   // Update customer's previous reading
@@ -404,25 +492,6 @@ bool generateBillForCustomer(String accountNo, unsigned long currentReading) {
     currentCustomer->previous_reading = currentReading;
   }
   if (!customer) return false;
-
-  // Populate currentBill for display
-  currentBill.customerName = customer->customer_name;
-  currentBill.accountNo = customer->account_no;
-  currentBill.address = customer->address;
-  currentBill.prevReading = oldPreviousReading;
-  currentBill.currReading = currentReading;
-  currentBill.usage = usage;
-  currentBill.rate = customerType->rate_per_m3;
-  currentBill.minCharge = customerType->min_charge;
-  currentBill.minM3 = customerType->min_m3;
-  currentBill.customerType = customerType->type_name;
-  currentBill.subtotal = charges;
-  currentBill.deductions = deductionAmount;
-  currentBill.total = totalDue;
-  currentBill.penalty = 0.0;
-  currentBill.subtotal = charges;
-  currentBill.dueDate = "2026-02-15"; // 30 days from now
-  currentBill.readingDateTime = readingAt;
 
   // Get deduction name if any
   if (customer->deduction_id > 0) {
@@ -450,12 +519,36 @@ bool generateBillForCustomer(String accountNo, unsigned long currentReading) {
     bill.penalty = 0.0;
     bill.total_due = totalDue;
     bill.status = "Pending";
+    
+    // Calculate due date: 5 days after bill date
+    String dueDateStr = calculateDueDate(bill.bill_date, 5);
 
     // Save bill to DB
     if (saveBillToDB(bill)) {
       if (!g_bulkInsertMode) {
         bills.push_back(bill);
         Serial.println(F("New bill created successfully"));
+        
+        // Populate currentBill for display/printing
+        currentBill.customerName = customer->customer_name;
+        currentBill.accountNo = customer->account_no;
+        currentBill.address = customer->address;
+        currentBill.collector = COLLECTOR_NAME_VALUE;
+        currentBill.dueDate = dueDateStr;
+        currentBill.billDate = bill.bill_date;
+        currentBill.prevReading = oldPreviousReading;
+        currentBill.currReading = currentReading;
+        currentBill.rate = customerType->rate_per_m3;
+        currentBill.penalty = bill.penalty;
+        currentBill.subtotal = bill.charges;
+        currentBill.deductions = deductionAmount;
+        currentBill.total = bill.total_due;
+        currentBill.usage = usage;
+        currentBill.customerType = customerType->type_name;
+        currentBill.minCharge = customerType->min_charge;
+        currentBill.minM3 = customerType->min_m3;
+        currentBill.readingDateTime = readingAt;
+        currentBill.refNumber = bill.reference_number;
       }
       return true;
     } else {

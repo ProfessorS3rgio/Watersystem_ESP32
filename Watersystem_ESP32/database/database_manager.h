@@ -63,7 +63,7 @@ void createAllTables() {
   sqlite3_exec(db, sql_bill_transactions, NULL, NULL, NULL);
 
   // Device info table
-  const char *sql_device_info = "CREATE TABLE IF NOT EXISTS device_info (brgy_id INTEGER, device_mac TEXT UNIQUE, device_uid TEXT, firmware_version TEXT, device_name TEXT, print_count INTEGER DEFAULT 0, customer_count INTEGER DEFAULT 0, last_sync TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT);";
+  const char *sql_device_info = "CREATE TABLE IF NOT EXISTS device_info (brgy_id INTEGER, device_mac TEXT UNIQUE, device_uid TEXT, firmware_version TEXT, device_name TEXT, collector TEXT, print_count INTEGER DEFAULT 0, customer_count INTEGER DEFAULT 0, last_sync TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT);";
   sqlite3_exec(db, sql_device_info, NULL, NULL, NULL);
 
   // Optimize SQLite for low memory ESP32
@@ -82,7 +82,7 @@ void initializeDefaultDevice() {
   String macAddress = getDeviceUID();
   String nowStr = getCurrentDateTimeString();
   char insert_sql[512];
-  sprintf(insert_sql, "INSERT OR REPLACE INTO device_info (brgy_id, device_mac, device_uid, firmware_version, device_name, print_count, customer_count, last_sync, created_at, updated_at) VALUES (2, '%s', '%s', 'v1.0.0', 'ESP32 Water System', 0, 0, '0', '%s', '%s');", macAddress.c_str(), macAddress.c_str(), nowStr.c_str(), nowStr.c_str());
+  sprintf(insert_sql, "INSERT OR REPLACE INTO device_info (brgy_id, device_mac, device_uid, firmware_version, device_name, collector, print_count, customer_count, last_sync, created_at, updated_at) VALUES (2, '%s', '%s', 'v1.0.0', 'ESP32 Water System', 'Aurelio Macasling', 0, 0, '0', '%s', '%s');", macAddress.c_str(), macAddress.c_str(), nowStr.c_str(), nowStr.c_str());
   sqlite3_exec(db, insert_sql, NULL, NULL, NULL);
   Serial.println(F("Initialized default device record"));
 }

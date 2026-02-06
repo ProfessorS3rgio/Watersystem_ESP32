@@ -23,6 +23,8 @@ void displayCustomerInfo();
 void displayEnterReadingScreen();
 void displayBillCalculated();
 void displayReadingAlreadyDoneScreen();
+void displayEnterPaymentScreen();
+void displayPaymentSummary();
 void processAccountNumberEntry();
 void processReadingEntry();
 void resetWorkflow();
@@ -34,6 +36,8 @@ extern WorkflowState currentState;
 extern String inputBuffer;
 extern int selectedCustomerIndex;
 extern unsigned long currentReading;
+extern bool isPaymentFlow;
+extern float paymentAmount;
 
 // External objects from main .ino
 extern Adafruit_Thermal printer;
@@ -58,12 +62,19 @@ void handleKeypadInput(char key) {
   
   // Handle based on current workflow state
   if (currentState == STATE_WELCOME) {
-    // On welcome screen, A opens menu, D or B starts billing
+    // On welcome screen, A opens menu, B starts billing, D starts payment
     if (key == 'A') {
       currentState = STATE_MENU;
       displayMenuScreen();
     }
-    else if (key == 'D' || key == 'B') {
+    else if (key == 'B') {
+      isPaymentFlow = false;
+      currentState = STATE_ENTER_ACCOUNT;
+      inputBuffer = "";
+      displayEnterAccountScreen();
+    }
+    else if (key == 'D') {
+      isPaymentFlow = true;
       currentState = STATE_ENTER_ACCOUNT;
       inputBuffer = "";
       displayEnterAccountScreen();
@@ -269,6 +280,44 @@ void handleKeypadInput(char key) {
       // Exit to menu
       currentState = STATE_MENU;
       displayMenuScreen();
+    }
+  }
+  else if (currentState == STATE_ENTER_PAYMENT) {
+    // Entering payment amount
+    if ((key >= '0' && key <= '9') || key == '.') {
+      inputBuffer += key;
+      displayEnterPaymentScreen();
+    }
+    else if (key == 'D') {  // Confirm payment
+      paymentAmount = inputBuffer.toFloat();
+      currentState = STATE_PAYMENT_SUMMARY;
+      displayPaymentSummary();
+    }
+    else if (key == 'B') {  // Clear input
+      inputBuffer = "";
+      displayEnterPaymentScreen();
+    }
+    else if (key == 'C') {  // Cancel - go back to account entry
+      currentState = STATE_ENTER_ACCOUNT;
+      inputBuffer = "";
+      displayEnterAccountScreen();
+    }
+  }
+  else if (currentState == STATE_PAYMENT_SUMMARY) {
+    // Payment summary
+    if (key == 'D') {  // Confirm and print receipt
+      // TODO: Implement payment processing and receipt printing
+      tft.fillScreen(COLOR_BG);
+      tft.setTextColor(TFT_GREEN);
+      tft.setCursor(40, 50);
+      tft.println(F("Payment Confirmed"));
+      tft.setCursor(50, 70);
+      tft.println(F("Printing receipt..."));
+      delay(2000);
+      resetWorkflow();
+    }
+    else if (key == 'C') {  // Cancel
+      resetWorkflow();
     }
   }
 }

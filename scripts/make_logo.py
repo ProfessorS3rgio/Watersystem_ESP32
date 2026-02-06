@@ -2,8 +2,11 @@ from PIL import Image
 import sys
 
 # Configuration: target printer width and max height
-TARGET_W = 384   # full printer width (must be multiple of 8)
-MAX_H = 192      # large logo height
+# TARGET_W = 320   # large logo width (must be multiple of 8)
+# MAX_H = 160      # large logo height
+
+TARGET_W = 256   # even larger logo width (must be multiple of 8)
+MAX_H = 96       # even larger logo height
 
 INFILE = sys.argv[1] if len(sys.argv) > 1 else "stii.png"
 OUTFILE = "output.txt"
