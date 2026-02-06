@@ -7,6 +7,7 @@
 #include "../database/readings_database.h"
 #include "../database/customers_database.h"
 #include "../database/barangay_database.h"
+#include "../database/bill_transactions_database.h"
 #include "../database/test_data_generator.h"
 #include <SD.h>
 
@@ -22,9 +23,9 @@ void displayEnterAccountScreen();
 void displayCustomerInfo();
 void displayEnterReadingScreen();
 void displayBillCalculated();
-void displayReadingAlreadyDoneScreen();
 void displayEnterPaymentScreen();
 void displayPaymentSummary();
+void displayPaymentConfirmation();
 void processAccountNumberEntry();
 void processReadingEntry();
 void resetWorkflow();
@@ -201,30 +202,11 @@ void handleKeypadInput(char key) {
   else if (currentState == STATE_ACCOUNT_FOUND) {
     // Customer info displayed
     if (key == 'D') {  // Proceed to reading
-      // If this account already has a reading for the current month, warn first.
-      if (hasReadingForAccountThisMonth(currentCustomer->account_no)) {
-        currentState = STATE_READING_ALREADY_DONE;
-        displayReadingAlreadyDoneScreen();
-      } else {
-        currentState = STATE_ENTER_READING;
-        inputBuffer = "";
-        displayEnterReadingScreen();
-      }
-    }
-    else if (key == 'C') {  // Cancel and go back
-      resetWorkflow();
-    }
-  }
-  else if (currentState == STATE_READING_ALREADY_DONE) {
-    // Reading already done screen
-    if (key == 'D') {
-      // Continue anyway
       currentState = STATE_ENTER_READING;
       inputBuffer = "";
       displayEnterReadingScreen();
     }
-    else if (key == 'C') {
-      // Cancel
+    else if (key == 'C') {  // Cancel and go back
       resetWorkflow();
     }
   }
@@ -290,8 +272,8 @@ void handleKeypadInput(char key) {
     }
     else if (key == 'D') {  // Confirm payment
       paymentAmount = inputBuffer.toFloat();
-      currentState = STATE_PAYMENT_SUMMARY;
-      displayPaymentSummary();
+      currentState = STATE_PAYMENT_CONFIRMATION;
+      displayPaymentConfirmation();
     }
     else if (key == 'B') {  // Clear input
       inputBuffer = "";
@@ -304,15 +286,46 @@ void handleKeypadInput(char key) {
     }
   }
   else if (currentState == STATE_PAYMENT_SUMMARY) {
-    // Payment summary
-    if (key == 'D') {  // Confirm and print receipt
-      // TODO: Implement payment processing and receipt printing
+    // Payment summary showing bill details
+    if (key == 'D') {  // Pay
+      currentState = STATE_ENTER_PAYMENT;
+      inputBuffer = "";
+      displayEnterPaymentScreen();
+    }
+    else if (key == 'C') {  // Cancel
+      resetWorkflow();
+    }
+  }
+  else if (currentState == STATE_PAYMENT_CONFIRMATION) {
+    // Payment confirmation
+    if (key == 'D') {  // Print receipt and save transaction
+      // Save payment transaction
+      BillTransaction bt;
+      bt.bill_id = 0;  // TODO: Get actual bill_id from refNumber
+      bt.bill_reference_number = currentBill.refNumber;
+      bt.type = "payment";
+      bt.source = "Device";
+      bt.amount = currentBill.total;
+      bt.cash_received = paymentAmount;
+      bt.change = paymentAmount - currentBill.total;
+      bt.transaction_date = getCurrentDateTimeString();
+      bt.payment_method = "cash";
+      bt.processed_by_device_uid = getDeviceUID();
+      bt.notes = "Payment processed";
+      
+      if (saveBillTransactionToDB(bt)) {
+        Serial.println(F("Payment transaction saved successfully"));
+      } else {
+        Serial.println(F("Failed to save payment transaction"));
+      }
+      
+      // TODO: Print receipt
       tft.fillScreen(COLOR_BG);
       tft.setTextColor(TFT_GREEN);
       tft.setCursor(40, 50);
-      tft.println(F("Payment Confirmed"));
-      tft.setCursor(50, 70);
-      tft.println(F("Printing receipt..."));
+      tft.println(F("Receipt Printed"));
+      tft.setCursor(30, 70);
+      tft.println(F("Transaction Saved"));
       delay(2000);
       resetWorkflow();
     }

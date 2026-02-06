@@ -1,5 +1,4 @@
-#include <Adafruit_GFX.h>
-#include <Adafruit_ILI9341.h>
+// ===== MAIN WATERSYSTEM ESP32 SKETCH =====
 #include <SPI.h>
 SPIClass SPI_SD(VSPI);
 #include <SD.h>

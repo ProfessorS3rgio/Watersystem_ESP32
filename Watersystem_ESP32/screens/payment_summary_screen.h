@@ -5,15 +5,18 @@
 #include "../database/customers_database.h"
 #include "../database/bill_database.h"
 #include <SD.h>
+#include <RTClib.h>
 
 // ===== EXTERNAL OBJECTS =====
 extern TFT_eSPI tft;
 extern Customer* currentCustomer;
 extern unsigned long currentReading;
 extern float paymentAmount;  // Assume this is set externally
+extern RTC_DS3231 rtc;
 
 // ===== FUNCTIONS FROM OTHER MODULES =====
 bool generateBillForCustomer(String accountNo, unsigned long currentReading);
+bool getBillForCustomer(String accountNo);
 bool isSDCardReady();
 void deselectTftSelectSd();
 
@@ -23,21 +26,22 @@ void displayPaymentSummary() {
   Customer* cust = currentCustomer;
   if (cust == nullptr) return;
   
-  // Generate bill using customer type logic
-  bool billGenerated = generateBillForCustomer(cust->account_no, currentReading);
-  Serial.print(F("Bill generated: "));
-  Serial.println(billGenerated ? F("Success") : F("Failed"));
-  if (!billGenerated) {
-    // Handle error - customer not found or invalid
+  // Get existing bill for customer
+  bool billRetrieved = getBillForCustomer(cust->account_no);
+  Serial.print(F("Bill retrieved: "));
+  Serial.println(billRetrieved ? F("Success") : F("Failed"));
+  if (!billRetrieved) {
+    // Handle error - no bill found
     tft.setTextColor(ST77XX_RED);
     tft.setTextSize(1);
     tft.setCursor(20, 50);
-    tft.println(F("Bill generation failed!"));
+    tft.println(F("No outstanding bill found!"));
+    tft.setCursor(20, 70);
+    tft.println(F("Cannot process payment."));
     return;
   }
   
-  // Calculate change
-  float change = paymentAmount - currentBill.total;
+  DateTime now = rtc.now();
   
   Serial.print(F("Customer: "));
   Serial.println(currentBill.customerName);
@@ -45,10 +49,6 @@ void displayPaymentSummary() {
   Serial.println(currentBill.usage);
   Serial.print(F("Total: P"));
   Serial.println(currentBill.total, 2);
-  Serial.print(F("Payment: P"));
-  Serial.println(paymentAmount, 2);
-  Serial.print(F("Change: P"));
-  Serial.println(change, 2);
   
   tft.setTextColor(COLOR_HEADER);
   tft.setTextSize(1);
@@ -76,6 +76,14 @@ void displayPaymentSummary() {
   
   tft.setTextColor(COLOR_LABEL);
   tft.setCursor(2, 58);
+  tft.print(F("Billing Month: "));
+  tft.setTextColor(COLOR_TEXT);
+  tft.print(now.month());
+  tft.print(F("/"));
+  tft.println(now.year());
+  
+  tft.setTextColor(COLOR_LABEL);
+  tft.setCursor(2, 70);
   if (currentBill.usage <= currentBill.minM3 && currentBill.minM3 > 0) {
     tft.print(F("Min Charge: P"));
     tft.println(currentBill.minCharge, 2);
@@ -88,9 +96,25 @@ void displayPaymentSummary() {
   // Show deduction if any
   if (currentBill.deductions > 0) {
     tft.setTextColor(COLOR_LABEL);
-    tft.setCursor(2, 70);
+    tft.setCursor(2, 82);
     tft.print(F("Discount: P"));
     tft.println(currentBill.deductions, 2);
+    tft.drawLine(0, 94, 160, 94, COLOR_LINE);
+    
+    tft.setTextColor(COLOR_HEADER);
+    tft.setCursor(15, 101);
+    tft.println(F("TOTAL DUE:"));
+    
+    tft.setTextColor(COLOR_AMOUNT);
+    tft.setTextSize(2);
+    tft.setCursor(20, 114);
+    tft.print(F("P"));
+    tft.println(currentBill.total, 2);
+    tft.setTextSize(1);
+    
+    tft.setCursor(20, 150);
+    tft.println(F("Press D to Pay"));
+  } else {
     tft.drawLine(0, 82, 160, 82, COLOR_LINE);
     
     tft.setTextColor(COLOR_HEADER);
@@ -104,42 +128,8 @@ void displayPaymentSummary() {
     tft.println(currentBill.total, 2);
     tft.setTextSize(1);
     
-    tft.setTextColor(COLOR_LABEL);
-    tft.setCursor(2, 120);
-    tft.print(F("Payment: P"));
-    tft.println(paymentAmount, 2);
-    
-    tft.setCursor(2, 132);
-    tft.print(F("Change: P"));
-    tft.println(change, 2);
-    
-    tft.setCursor(20, 150);
-    tft.println(F("Press D to confirm"));
-  } else {
-    tft.drawLine(0, 70, 160, 70, COLOR_LINE);
-    
-    tft.setTextColor(COLOR_HEADER);
-    tft.setCursor(15, 77);
-    tft.println(F("TOTAL DUE:"));
-    
-    tft.setTextColor(COLOR_AMOUNT);
-    tft.setTextSize(2);
-    tft.setCursor(20, 90);
-    tft.print(F("P"));
-    tft.println(currentBill.total, 2);
-    tft.setTextSize(1);
-    
-    tft.setTextColor(COLOR_LABEL);
-    tft.setCursor(2, 108);
-    tft.print(F("Payment: P"));
-    tft.println(paymentAmount, 2);
-    
-    tft.setCursor(2, 120);
-    tft.print(F("Change: P"));
-    tft.println(change, 2);
-    
     tft.setCursor(20, 140);
-    tft.println(F("Press D to confirm"));
+    tft.println(F("Press D to Pay"));
   }
 }
 

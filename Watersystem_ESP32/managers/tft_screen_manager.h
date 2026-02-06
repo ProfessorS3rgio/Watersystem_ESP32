@@ -8,6 +8,7 @@
 
 // ===== EXTERNAL OBJECTS FROM MAIN .INO =====
 extern TFT_eSPI tft;
+extern RTC_DS3231 rtc;
 
 #include "components/bmp_display.h"
 #include "components/battery_display.h"
@@ -16,10 +17,10 @@ extern TFT_eSPI tft;
 #include "../screens/enter_account_screen.h"
 #include "../screens/customer_info_screen.h"
 #include "../screens/enter_reading_screen.h"
-#include "../screens/reading_already_done_screen.h"
 #include "../screens/bill_calculated_screen.h"
 #include "../screens/enter_payment_screen.h"
 #include "../screens/payment_summary_screen.h"
+#include "../screens/payment_confirmation_screen.h"
 #include "../screens/view_rate_screen.h"
 #include "../screens/bill_display_screen.h"
 #include <SD.h>
@@ -39,13 +40,13 @@ enum WorkflowState {
   STATE_ABOUT,             // About screen
   STATE_ENTER_ACCOUNT,     // Waiting for account number entry
   STATE_ACCOUNT_FOUND,     // Account found, showing customer info
-  STATE_READING_ALREADY_DONE, // Reading already done this month
   STATE_ENTER_READING,     // Waiting for current meter reading entry
   STATE_BILL_CALCULATED,   // Bill calculated, ready to print
   STATE_PRINTING,          // Printing bill
   STATE_VIEW_RATE,         // Viewing current rate
   STATE_ENTER_PAYMENT,     // Waiting for payment amount entry
-  STATE_PAYMENT_SUMMARY    // Payment summary, ready to confirm
+  STATE_PAYMENT_SUMMARY,   // Payment summary, showing bill details
+  STATE_PAYMENT_CONFIRMATION // Payment confirmation, showing cash and change
 };
 
 WorkflowState currentState = STATE_WELCOME;
@@ -66,8 +67,8 @@ void processAccountNumberEntry() {
   if (selectedCustomerIndex != -1) {
     inputBuffer = "";  // Clear buffer for next input
     if (isPaymentFlow) {
-      currentState = STATE_ENTER_PAYMENT;
-      displayEnterPaymentScreen();
+      currentState = STATE_PAYMENT_SUMMARY;
+      displayPaymentSummary();
     } else {
       currentState = STATE_ACCOUNT_FOUND;
       displayCustomerInfo();

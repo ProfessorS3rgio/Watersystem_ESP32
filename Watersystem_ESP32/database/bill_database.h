@@ -571,4 +571,52 @@ bool markAllBillsSynced() {
   return rc == SQLITE_OK;
 }
 
+bool getBillForCustomer(String accountNo) {
+  int customerIndex = findCustomerByAccount(accountNo);
+  if (customerIndex == -1) return false;
+  Customer* customer = getCustomerAt(customerIndex);
+  if (!customer) return false;
+
+  // Query for the latest bill for this customer
+  char sql[512];
+  sprintf(sql, "SELECT b.reference_number, b.bill_date, b.rate_per_m3, b.charges, b.penalty, b.total_due, r.prev_reading, r.curr_reading, r.usage, ct.type_name, ct.min_charge, ct.min_m3, d.deduction_name, d.amount, r.reading_datetime FROM bills b LEFT JOIN readings r ON b.reading_id = r.reading_id LEFT JOIN customer_types ct ON r.customer_type_id = ct.customer_type_id LEFT JOIN deductions d ON r.deduction_id = d.deduction_id WHERE b.customer_id = %d ORDER BY b.bill_date DESC LIMIT 1;", customer->customer_id);
+
+  sqlite3_stmt *stmt;
+  int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+  if (rc != SQLITE_OK) {
+    Serial.print(F("Failed to prepare statement: "));
+    Serial.println(sqlite3_errmsg(db));
+    return false;
+  }
+
+  rc = sqlite3_step(stmt);
+  if (rc == SQLITE_ROW) {
+    // Set currentBill
+    currentBill.customerName = customer->customer_name;
+    currentBill.accountNo = customer->account_no;
+    currentBill.address = customer->address;
+    currentBill.refNumber = (const char*)sqlite3_column_text(stmt, 0);
+    currentBill.billDate = (const char*)sqlite3_column_text(stmt, 1);
+    currentBill.rate = sqlite3_column_double(stmt, 2);
+    currentBill.subtotal = sqlite3_column_double(stmt, 3);
+    currentBill.penalty = sqlite3_column_double(stmt, 4);
+    currentBill.total = sqlite3_column_double(stmt, 5);
+    currentBill.prevReading = sqlite3_column_int(stmt, 6);
+    currentBill.currReading = sqlite3_column_int(stmt, 7);
+    currentBill.usage = sqlite3_column_int(stmt, 8);
+    currentBill.customerType = (const char*)sqlite3_column_text(stmt, 9);
+    currentBill.minCharge = sqlite3_column_double(stmt, 10);
+    currentBill.minM3 = sqlite3_column_int(stmt, 11);
+    currentBill.deductionName = (const char*)sqlite3_column_text(stmt, 12);
+    currentBill.deductions = sqlite3_column_double(stmt, 13);
+    currentBill.readingDateTime = (const char*)sqlite3_column_text(stmt, 14);
+
+    sqlite3_finalize(stmt);
+    return true;
+  } else {
+    sqlite3_finalize(stmt);
+    return false;
+  }
+}
+
 #endif  // BILL_DATABASE_H

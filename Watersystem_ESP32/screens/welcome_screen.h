@@ -12,7 +12,7 @@ void showWelcomeScreen() {
   tft.fillScreen(TFT_BLACK);  // Ensure black background
   
   // ===== TOP BORDER =====
-  tft.fillRect(0, 0, 320, 10, TFT_RED);
+  tft.fillRect(0, 0, 320, 5, TFT_BLUE);
   
   // ===== DISPLAY LOGO FROM SD CARD =====
   // Draw logo from BMP file on the left side
@@ -21,8 +21,7 @@ void showWelcomeScreen() {
   drawBMP("/WATER_DB/ASSETS/dmbc_logo.bmp", logoX, logoY);
   
   // ===== SERVICE DESCRIPTION (Next to logo) =====
-  tft.setTextFont(4);  // Sans-serif font, similar to FreeSansBold
-  tft.setTextSize(1);
+  tft.setFreeFont(&FreeSansBold9pt7b);
   tft.setTextColor(COLOR_TEXT);
   tft.setCursor(140, 55);
   tft.println(F("Water &"));
@@ -34,8 +33,7 @@ void showWelcomeScreen() {
   // ===== DECORATIVE ELEMENTS =====
   
   // ===== STATUS INDICATOR =====
-  tft.setTextFont(2);  // Sans-serif font, similar to FreeSans
-  tft.setTextSize(1);
+  tft.setFreeFont(&FreeSans9pt7b);
   tft.setTextColor(COLOR_LABEL);
   tft.setCursor(100, 130);  // Centered
   tft.println(F("System Ready"));
@@ -46,14 +44,13 @@ void showWelcomeScreen() {
   // ===== ADDITIONAL DESIGN ELEMENTS =====
   
   // ===== INSTRUCTIONS =====
-  tft.setTextFont(2);  // Sans-serif font, similar to FreeSans
-  tft.setTextSize(1);
+  tft.setFreeFont(&FreeSans9pt7b);
   tft.setTextColor(TFT_WHITE);
   tft.setCursor(30, 200);  // Centered in the box
   tft.println(F("A - Menu   B - Bill   D - Payment"));
   
   // ===== BOTTOM BORDER =====
-  tft.fillRect(0, 230, 320, 10, TFT_RED);
+  tft.fillRect(0, 230, 320, 5, TFT_BLUE);
   
 }
 

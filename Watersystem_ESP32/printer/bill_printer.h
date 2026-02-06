@@ -25,28 +25,25 @@ void printBill() {
   unsigned long used = currentBill.currReading - currentBill.prevReading;
   float total = currentBill.total;
 
-  customFeed(1);
+//   customFeed(1);
   YIELD_WDT();
-
-  printer.justify('L');
-  printer.print(F("          "));  // Shift logo further to the right (10 spaces)
   printer.printBitmap(LOGO_WIDTH, LOGO_HEIGHT, logo);
   YIELD_WDT();  // 🚨 REQUIRED
 
-  printer.println(F(""));
-  YIELD_WDT();
 
-  printer.setSize('S');
-  printer.println(F("DONA JOSEFA M. BULU-AN CAPARAN"));
-  printer.println(F("Water & Sanitation Assoc."));
-  printer.println(F("Bulu-an, IPIL, Zambo. Sibugay"));
-  printer.println(F("TIN: 464-252-005-000"));
-  printer.println(F(""));
-  printer.println(F("--------------------------------"));
+//   printer.setSize('S');
+//   printer.println(F("DONA JOSEFA M. BULU-AN CAPARAN"));
+//   printer.println(F("Water & Sanitation Assoc."));
+//   printer.println(F("Bulu-an, IPIL, Zambo. Sibugay"));
+//   printer.println(F("TIN: 464-252-005-000"));
+//   printer.println(F(""));
+//   printer.println(F("--------------------------------"));
+  printer.setSize('M');
   printer.boldOn();
   printer.println(F("STATEMENT OF ACCOUNT"));
   printer.boldOff();
-  printer.println(F("--------------------------------"));
+  printer.setSize('S');
+//   printer.println(F("--------------------------------"));
   YIELD_WDT();
 
   printer.justify('L');
