@@ -20,6 +20,15 @@ bool getBillForCustomer(String accountNo);
 bool isSDCardReady();
 void deselectTftSelectSd();
 
+static const char* shortMonthName(int month) {
+  static const char* months[] = {
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+  };
+  if (month < 1 || month > 12) return "";
+  return months[month - 1];
+}
+
 void displayPaymentSummary() {
   tft.fillScreen(COLOR_BG);
   
@@ -49,88 +58,115 @@ void displayPaymentSummary() {
   Serial.println(currentBill.usage);
   Serial.print(F("Total: P"));
   Serial.println(currentBill.total, 2);
-  
+
+  // Welcome-screen style fonts + simple borders
+  tft.fillRect(0, 0, 320, 5, TFT_BLUE);
+  tft.fillRect(0, 235, 320, 5, TFT_BLUE);
+
+  tft.setFreeFont(&FreeSansBold9pt7b);
   tft.setTextColor(COLOR_HEADER);
-  tft.setTextSize(1);
-  tft.setCursor(35, 5);
+  tft.setCursor(85, 25);
   tft.println(F("PAYMENT SUMMARY"));
-  
-  tft.drawLine(0, 16, 160, 16, COLOR_LINE);
-  
-  tft.setTextColor(COLOR_TEXT);
-  tft.setCursor(2, 22);
-  tft.println(currentBill.customerName);
-  
+  tft.drawLine(0, 35, 320, 35, COLOR_LINE);
+
+  // Compact layout (2.8" 320x240)
+  const int leftX = 10;
+  const int rightX = 180;
+  const int lineH = 24;
+  int y = 60;
+
+  tft.setFreeFont(&FreeSans9pt7b);
+
+  // Line 1: Account + Used
   tft.setTextColor(COLOR_LABEL);
-  tft.setCursor(2, 34);
+  tft.setCursor(leftX, y);
+  tft.print(F("Account: "));
+  tft.setTextColor(COLOR_TEXT);
+  tft.print(currentBill.accountNo);
+
+  tft.setTextColor(COLOR_LABEL);
+  tft.setCursor(rightX, y);
   tft.print(F("Used: "));
   tft.setTextColor(COLOR_AMOUNT);
   tft.print(currentBill.usage);
-  tft.println(F(" m3"));
-  
   tft.setTextColor(COLOR_LABEL);
-  tft.setCursor(2, 46);
+  tft.print(F("m3"));
+
+  // Line 2: Name
+  y += lineH;
+  tft.setTextColor(COLOR_LABEL);
+  tft.setCursor(leftX, y);
+  tft.print(F("Name: "));
+  tft.setTextColor(COLOR_TEXT);
+  tft.println(currentBill.customerName);
+
+  // Line 3: Type + Rate (or Min Charge)
+  y += lineH;
+  tft.setTextColor(COLOR_LABEL);
+  tft.setCursor(leftX, y);
   tft.print(F("Type: "));
   tft.setTextColor(COLOR_TEXT);
-  tft.println(currentBill.customerType);
-  
+  tft.print(currentBill.customerType);
+
   tft.setTextColor(COLOR_LABEL);
-  tft.setCursor(2, 58);
-  tft.print(F("Billing Month: "));
-  tft.setTextColor(COLOR_TEXT);
-  tft.print(now.month());
-  tft.print(F("/"));
-  tft.println(now.year());
-  
-  tft.setTextColor(COLOR_LABEL);
-  tft.setCursor(2, 70);
+  tft.setCursor(rightX, y);
   if (currentBill.usage <= currentBill.minM3 && currentBill.minM3 > 0) {
-    tft.print(F("Min Charge: P"));
+    tft.print(F("MinChg: P"));
+    tft.setTextColor(COLOR_TEXT);
     tft.println(currentBill.minCharge, 2);
   } else {
     tft.print(F("Rate: P"));
+    tft.setTextColor(COLOR_TEXT);
     tft.print(currentBill.rate, 2);
+    tft.setTextColor(COLOR_LABEL);
     tft.println(F("/m3"));
   }
-  
-  // Show deduction if any
-  if (currentBill.deductions > 0) {
+
+  // Line 4: Billing Period
+  int startMonth = now.month() - 1;
+  if (startMonth <= 0) startMonth = 12;
+
+  y += lineH;
+  tft.setTextColor(COLOR_LABEL);
+  tft.setCursor(leftX, y);
+  tft.print(F("Billing Period: "));
+  tft.setTextColor(COLOR_TEXT);
+  tft.print(shortMonthName(startMonth));
+  tft.print(F(" - "));
+  tft.print(shortMonthName(now.month()));
+  tft.print(F(" "));
+  tft.println(now.year());
+
+  // Optional discount line
+  int afterRowsY = y + lineH;
+  if (currentBill.deductions > 0.0f) {
     tft.setTextColor(COLOR_LABEL);
-    tft.setCursor(2, 82);
+    tft.setCursor(leftX, afterRowsY);
     tft.print(F("Discount: P"));
+    tft.setTextColor(COLOR_TEXT);
     tft.println(currentBill.deductions, 2);
-    tft.drawLine(0, 94, 160, 94, COLOR_LINE);
-    
-    tft.setTextColor(COLOR_HEADER);
-    tft.setCursor(15, 101);
-    tft.println(F("TOTAL DUE:"));
-    
-    tft.setTextColor(COLOR_AMOUNT);
-    tft.setTextSize(2);
-    tft.setCursor(20, 114);
-    tft.print(F("P"));
-    tft.println(currentBill.total, 2);
-    tft.setTextSize(1);
-    
-    tft.setCursor(20, 150);
-    tft.println(F("Press D to Pay"));
-  } else {
-    tft.drawLine(0, 82, 160, 82, COLOR_LINE);
-    
-    tft.setTextColor(COLOR_HEADER);
-    tft.setCursor(15, 89);
-    tft.println(F("TOTAL DUE:"));
-    
-    tft.setTextColor(COLOR_AMOUNT);
-    tft.setTextSize(2);
-    tft.setCursor(20, 102);
-    tft.print(F("P"));
-    tft.println(currentBill.total, 2);
-    tft.setTextSize(1);
-    
-    tft.setCursor(20, 140);
-    tft.println(F("Press D to Pay"));
+    afterRowsY += lineH;
   }
+
+  // Overall due (large + centered)
+  tft.drawLine(0, afterRowsY, 320, afterRowsY, COLOR_LINE);
+
+  // Smaller "Overall Due" block to fit better on 2.8" screen
+  tft.setFreeFont(&FreeSans9pt7b);
+  tft.setTextColor(COLOR_HEADER);
+  tft.setCursor(10, afterRowsY + 22);
+  tft.println(F("Overall Due:"));
+
+  tft.setFreeFont(&FreeSansBold9pt7b);
+  tft.setTextColor(COLOR_AMOUNT);
+  tft.setCursor(10, afterRowsY + 45);
+  tft.print(F("P"));
+  tft.println(currentBill.total, 2);
+
+  tft.setFreeFont(&FreeSans9pt7b);
+  tft.setTextColor(COLOR_LABEL);
+  tft.setCursor(70, 220);
+  tft.println(F("Press D to Pay   C to Cancel"));
 }
 
 #endif // PAYMENT_SUMMARY_SCREEN_H

@@ -62,6 +62,7 @@ struct Bill {
   String updated_at;
   bool synced;
   String last_sync;
+  String customer_account_number;
 };
 
 // ===== BILL DATABASE =====
@@ -87,20 +88,21 @@ static int loadBillCallback(void *data, int argc, char **argv, char **azColName)
   b.updated_at = argv[12];
   b.synced = atoi(argv[13]);
   b.last_sync = argv[14] ? argv[14] : "";
+  b.customer_account_number = argv[15] ? argv[15] : "";
   bills.push_back(b);
   return 0;
 }
 
 void loadBillsFromDB() {
   bills.clear();
-  const char *sql = "SELECT bill_id, reference_number, customer_id, reading_id, device_uid, bill_date, rate_per_m3, charges, penalty, total_due, status, created_at, updated_at, synced, last_sync FROM bills;";
+  const char *sql = "SELECT bill_id, reference_number, customer_id, reading_id, device_uid, bill_date, rate_per_m3, charges, penalty, total_due, status, created_at, updated_at, synced, last_sync, customer_account_number FROM bills;";
   sqlite3_exec(db, sql, loadBillCallback, NULL, NULL);
 }
 
 std::vector<Bill> getBillsChunk(int offset, int limit) {
   std::vector<Bill> chunk;
   char sql[256];
-  sprintf(sql, "SELECT bill_id, reference_number, customer_id, reading_id, device_uid, bill_date, rate_per_m3, charges, penalty, total_due, status, created_at, updated_at, synced, last_sync FROM bills ORDER BY bill_id LIMIT %d OFFSET %d;", limit, offset);
+  sprintf(sql, "SELECT bill_id, reference_number, customer_id, reading_id, device_uid, bill_date, rate_per_m3, charges, penalty, total_due, status, created_at, updated_at, synced, last_sync, customer_account_number FROM bills ORDER BY bill_id LIMIT %d OFFSET %d;", limit, offset);
   sqlite3_exec(db, sql, [](void *data, int argc, char **argv, char **azColName) -> int {
     std::vector<Bill>* chunk = static_cast<std::vector<Bill>*>(data);
     Bill b;
@@ -119,6 +121,7 @@ std::vector<Bill> getBillsChunk(int offset, int limit) {
     b.updated_at = argv[12];
     b.synced = atoi(argv[13]);
     b.last_sync = argv[14] ? argv[14] : "";
+    b.customer_account_number = argv[15] ? argv[15] : "";
     chunk->push_back(b);
     return 0;
   }, &chunk, NULL);
@@ -200,8 +203,8 @@ bool saveBillToDB(Bill bill) {
   Serial.println(bill.reading_id);
   char sql[1024];
   String nowStr = getCurrentDateTimeString();
-  sprintf(sql, "INSERT INTO bills (reference_number, customer_id, reading_id, device_uid, bill_date, rate_per_m3, charges, penalty, total_due, status, created_at, updated_at, synced, last_sync) VALUES ('%s', %d, %d, '%s', '%s', %f, %f, %f, %f, '%s', '%s', '%s', 0, NULL);",
-          bill.reference_number.c_str(), bill.customer_id, bill.reading_id, bill.device_uid.c_str(), bill.bill_date.c_str(), bill.rate_per_m3, bill.charges, bill.penalty, bill.total_due, bill.status.c_str(), nowStr.c_str(), nowStr.c_str());
+  sprintf(sql, "INSERT INTO bills (reference_number, customer_id, reading_id, device_uid, bill_date, rate_per_m3, charges, penalty, total_due, status, created_at, updated_at, synced, last_sync, customer_account_number) VALUES ('%s', %d, %d, '%s', '%s', %f, %f, %f, %f, '%s', '%s', '%s', 0, NULL, '%s');",
+          bill.reference_number.c_str(), bill.customer_id, bill.reading_id, bill.device_uid.c_str(), bill.bill_date.c_str(), bill.rate_per_m3, bill.charges, bill.penalty, bill.total_due, bill.status.c_str(), nowStr.c_str(), nowStr.c_str(), bill.customer_account_number.c_str());
   // Serial.println(sql);  // Commented out to save heap memory
   int rc = sqlite3_exec(db, sql, NULL, NULL, NULL);
   Serial.print(F("Bill save result: "));
@@ -211,18 +214,16 @@ bool saveBillToDB(Bill bill) {
 
 // ===== FIND BILL BY ACCOUNT =====
 int findBillByAccount(String accountNo) {
-  int customerIndex = findCustomerByAccount(accountNo);
-  if (customerIndex == -1) return -1;
-  Customer* c = getCustomerAt(customerIndex);
-  if (!c) return -1;
-  int customer_id = c->customer_id;
-
-  for (size_t i = 0; i < bills.size(); i++) {
-    if (bills[i].customer_id == customer_id) {
-      return i;
+  int billIndex = -1;
+  char sql[256];
+  sprintf(sql, "SELECT bill_id FROM bills WHERE customer_account_number = '%s' ORDER BY bill_date DESC LIMIT 1;", accountNo.c_str());
+  sqlite3_exec(db, sql, [](void *data, int argc, char **argv, char **azColName) -> int {
+    if (argc > 0 && argv[0]) {
+      *(int*)data = atoi(argv[0]);
     }
-  }
-  return -1;
+    return 0;
+  }, &billIndex, NULL);
+  return billIndex;
 }
 
 // ===== CALCULATE BILL AMOUNT =====
@@ -423,7 +424,7 @@ bool generateBillForCustomer(String accountNo, unsigned long currentReading) {
   } else {
     Serial.println(F("Creating new reading..."));
     // Save new reading to database
-    saveReadingToDB(customer->customer_id, customer->previous_reading, currentReading, usage, readingAt);
+    saveReadingToDB(customer->customer_id, customer->previous_reading, currentReading, usage, readingAt, customer->account_no);
     // Get the reading ID (last inserted)
     readingId = getLastReadingIdForCustomer(customer->customer_id);
     Serial.print(F("New reading ID: "));
@@ -519,6 +520,7 @@ bool generateBillForCustomer(String accountNo, unsigned long currentReading) {
     bill.penalty = 0.0;
     bill.total_due = totalDue;
     bill.status = "Pending";
+    bill.customer_account_number = customer->account_no;
     
     // Calculate due date: 5 days after bill date
     String dueDateStr = calculateDueDate(bill.bill_date, 5);
@@ -578,8 +580,20 @@ bool getBillForCustomer(String accountNo) {
   if (!customer) return false;
 
   // Query for the latest bill for this customer
-  char sql[512];
-  sprintf(sql, "SELECT b.reference_number, b.bill_date, b.rate_per_m3, b.charges, b.penalty, b.total_due, r.prev_reading, r.curr_reading, r.usage, ct.type_name, ct.min_charge, ct.min_m3, d.deduction_name, d.amount, r.reading_datetime FROM bills b LEFT JOIN readings r ON b.reading_id = r.reading_id LEFT JOIN customer_types ct ON r.customer_type_id = ct.customer_type_id LEFT JOIN deductions d ON r.deduction_id = d.deduction_id WHERE b.customer_id = %d ORDER BY b.bill_date DESC LIMIT 1;", customer->customer_id);
+  const char* sql =
+      "SELECT "
+      "  b.reference_number, b.bill_date, b.rate_per_m3, b.charges, b.penalty, b.total_due, "
+      "  r.previous_reading, r.current_reading, r.usage_m3, "
+      "  ct.type_name, ct.min_charge, ct.min_m3, "
+      "  d.name, d.type, d.value, "
+      "  r.reading_at "
+      "FROM bills b "
+      "LEFT JOIN readings r ON b.reading_id = r.reading_id "
+      "LEFT JOIN customers c ON b.customer_id = c.customer_id "
+      "LEFT JOIN customer_types ct ON c.type_id = ct.type_id "
+      "LEFT JOIN deductions d ON c.deduction_id = d.deduction_id "
+      "WHERE b.customer_account_number = ? "
+      "ORDER BY b.bill_date DESC LIMIT 1;";
 
   sqlite3_stmt *stmt;
   int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
@@ -588,6 +602,8 @@ bool getBillForCustomer(String accountNo) {
     Serial.println(sqlite3_errmsg(db));
     return false;
   }
+
+  sqlite3_bind_text(stmt, 1, accountNo.c_str(), -1, SQLITE_TRANSIENT);
 
   rc = sqlite3_step(stmt);
   if (rc == SQLITE_ROW) {
@@ -608,8 +624,10 @@ bool getBillForCustomer(String accountNo) {
     currentBill.minCharge = sqlite3_column_double(stmt, 10);
     currentBill.minM3 = sqlite3_column_int(stmt, 11);
     currentBill.deductionName = (const char*)sqlite3_column_text(stmt, 12);
-    currentBill.deductions = sqlite3_column_double(stmt, 13);
-    currentBill.readingDateTime = (const char*)sqlite3_column_text(stmt, 14);
+    // Stored total_due already reflects discounts; compute for display.
+    float computedDeduction = currentBill.subtotal - currentBill.total;
+    currentBill.deductions = (computedDeduction > 0.0f) ? computedDeduction : 0.0f;
+    currentBill.readingDateTime = (const char*)sqlite3_column_text(stmt, 15);
 
     sqlite3_finalize(stmt);
     return true;

@@ -30,6 +30,7 @@ struct Reading {
   String updated_at;
   bool synced;
   String last_sync;
+  String customer_account_number;
 };
 
 // ===== READINGS DATABASE =====
@@ -48,13 +49,14 @@ static int loadReadingCallback(void *data, int argc, char **argv, char **azColNa
   r.updated_at = argv[8];
   r.synced = atoi(argv[9]);
   r.last_sync = argv[10] ? argv[10] : "";
+  r.customer_account_number = argv[11] ? argv[11] : "";
   readings.push_back(r);
   return 0;
 }
 
 void loadReadingsFromDB() {
   readings.clear();
-  const char *sql = "SELECT reading_id, customer_id, device_uid, previous_reading, current_reading, usage_m3, reading_at, created_at, updated_at, synced, last_sync FROM readings ORDER BY reading_id;";
+  const char *sql = "SELECT reading_id, customer_id, device_uid, previous_reading, current_reading, usage_m3, reading_at, created_at, updated_at, synced, last_sync, customer_account_number FROM readings ORDER BY reading_id;";
   sqlite3_exec(db, sql, loadReadingCallback, NULL, NULL);
 }
 
@@ -62,12 +64,12 @@ static uint32_t deviceEpochNow() {
   return (uint32_t)((long)(millis() / 1000) + g_timeOffsetSeconds);
 }
 
-void saveReadingToDB(int customer_id, unsigned long previous_reading, unsigned long current_reading, unsigned long usage_m3, String reading_at) {
+void saveReadingToDB(int customer_id, unsigned long previous_reading, unsigned long current_reading, unsigned long usage_m3, String reading_at, String account_no) {
   char sql[512];
   String deviceUID = getDeviceUID();
   String timestamp = String(deviceEpochNow());
   String nowStr = getCurrentDateTimeString();
-  sprintf(sql, "INSERT INTO readings (customer_id, device_uid, previous_reading, current_reading, usage_m3, reading_at, created_at, updated_at, synced, last_sync) VALUES (%d, '%s', %lu, %lu, %lu, '%s', '%s', '%s', 0, NULL);", customer_id, deviceUID.c_str(), previous_reading, current_reading, usage_m3, timestamp.c_str(), nowStr.c_str(), nowStr.c_str());
+  sprintf(sql, "INSERT INTO readings (customer_id, device_uid, previous_reading, current_reading, usage_m3, reading_at, created_at, updated_at, synced, last_sync, customer_account_number) VALUES (%d, '%s', %lu, %lu, %lu, '%s', '%s', '%s', 0, NULL, '%s');", customer_id, deviceUID.c_str(), previous_reading, current_reading, usage_m3, timestamp.c_str(), nowStr.c_str(), nowStr.c_str(), account_no.c_str());
   // Serial.println(sql);  // Commented out to save heap memory
   int rc = sqlite3_exec(db, sql, NULL, NULL, NULL);
   Serial.print(F("Reading save result: "));
@@ -165,7 +167,7 @@ bool recordReadingForCustomerIndex(int customerIndex, unsigned long currentReadi
   sqlite3_exec(db, sql, NULL, NULL, NULL);
 
   // Insert reading
-  saveReadingToDB(c->customer_id, previous, currentReading, usage, "datetime('now')");
+  saveReadingToDB(c->customer_id, previous, currentReading, usage, "datetime('now')", c->account_no);
 
   // Update in-memory customer previous reading
   if (currentCustomer) {
