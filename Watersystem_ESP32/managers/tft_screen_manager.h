@@ -23,6 +23,7 @@ extern RTC_DS3231 rtc;
 #include "../screens/payment_confirmation_screen.h"
 #include "../screens/view_rate_screen.h"
 #include "../screens/bill_display_screen.h"
+#include "../screens/void_payment_screen.h"
 #include <SD.h>
 
 // ===== EXTERNAL FROM CUSTOMERS DATABASE =====
@@ -46,7 +47,9 @@ enum WorkflowState {
   STATE_VIEW_RATE,         // Viewing current rate
   STATE_ENTER_PAYMENT,     // Waiting for payment amount entry
   STATE_PAYMENT_SUMMARY,   // Payment summary, showing bill details
-  STATE_PAYMENT_CONFIRMATION // Payment confirmation, showing cash and change
+  STATE_PAYMENT_CONFIRMATION, // Payment confirmation, showing cash and change
+  STATE_VOID_ENTER_ACCOUNT,   // Void payments: enter account
+  STATE_VOID_DISPLAY_TRANSACTION // Void payments: display transaction details
 };
 
 WorkflowState currentState = STATE_WELCOME;
@@ -55,6 +58,7 @@ int selectedCustomerIndex = -1;   // Index of selected customer
 unsigned long currentReading = 0; // Current meter reading from keypad
 unsigned long correctPreviousReading = 0; // Correct previous reading for validation
 bool isPaymentFlow = false;       // Flag to distinguish billing vs payment flow
+bool isVoidFlow = false;          // Flag for void payments flow
 
 // ===== DISPLAY FUNCTIONS FOR WORKFLOW =====
 
@@ -66,7 +70,10 @@ void processAccountNumberEntry() {
   // Account found
   if (selectedCustomerIndex != -1) {
     inputBuffer = "";  // Clear buffer for next input
-    if (isPaymentFlow) {
+    if (isVoidFlow) {
+      currentState = STATE_VOID_DISPLAY_TRANSACTION;
+      displayVoidPaymentScreen();
+    } else if (isPaymentFlow) {
       currentState = STATE_PAYMENT_SUMMARY;
       displayPaymentSummary();
     } else {
@@ -76,7 +83,7 @@ void processAccountNumberEntry() {
     
     Serial.print(F("Account found: "));
     Serial.println(currentCustomer->customer_name);
-    if (!isPaymentFlow) {
+    if (!isPaymentFlow && !isVoidFlow) {
       Serial.print(F("Correct previous reading: "));
       Serial.println(correctPreviousReading);
     }
@@ -136,6 +143,7 @@ void resetWorkflow() {
   selectedCustomerIndex = -1;
   currentReading = 0;
   isPaymentFlow = false;
+  isVoidFlow = false;
   showWelcomeScreen();
 }
 

@@ -16,22 +16,22 @@ static String digitsOnly(const String& s) {
   return out;
 }
 
-static String buildOfficeBarcodeData() {
+static String buildOfficeBarcodeData(const ReceiptData& receipt) {
   // Digits-only format for office scanning:
   // barcode = <accountDigits><amountPaidDigits>
   // Example: account=M-1000, paid=8000 => 10008000
   // Example: account=M-001,  paid=8000 => 0018000
-  String accountDigits = digitsOnly(currentReceipt.accountNo);
-  long paid = lroundf(currentReceipt.amountPaid);
+  String accountDigits = digitsOnly(receipt.accountNo);
+  long paid = lroundf(receipt.amountPaid);
   if (paid < 0) paid = 0;
   return accountDigits + String(paid);
 }
 
-static void printOfficeCopyBarcodeSection() {
+static void printOfficeCopyBarcodeSection(const ReceiptData& receipt) {
   // Office copy stub: cut line, barcode, and key payment fields.
-  printer.println(F("8< ------------------------------"));
+  printer.println(F("8< -----------------------------"));
 
-  String barcodeData = buildOfficeBarcodeData();
+  String barcodeData = buildOfficeBarcodeData(receipt);
 
   if (barcodeData.length() > 0) {
     printer.println(F(""));
@@ -74,16 +74,16 @@ static void printOfficeCopyBarcodeSection() {
     printer.justify('L');
   }
 
-  float amountPaid = currentReceipt.amountPaid;
-  float change = currentReceipt.change;
+  float amountPaid = receipt.amountPaid;
+  float change = receipt.change;
 
   printer.print(F("Customer    : "));
-  printer.println(currentReceipt.customerName);
+  printer.println(receipt.customerName);
   printer.print(F("Account     : "));
-  printer.println(currentReceipt.accountNo);
+  printer.println(receipt.accountNo);
 
-  printer.print(F("Date/Time   : "));
-  printer.println(formatDateTime12Hour(currentReceipt.paymentDateTime));
+  printer.print(F("Date & Time : "));
+  printer.println(formatDateTime12Hour(receipt.paymentDateTime));
   printer.println(F(""));
   printer.justify('L');
   printer.boldOn();
@@ -99,7 +99,7 @@ static void printOfficeCopyBarcodeSection() {
   }
   printer.println(F("Payment Method: Cash"));
   printer.print(F("Collector: "));
-  printer.println(currentReceipt.collector);
+  printer.println(receipt.collector);
   printer.boldOff();
   printer.println(F(""));
 }
@@ -108,26 +108,23 @@ void printReceipt() {
   printer.wake();
   printer.setDefault();
 
-  unsigned long used = currentReceipt.currReading - currentReceipt.prevReading;
-  float total = currentReceipt.total;
-  float amountPaid = currentReceipt.amountPaid;
-  float change = currentReceipt.change;
+  // Snapshot receipt data to avoid partial/mid-print mutations.
+  ReceiptData receipt = currentReceipt;
+  if (receipt.collector.length() == 0) {
+    receipt.collector = COLLECTOR_NAME_VALUE;
+  }
+
+  unsigned long used = receipt.currReading - receipt.prevReading;
+  float total = receipt.total;
+  float amountPaid = receipt.amountPaid;
+  float change = receipt.change;
 
 //   customFeed(1);
 
 //   printer.justify('C');
   printer.printBitmap(LOGO_WIDTH, LOGO_HEIGHT, logo);
 
-//   printer.justify('R');
-//   printer.setSize('S');
-//   printer.println(F("DONA JOSEFA MAKILAS"));
-//   printer.println(F("Water & Sanitation"));
-//   printer.justify('L');
-//   printer.printBitmap(LOGO_WIDTH, LOGO_HEIGHT, logo);
-//   printer.println(F("Assoc. Bulu-an, IPIL"));
-//   printer.println(F("TIN: 464-252-005"));
-//   printer.println(F(""));
-//   printer.println(F("--------------------------------"));
+
   printer.println(F("")); 
   printer.justify('C');
   printer.setSize('M');
@@ -142,20 +139,20 @@ void printReceipt() {
   printer.justify('L');
   // Receipt No and Date/Time
   printer.print(F("Receipt No  : "));
-  printer.println(currentReceipt.receiptNumber);
-  printer.print(F("Date/Time   : "));
-  printer.println(formatDateTime12Hour(currentReceipt.paymentDateTime));
+  printer.println(receipt.receiptNumber);
+  printer.print(F("Date & Time : "));
+  printer.println(formatDateTime12Hour(receipt.paymentDateTime));
   printer.println(F("--------------------------------"));
 
   // Customer info
   printer.print(F("Customer : "));
-  printer.println(currentReceipt.customerName);
+  printer.println(receipt.customerName);
   printer.print(F("Account  : "));
-  printer.println(currentReceipt.accountNo);
+  printer.println(receipt.accountNo);
   printer.print(F("Class    : "));
-  printer.println(currentReceipt.customerType);
+  printer.println(receipt.customerType);
   printer.print(F("Address  : "));
-  printer.println(currentReceipt.address);
+  printer.println(receipt.address);
   printer.print(F("Barangay : "));
   printer.println(F("Makilas"));
   printer.println(F("--------------------------------"));
@@ -163,7 +160,7 @@ void printReceipt() {
   // Collector
   printer.justify('L');
   printer.print(F("Collector : "));
-  printer.println(currentReceipt.collector);
+  printer.println(receipt.collector);
   printer.println(F("--------------------------------"));
 
   // Period covered
@@ -197,16 +194,16 @@ void printReceipt() {
   printer.println(F(""));
   printer.justify('L');
   printer.print(F("Rate per cubic       : PHP "));
-  printer.println(currentReceipt.rate, 2);
+  printer.println(receipt.rate, 2);
   printer.print(F("Water Charge      : PHP "));
-  printer.println(currentReceipt.subtotal, 2);
-  if (currentReceipt.deductions > 0) {
+  printer.println(receipt.subtotal, 2);
+  if (receipt.deductions > 0) {
     printer.print(F("Less Deductions   : PHP "));
-    printer.println(currentReceipt.deductions, 2);
+    printer.println(receipt.deductions, 2);
   }
-  if (currentReceipt.penalty > 0) {
+  if (receipt.penalty > 0) {
     printer.print(F("Penalty / Late Fee: PHP "));
-    printer.println(currentReceipt.penalty, 2);
+    printer.println(receipt.penalty, 2);
   }
   printer.println(F("--------------------------------"));
   printer.print(F("Total Amount Due  : PHP "));
@@ -239,7 +236,7 @@ void printReceipt() {
 
   // Office stub copy
   printer.println(F(""));
-  printOfficeCopyBarcodeSection();
+  printOfficeCopyBarcodeSection(receipt);
 
   printer.justify('L');
 

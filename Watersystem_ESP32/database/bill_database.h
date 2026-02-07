@@ -705,6 +705,8 @@ bool getBillForCustomer(String accountNo) {
     currentBill.customerName = customer->customer_name;
     currentBill.accountNo = customer->account_no;
     currentBill.address = customer->address;
+    // Always populate collector name for downstream printing.
+    currentBill.collector = COLLECTOR_NAME_VALUE;
     currentBill.refNumber = (const char*)sqlite3_column_text(stmt, 0);
     currentBill.billDate = (const char*)sqlite3_column_text(stmt, 1);
     currentBill.rate = sqlite3_column_double(stmt, 2);

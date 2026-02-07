@@ -42,6 +42,7 @@ extern String inputBuffer;
 extern int selectedCustomerIndex;
 extern unsigned long currentReading;
 extern bool isPaymentFlow;
+extern bool isVoidFlow;
 extern float paymentAmount;
 
 // External objects from main .ino
@@ -124,9 +125,11 @@ void handleKeypadInput(char key) {
       displayMenuScreen();
     }
     else if (key == '3') {
-      // Bill Rate - View current rate
-      currentState = STATE_VIEW_RATE;
-      displayViewRateScreen();
+      // Void payments
+      isVoidFlow = true;
+      currentState = STATE_VOID_ENTER_ACCOUNT;
+      inputBuffer = "";
+      displayEnterAccountScreen();
     }
     else if (key == '4') {
       // Restart
@@ -358,6 +361,9 @@ void handleKeypadInput(char key) {
       currentReceipt.customerType = currentBill.customerType;
       currentReceipt.address = currentBill.address;
       currentReceipt.collector = currentBill.collector;
+      if (currentReceipt.collector.length() == 0) {
+        currentReceipt.collector = COLLECTOR_NAME_VALUE;
+      }
 
       currentReceipt.prevReading = currentBill.prevReading;
       currentReceipt.currReading = currentBill.currReading;
@@ -383,6 +389,55 @@ void handleKeypadInput(char key) {
       tft.setCursor(30, 70);
       tft.println(saved ? F("Transaction Saved") : F("Txn Save Failed"));
       delay(1500);
+      resetWorkflow();
+    }
+    else if (key == 'C') {  // Cancel
+      resetWorkflow();
+    }
+  }
+  else if (currentState == STATE_VOID_ENTER_ACCOUNT) {
+    // Entering account number for void
+    if (key >= '0' && key <= '9') {
+      inputBuffer += key;
+      displayEnterAccountScreen();
+    }
+    else if (key == 'D') {  // Confirm account
+      // Format account number with barangay prefix
+      String prefix = getCurrentBarangayPrefix();
+      String accountNum = inputBuffer;
+      // Pad with leading zero if needed to make 3 digits
+      while (accountNum.length() < 3) {
+        accountNum = "0" + accountNum;
+      }
+      String fullAccount = prefix + "-" + accountNum;
+      selectedCustomerIndex = findCustomerByAccount(fullAccount);
+      processAccountNumberEntry();
+    }
+    else if (key == 'B') {  // Clear
+      inputBuffer = "";
+      displayEnterAccountScreen();
+    }
+    else if (key == 'C') {  // Cancel - go back to menu
+      resetWorkflow();
+    }
+  }
+  else if (currentState == STATE_VOID_DISPLAY_TRANSACTION) {
+    // Displaying transaction details for void
+    if (key == 'D') {  // Void payment
+      bool voided = voidPaymentTransaction(currentTransaction.bill_transaction_id);
+      if (voided) {
+        tft.fillScreen(COLOR_BG);
+        tft.setTextColor(TFT_GREEN);
+        tft.setCursor(50, 50);
+        tft.println(F("Payment voided successfully"));
+        delay(2000);
+      } else {
+        tft.fillScreen(COLOR_BG);
+        tft.setTextColor(ST77XX_RED);
+        tft.setCursor(50, 50);
+        tft.println(F("Failed to void payment"));
+        delay(2000);
+      }
       resetWorkflow();
     }
     else if (key == 'C') {  // Cancel

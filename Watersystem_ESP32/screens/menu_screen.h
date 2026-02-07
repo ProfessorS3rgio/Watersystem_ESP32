@@ -26,7 +26,7 @@ void displayMenuScreen() {
   tft.setCursor(20, 75);
   tft.println(F("2. Update"));
   tft.setCursor(20, 100);
-  tft.println(F("3. Bill Rate"));
+  tft.println(F("3. Void payments"));
   tft.setCursor(20, 125);
   tft.println(F("4. Restart"));
   tft.setCursor(20, 150);

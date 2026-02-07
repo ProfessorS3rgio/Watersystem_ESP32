@@ -75,6 +75,25 @@ static bool markBillPaidById(int billId) {
   return rc == SQLITE_DONE;
 }
 
+static bool markBillPendingById(int billId) {
+  const char* sql = "UPDATE bills SET status = 'Pending', updated_at = ? WHERE bill_id = ?;";
+  sqlite3_stmt* stmt;
+  int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+  if (rc != SQLITE_OK) {
+    Serial.print(F("Failed to prepare markBillPendingById: "));
+    Serial.println(sqlite3_errmsg(db));
+    return false;
+  }
+
+  String nowStr = getCurrentDateTimeString();
+  sqlite3_bind_text(stmt, 1, nowStr.c_str(), -1, SQLITE_TRANSIENT);
+  sqlite3_bind_int(stmt, 2, billId);
+
+  rc = sqlite3_step(stmt);
+  sqlite3_finalize(stmt);
+  return rc == SQLITE_DONE;
+}
+
 // ===== BILL TRANSACTION DATA STRUCTURE =====
 struct BillTransaction {
   int bill_transaction_id;
@@ -97,6 +116,7 @@ struct BillTransaction {
 
 // ===== BILL TRANSACTIONS DATABASE =====
 std::vector<BillTransaction> billTransactions;
+BillTransaction currentTransaction; // Global for current transaction display
 
 static int loadBillTransactionCallback(void *data, int argc, char **argv, char **azColName) {
   BillTransaction bt;
@@ -204,6 +224,43 @@ bool recordPaymentTransactionByBillRef(const String& billRef, float amountDue, f
   return recordPaymentTransaction(billId, billRef, amountDue, cashReceived, changeAmount);
 }
 
+// Get latest transaction for a bill (for voiding)
+bool getLatestTransactionForBill(String billRef, BillTransaction& transaction) {
+  const char* sql = "SELECT bill_transaction_id, bill_id, bill_reference_number, type, source, amount, cash_received, change, transaction_date, payment_method, processed_by_device_uid, notes, created_at, updated_at, synced, last_sync FROM bill_transactions WHERE bill_reference_number = ? ORDER BY created_at DESC LIMIT 1;";
+  sqlite3_stmt* stmt;
+  int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+  if (rc != SQLITE_OK) {
+    Serial.print(F("Failed to prepare getLatestTransactionForBill: "));
+    Serial.println(sqlite3_errmsg(db));
+    return false;
+  }
+
+  sqlite3_bind_text(stmt, 1, billRef.c_str(), -1, SQLITE_TRANSIENT);
+
+  bool found = false;
+  if (sqlite3_step(stmt) == SQLITE_ROW) {
+    transaction.bill_transaction_id = sqlite3_column_int(stmt, 0);
+    transaction.bill_id = sqlite3_column_int(stmt, 1);
+    transaction.bill_reference_number = (const char*)sqlite3_column_text(stmt, 2);
+    transaction.type = (const char*)sqlite3_column_text(stmt, 3);
+    transaction.source = (const char*)sqlite3_column_text(stmt, 4);
+    transaction.amount = sqlite3_column_double(stmt, 5);
+    transaction.cash_received = sqlite3_column_double(stmt, 6);
+    transaction.change = sqlite3_column_double(stmt, 7);
+    transaction.transaction_date = (const char*)sqlite3_column_text(stmt, 8);
+    transaction.payment_method = (const char*)sqlite3_column_text(stmt, 9);
+    transaction.processed_by_device_uid = (const char*)sqlite3_column_text(stmt, 10);
+    transaction.notes = (const char*)sqlite3_column_text(stmt, 11);
+    transaction.created_at = (const char*)sqlite3_column_text(stmt, 12);
+    transaction.updated_at = (const char*)sqlite3_column_text(stmt, 13);
+    transaction.synced = sqlite3_column_int(stmt, 14);
+    transaction.last_sync = (const char*)sqlite3_column_text(stmt, 15);
+    found = true;
+  }
+  sqlite3_finalize(stmt);
+  return found;
+}
+
 // ===== MARK ALL BILL TRANSACTIONS SYNCED =====
 bool markAllBillTransactionsSynced() {
   String nowStr = getCurrentDateTimeString();
@@ -211,6 +268,67 @@ bool markAllBillTransactionsSynced() {
   sprintf(sql, "UPDATE bill_transactions SET synced = 1, last_sync = '%s', updated_at = '%s';", nowStr.c_str(), nowStr.c_str());
   int rc = sqlite3_exec(db, sql, NULL, NULL, NULL);
   return rc == SQLITE_OK;
+}
+
+// Function to update transaction type (e.g., void a payment)
+bool updateTransactionType(int transactionId, const String& newType) {
+  const char* sql = "UPDATE bill_transactions SET type = ?, updated_at = ? WHERE bill_transaction_id = ?;";
+  sqlite3_stmt* stmt;
+  int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+  if (rc != SQLITE_OK) {
+    Serial.print(F("Failed to prepare updateTransactionType: "));
+    Serial.println(sqlite3_errmsg(db));
+    return false;
+  }
+
+  String nowStr = getCurrentDateTimeString();
+  sqlite3_bind_text(stmt, 1, newType.c_str(), -1, SQLITE_TRANSIENT);
+  sqlite3_bind_text(stmt, 2, nowStr.c_str(), -1, SQLITE_TRANSIENT);
+  sqlite3_bind_int(stmt, 3, transactionId);
+
+  rc = sqlite3_step(stmt);
+  sqlite3_finalize(stmt);
+  return rc == SQLITE_DONE;
+}
+
+// Function to void a payment transaction
+bool voidPaymentTransaction(int transactionId) {
+  // First, get the bill_id for this transaction
+  const char* sql = "SELECT bill_id FROM bill_transactions WHERE bill_transaction_id = ?;";
+  sqlite3_stmt* stmt;
+  int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+  if (rc != SQLITE_OK) {
+    Serial.print(F("Failed to prepare get bill_id for void: "));
+    Serial.println(sqlite3_errmsg(db));
+    return false;
+  }
+
+  sqlite3_bind_int(stmt, 1, transactionId);
+  int billId = 0;
+  if (sqlite3_step(stmt) == SQLITE_ROW) {
+    billId = sqlite3_column_int(stmt, 0);
+  }
+  sqlite3_finalize(stmt);
+
+  if (billId == 0) {
+    Serial.println(F("No bill_id found for transaction"));
+    return false;
+  }
+
+  // Update transaction type to void
+  bool typeUpdated = updateTransactionType(transactionId, "void");
+  if (!typeUpdated) {
+    return false;
+  }
+
+  // Mark bill as unpaid
+  bool billUpdated = markBillPendingById(billId);
+  if (!billUpdated) {
+    Serial.println(F("Warning: Failed to mark bill as unpaid"));
+    // Still return true since transaction was voided
+  }
+
+  return true;
 }
 
 #endif // BILL_TRANSACTIONS_DATABASE_H
