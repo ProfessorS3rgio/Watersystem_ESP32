@@ -19,7 +19,99 @@ void updateCustomerPreviousReading(int customerId, unsigned long newPreviousRead
 bool hasReadingThisMonth(int customerId);
 void updateExistingReading(int readingId, unsigned long currentReading, unsigned long usage);
 
-const int CURRENT_YEAR = 2026;
+static int getBuildYear() {
+  // __DATE__ format: "Mmm dd yyyy"
+  const char *buildDate = __DATE__;
+  int len = strlen(buildDate);
+  if (len >= 4) {
+    int year = atoi(buildDate + (len - 4));
+    if (year > 0) return year;
+  }
+  return 0;
+}
+
+static int getCurrentYearFromRTC() {
+  // `getCurrentDateTimeString()` is expected to be RTC-backed.
+  String dt = getCurrentDateTimeString();
+  if (dt.length() >= 4) {
+    int year = dt.substring(0, 4).toInt();
+    if (year >= 2000 && year <= 2100) return year;
+  }
+
+  int buildYear = getBuildYear();
+  if (buildYear > 0) {
+    Serial.println(F("RTC year invalid; falling back to build year."));
+    return buildYear;
+  }
+
+  Serial.println(F("RTC year invalid; falling back to year 0."));
+  return 0;
+}
+
+static int getNextBillReferenceSequence(int year) {
+  if (!db) return 1;
+
+  int seq = 1;
+  char *errMsg = nullptr;
+  int rc = sqlite3_exec(db, "BEGIN IMMEDIATE;", nullptr, nullptr, &errMsg);
+  if (rc != SQLITE_OK) {
+    if (errMsg) sqlite3_free(errMsg);
+    return 1;
+  }
+
+  // Ensure row exists for this year
+  {
+    const char *insSql = "INSERT OR IGNORE INTO bill_reference_sequence(year, next_number) VALUES(?, 1);";
+    sqlite3_stmt *stmt = nullptr;
+    rc = sqlite3_prepare_v2(db, insSql, -1, &stmt, nullptr);
+    if (rc == SQLITE_OK) {
+      sqlite3_bind_int(stmt, 1, year);
+      (void)sqlite3_step(stmt);
+    }
+    sqlite3_finalize(stmt);
+    if (rc != SQLITE_OK) {
+      (void)sqlite3_exec(db, "ROLLBACK;", nullptr, nullptr, nullptr);
+      return 1;
+    }
+  }
+
+  // Read current sequence
+  {
+    const char *selSql = "SELECT next_number FROM bill_reference_sequence WHERE year = ?;";
+    sqlite3_stmt *stmt = nullptr;
+    rc = sqlite3_prepare_v2(db, selSql, -1, &stmt, nullptr);
+    if (rc == SQLITE_OK) {
+      sqlite3_bind_int(stmt, 1, year);
+      if (sqlite3_step(stmt) == SQLITE_ROW) {
+        seq = sqlite3_column_int(stmt, 0);
+      }
+    }
+    sqlite3_finalize(stmt);
+    if (rc != SQLITE_OK) {
+      (void)sqlite3_exec(db, "ROLLBACK;", nullptr, nullptr, nullptr);
+      return 1;
+    }
+  }
+
+  // Increment for next time
+  {
+    const char *updSql = "UPDATE bill_reference_sequence SET next_number = next_number + 1 WHERE year = ?;";
+    sqlite3_stmt *stmt = nullptr;
+    rc = sqlite3_prepare_v2(db, updSql, -1, &stmt, nullptr);
+    if (rc == SQLITE_OK) {
+      sqlite3_bind_int(stmt, 1, year);
+      (void)sqlite3_step(stmt);
+    }
+    sqlite3_finalize(stmt);
+    if (rc != SQLITE_OK) {
+      (void)sqlite3_exec(db, "ROLLBACK;", nullptr, nullptr, nullptr);
+      return 1;
+    }
+  }
+
+  (void)sqlite3_exec(db, "COMMIT;", nullptr, nullptr, nullptr);
+  return seq;
+}
 
 // ===== BILL DATA STRUCTURE =====
 struct BillData {
@@ -157,9 +249,11 @@ String generateBillReferenceNumber(String accountNo) {
     numberPart = "0" + numberPart;
   }
   
-  static int nextBillId = 1;
-  char ref[20];
-  sprintf(ref, "REF%s%d%02d", numberPart.c_str(), CURRENT_YEAR, nextBillId++);
+  int year = getCurrentYearFromRTC();
+  int seq = getNextBillReferenceSequence(year);
+
+  char ref[24];
+  sprintf(ref, "REF%s%d%02d", numberPart.c_str(), year, seq);
   return String(ref);
 }
 

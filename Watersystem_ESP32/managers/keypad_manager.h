@@ -10,6 +10,7 @@
 #include "../database/bill_transactions_database.h"
 #include "../database/test_data_generator.h"
 #include "../printer/receipt_printer.h"
+#include "../screens/warning_screen.h"
 #include <SD.h>
 
 // ===== EXTERNAL FROM CUSTOMERS DATABASE =====
@@ -32,6 +33,8 @@ void processReadingEntry();
 void resetWorkflow();
 void displayMenuScreen();
 void displayViewRateScreen();
+void startParallelPrintingJob(void (*job)());
+void waitForPrintCompletion();
 
 // External variables from workflow_manager.h
 extern WorkflowState currentState;
@@ -272,7 +275,42 @@ void handleKeypadInput(char key) {
       displayEnterPaymentScreen();
     }
     else if (key == 'D') {  // Confirm payment
+      if (inputBuffer.length() == 0) {
+        displayWarningScreen(F("INVALID PAYMENT"),
+                             String("Enter payment amount"),
+                             String(""),
+                             F("Press B to clear"));
+        delay(1200);
+        displayEnterPaymentScreen();
+        return;
+      }
+
       paymentAmount = inputBuffer.toFloat();
+      if (paymentAmount <= 0.0f) {
+        displayWarningScreen(F("INVALID PAYMENT"),
+                             String("Amount must be > 0"),
+                             String(""),
+                             F("Press B to clear"));
+        delay(1200);
+        displayEnterPaymentScreen();
+        return;
+      }
+
+      // Rule: do not accept underpayment. Overpay is allowed (we return change).
+      // Use cents to avoid float comparison issues.
+      long dueCents = lroundf(currentBill.total * 100.0f);
+      long payCents = lroundf(paymentAmount * 100.0f);
+
+      if (payCents < dueCents) {
+        displayWarningScreen(F("INSUFFICIENT"),
+                             String("Payment is less than") + String(" total due"),
+                             String("Total Due: P") + String(currentBill.total, 2),
+                             F("B-Clear  C-Cancel"));
+        delay(1500);
+        displayEnterPaymentScreen();
+        return;
+      }
+
       currentState = STATE_PAYMENT_CONFIRMATION;
       displayPaymentConfirmation();
     }
@@ -334,8 +372,9 @@ void handleKeypadInput(char key) {
       currentReceipt.amountPaid = paymentAmount;
       currentReceipt.change = changeAmount;
 
-      // Print receipt (even if DB save failed, still allow printing)
-      printReceipt();
+      // Print receipt with loading screen (even if DB save failed, still allow printing)
+      startParallelPrintingJob(printReceipt);
+      waitForPrintCompletion();
 
       tft.fillScreen(COLOR_BG);
       tft.setTextColor(saved ? TFT_GREEN : TFT_YELLOW);

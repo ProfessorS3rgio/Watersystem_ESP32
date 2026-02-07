@@ -20,6 +20,8 @@ bool getBillForCustomer(String accountNo);
 bool isSDCardReady();
 void deselectTftSelectSd();
 
+#ifndef WS_SHORT_MONTH_NAME_DEFINED
+#define WS_SHORT_MONTH_NAME_DEFINED
 static const char* shortMonthName(int month) {
   static const char* months[] = {
     "Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -28,6 +30,7 @@ static const char* shortMonthName(int month) {
   if (month < 1 || month > 12) return "";
   return months[month - 1];
 }
+#endif
 
 void displayPaymentSummary() {
   tft.fillScreen(COLOR_BG);
@@ -106,7 +109,13 @@ void displayPaymentSummary() {
   tft.setCursor(leftX, y);
   tft.print(F("Type: "));
   tft.setTextColor(COLOR_TEXT);
-  tft.print(currentBill.customerType);
+  String typeDisplay = currentBill.customerType;
+  typeDisplay.toLowerCase();
+  if (typeDisplay == "communal faucet") {
+    tft.print(F("Communal"));
+  } else {
+    tft.print(currentBill.customerType);
+  }
 
   tft.setTextColor(COLOR_LABEL);
   tft.setCursor(rightX, y);

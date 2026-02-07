@@ -30,20 +30,17 @@ void printBill() {
   printer.printBitmap(LOGO_WIDTH, LOGO_HEIGHT, logo);
   YIELD_WDT();  // 🚨 REQUIRED
 
-
-//   printer.setSize('S');
-//   printer.println(F("DONA JOSEFA M. BULU-AN CAPARAN"));
-//   printer.println(F("Water & Sanitation Assoc."));
-//   printer.println(F("Bulu-an, IPIL, Zambo. Sibugay"));
-//   printer.println(F("TIN: 464-252-005-000"));
-//   printer.println(F(""));
-//   printer.println(F("--------------------------------"));
+ printer.println(F(""));
+  printer.justify('C');
   printer.setSize('M');
   printer.boldOn();
   printer.println(F("STATEMENT OF ACCOUNT"));
   printer.boldOff();
   printer.setSize('S');
-//   printer.println(F("--------------------------------"));
+  printer.justify('L');
+  printer.println(F(""));
+
+
   YIELD_WDT();
 
   printer.justify('L');
@@ -60,7 +57,7 @@ void printBill() {
   printer.println(currentBill.customerName);
   printer.print(F("Account  : "));
   printer.println(currentBill.accountNo);
-  printer.print(F("Classification: "));
+  printer.print(F("Class    : "));
   printer.println(currentBill.customerType);
   printer.print(F("Address  : "));
   printer.println(currentBill.address);

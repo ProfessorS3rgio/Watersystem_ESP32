@@ -16,6 +16,11 @@ Route::get('/', function () {
     return view('welcome');
 });
 
+// Lightweight endpoint to refresh CSRF/XSRF cookies for SPA requests.
+Route::get('/csrf-token', function () {
+    return response()->json(['csrf_token' => csrf_token()]);
+});
+
 // Auth routes
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth');

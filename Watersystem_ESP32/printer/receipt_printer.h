@@ -6,6 +6,104 @@
 #include "../database/bill_transactions_database.h"
 #include "bill_printer.h"  // centerString(), formatDateTime12Hour(), getPeriodCovered(), customFeed(), logo
 
+static String digitsOnly(const String& s) {
+  String out;
+  out.reserve(s.length());
+  for (size_t i = 0; i < s.length(); i++) {
+    char c = s[i];
+    if (c >= '0' && c <= '9') out += c;
+  }
+  return out;
+}
+
+static String buildOfficeBarcodeData() {
+  // Digits-only format for office scanning:
+  // barcode = <accountDigits><amountPaidDigits>
+  // Example: account=M-1000, paid=8000 => 10008000
+  // Example: account=M-001,  paid=8000 => 0018000
+  String accountDigits = digitsOnly(currentReceipt.accountNo);
+  long paid = lroundf(currentReceipt.amountPaid);
+  if (paid < 0) paid = 0;
+  return accountDigits + String(paid);
+}
+
+static void printOfficeCopyBarcodeSection() {
+  // Office copy stub: cut line, barcode, and key payment fields.
+  printer.println(F("8< ------------------------------"));
+
+  String barcodeData = buildOfficeBarcodeData();
+
+  if (barcodeData.length() > 0) {
+    printer.println(F(""));
+    printer.justify('C');
+
+    // Hide HRI text (the digits printed under the barcode)
+    printer.write(0x1D);
+    printer.write('H');
+    printer.write((uint8_t)0x00);
+    // Prefer library barcode helper when CODE93 is available.
+    #if defined(CODE93)
+      printer.printBarcode(barcodeData.c_str(), CODE93);
+    #else
+      // Fallback: CODE39 via ESC/POS (still digits-only data)
+      // HRI hidden
+      printer.write(0x1D);
+      printer.write('H');
+      printer.write((uint8_t)0x00);
+      // Height
+      printer.write(0x1D);
+      printer.write('h');
+      printer.write((uint8_t)80);
+      // Module width
+      printer.write(0x1D);
+      printer.write('w');
+      printer.write((uint8_t)2);
+
+      // Print CODE39: GS k m data NUL
+      printer.write(0x1D);
+      printer.write('k');
+      printer.write((uint8_t)0x04); // m=4 => CODE39
+      for (size_t i = 0; i < barcodeData.length(); i++) {
+        printer.write((uint8_t)barcodeData[i]);
+      }
+      printer.write((uint8_t)0x00);
+    #endif
+
+    printer.println(F(""));
+    printer.println(F(""));
+    printer.justify('L');
+  }
+
+  float amountPaid = currentReceipt.amountPaid;
+  float change = currentReceipt.change;
+
+  printer.print(F("Customer    : "));
+  printer.println(currentReceipt.customerName);
+  printer.print(F("Account     : "));
+  printer.println(currentReceipt.accountNo);
+
+  printer.print(F("Date/Time   : "));
+  printer.println(formatDateTime12Hour(currentReceipt.paymentDateTime));
+  printer.println(F(""));
+  printer.justify('L');
+  printer.boldOn();
+  printer.print(F("Amount Received: PHP "));
+  printer.boldOff();
+  printer.println(amountPaid, 2);
+  printer.boldOn();
+  if (change > 0) {
+    printer.print(F("Change Returned: PHP "));
+    printer.boldOff();
+    printer.println(change, 2);
+    printer.boldOn();
+  }
+  printer.println(F("Payment Method: Cash"));
+  printer.print(F("Collector: "));
+  printer.println(currentReceipt.collector);
+  printer.boldOff();
+  printer.println(F(""));
+}
+
 void printReceipt() {
   printer.wake();
   printer.setDefault();
@@ -30,6 +128,7 @@ void printReceipt() {
 //   printer.println(F("TIN: 464-252-005"));
 //   printer.println(F(""));
 //   printer.println(F("--------------------------------"));
+  printer.println(F("")); 
   printer.justify('C');
   printer.setSize('M');
   printer.boldOn();
@@ -62,8 +161,8 @@ void printReceipt() {
   printer.println(F("--------------------------------"));
 
   // Collector
-  printer.justify('C');
-  printer.println(F("Collector"));
+  printer.justify('L');
+  printer.print(F("Collector : "));
   printer.println(currentReceipt.collector);
   printer.println(F("--------------------------------"));
 
@@ -109,7 +208,7 @@ void printReceipt() {
     printer.print(F("Penalty / Late Fee: PHP "));
     printer.println(currentReceipt.penalty, 2);
   }
-  printer.println(F("----------------------------"));
+  printer.println(F("--------------------------------"));
   printer.print(F("Total Amount Due  : PHP "));
   printer.println(total, 2);
   printer.println(F("================================"));
@@ -128,7 +227,7 @@ void printReceipt() {
     printer.println(change, 2);
     printer.boldOn();
   }
-  printer.print(F("Payment Method: Cash"));
+  printer.println(F("Payment Method: Cash"));
   printer.boldOff();
   printer.println(F(""));
   // Footer
@@ -137,6 +236,11 @@ void printReceipt() {
   printer.println(F("Thank you for your payment!"));
   printer.println(F("This serves as an official receipt."));
   printer.println(F("Save Water, Save Life!"));
+
+  // Office stub copy
+  printer.println(F(""));
+  printOfficeCopyBarcodeSection();
+
   printer.justify('L');
 
   customFeed(4);

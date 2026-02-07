@@ -4,6 +4,7 @@
 #include "../configuration/config.h"
 #include <TFT_eSPI.h>
 #include <esp_task_wdt.h>
+#include "../screens/printer_icon_bar_loading_screen.h"
 
 // ===== EXTERNAL OBJECTS FROM MAIN .INO =====
 extern TFT_eSPI tft;
@@ -19,7 +20,48 @@ TaskHandle_t animationTaskHandle = NULL;
 
 // Forward declarations
 void printBill();
-void displayPrintingAnimation();
+void printerTask(void *parameter);
+void animationTask(void *parameter);
+
+static PrinterIconBarLoadingState g_printLoadingState;
+
+// Time-based progress estimate (used when we don't have real progress updates).
+// Increased so the UI matches typical bill print duration better.
+static const uint32_t WS_PRINT_ESTIMATED_DURATION_MS = 42000; // was 33000 (~+9s)
+
+typedef void (*PrintJobFn)();
+static volatile PrintJobFn g_printJobFn = nullptr;
+
+static void startParallelPrintingInternal(PrintJobFn job) {
+  g_printJobFn = job;
+
+  Serial.println(F("Starting parallel print and animation tasks..."));
+  
+  // Create printer task (high priority)
+  xTaskCreatePinnedToCore(
+    printerTask,
+    "PrinterTask",
+    4096,
+    NULL,
+    1,
+    &printTaskHandle,
+    1   // ✅ CORE 1 (critical)
+  );
+  
+  // Small delay to let printer start
+  delay(100);
+  
+  // Create animation task (UI) pinned to core 0
+  xTaskCreatePinnedToCore(
+    animationTask,
+    "AnimationTask",
+    4096,
+    NULL,
+    1,
+    &animationTaskHandle,
+    0
+  );
+}
 
 // ===== PRINTER TASK (Runs in background) =====
 void printerTask(void *parameter) {
@@ -32,7 +74,13 @@ void printerTask(void *parameter) {
   
 
   // Call the print function
-  printBill();
+  PrintJobFn job = g_printJobFn;
+  if (job) {
+    job();
+  } else {
+    printBill();
+  }
+  g_printJobFn = nullptr;
   
   // Mark as complete
   isPrinting = false;
@@ -47,111 +95,69 @@ void printerTask(void *parameter) {
 
 // ===== ANIMATION TASK (Monitor & Display) =====
 void animationTask(void *parameter) {
-  tft.fillScreen(COLOR_BG);
-  
-  tft.setTextColor(COLOR_HEADER);
-  tft.setTextSize(2);
-  tft.setCursor(25, 20);
-  tft.println(F("PRINTING"));
-  
-  tft.setTextColor(COLOR_TEXT);
-  tft.setTextSize(1);
-  tft.setCursor(35, 45);
-  tft.println(F("Please wait..."));
-  
-  // Draw progress bar border
-  tft.drawRect(20, 70, 120, 20, COLOR_LINE);
-  
-  int lastProgress = 0;
-  unsigned long animationStartTime = millis();
-  
-  // Run while printing or until complete
+  // Reset local UI state for each print session
+  g_printLoadingState = PrinterIconBarLoadingState{};
+
+  int w = tft.width();
+  int h = tft.height();
+  uint32_t animationStartTime = millis();
+
   while (!printComplete) {
-    unsigned long elapsedTime = millis() - animationStartTime;
-    
-    // Estimate progress based on elapsed time (33 seconds = 33000ms)
-    int estimatedProgress = (elapsedTime * 100) / 33000;
-    
-    // Don't go over 95% until actually done
-    if (estimatedProgress > 95) {
-      estimatedProgress = 95;
-    }
-    
-    // Update progress bar if changed
-    if (estimatedProgress != lastProgress) {
-      lastProgress = estimatedProgress;
-      printProgress = estimatedProgress;
-      
-      // Fill progress bar
-      int barWidth = (120 * estimatedProgress) / 100;
-      tft.fillRect(20, 70, barWidth, 20, COLOR_AMOUNT);
-      
-      // Update percentage text
-      tft.setTextColor(COLOR_BG);
-      tft.setTextSize(1);
-      tft.setCursor(60, 75);
-      if (estimatedProgress < 10) {
-        tft.print(F("  "));
-      } else if (estimatedProgress < 100) {
-        tft.print(F(" "));
-      }
-      tft.println(estimatedProgress);
-      
-      Serial.print(F("[Animation] Progress: "));
-      Serial.print(estimatedProgress);
-      Serial.println(F("%"));
-    }
-    
-    delay(500);  // Update every 500ms
+    // Keep old timing-based estimate, but do not exceed 95% until done.
+    uint32_t elapsedTime = millis() - animationStartTime;
+    int estimatedProgress = (int)((elapsedTime * 100UL) / WS_PRINT_ESTIMATED_DURATION_MS);
+    if (estimatedProgress > 95) estimatedProgress = 95;
+
+    // If some other module updates printProgress, respect it.
+    int shownProgress = printProgress;
+    if (shownProgress < estimatedProgress) shownProgress = estimatedProgress;
+    if (shownProgress > 95) shownProgress = 95;
+
+    printerIconBarScreenUpdate(
+      tft,
+      g_printLoadingState,
+      w,
+      h,
+      shownProgress,
+      false,
+      COLOR_BG,
+      TFT_WHITE,
+      TFT_WHITE,
+      TFT_WHITE,
+      COLOR_AMOUNT
+    );
+
+    vTaskDelay(pdMS_TO_TICKS(30));
   }
-  
-  // Print complete - fill bar to 100%
-  tft.fillRect(20, 70, 120, 20, COLOR_AMOUNT);
-  tft.setTextColor(COLOR_BG);
-  tft.setTextSize(1);
-  tft.setCursor(60, 75);
-  tft.println(F("100%"));
-  
-  // Show completion message
-  tft.setTextColor(COLOR_AMOUNT);
-  tft.setTextSize(1);
-  tft.setCursor(35, 105);
-  tft.println(F("Done!"));
-  
+
+  // Final frame (done)
+  printerIconBarScreenUpdate(
+    tft,
+    g_printLoadingState,
+    w,
+    h,
+    100,
+    true,
+    COLOR_BG,
+    TFT_WHITE,
+    TFT_WHITE,
+    TFT_WHITE,
+    COLOR_AMOUNT
+  );
+
   Serial.println(F("[Animation] Print complete!"));
-  delay(1000);  // Show completion for 1 second
-  
-  // Delete this task
+  vTaskDelay(pdMS_TO_TICKS(900));
   vTaskDelete(NULL);
 }
 
 // ===== START PARALLEL PRINTING =====
 void startParallelPrinting() {
-  Serial.println(F("Starting parallel print and animation tasks..."));
-  
-  // Create printer task (high priority)
-    xTaskCreatePinnedToCore(
-    printerTask,
-    "PrinterTask",
-    4096,
-    NULL,
-    1,
-    &printTaskHandle,
-    1   // ✅ CORE 1 (critical)
-    );
-  
-  // Small delay to let printer start
-  delay(100);
-  
-  // Create animation task (medium priority)
-  xTaskCreate(
-    animationTask,         // Function to execute
-    "AnimationTask",       // Task name
-    4096,                  // Stack size (words)
-    NULL,                  // Parameter
-    1,                     // Priority
-    &animationTaskHandle   // Task handle
-  );
+  startParallelPrintingInternal(nullptr);
+}
+
+// Start printing a custom job with the same loading animation (e.g., printReceipt)
+void startParallelPrintingJob(PrintJobFn job) {
+  startParallelPrintingInternal(job);
 }
 
 // ===== WAIT FOR PRINT COMPLETION =====

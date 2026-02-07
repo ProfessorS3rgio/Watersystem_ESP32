@@ -14,48 +14,46 @@ void displayEnterReadingScreen() {
   
   Customer* cust = currentCustomer;
   if (cust == nullptr) return;
-  
+
+  // Match Enter Account screen styling
+  tft.setFreeFont(&FreeSansBold9pt7b);
   tft.setTextColor(COLOR_HEADER);
-  tft.setTextSize(1);
-  tft.setCursor(15, 10);
+  tft.setCursor(85, 20);
   tft.println(F("CURRENT READING"));
-  
-  tft.drawLine(0, 20, 160, 20, COLOR_LINE);
-  
+
+  tft.drawLine(0, 30, 320, 30, COLOR_LINE);
+
+  // Customer name
+  tft.setFreeFont(&FreeSans9pt7b);
   tft.setTextColor(COLOR_LABEL);
-  tft.setCursor(2, 28);
+  tft.setCursor(20, 50);
   tft.print(F("Name: "));
   tft.setTextColor(COLOR_TEXT);
   tft.println(cust->customer_name);
-  
-  tft.drawLine(0, 40, 160, 40, COLOR_LINE);
-  
+
+  // Prompt
   tft.setTextColor(COLOR_LABEL);
-  tft.setCursor(2, 48);
-  tft.println(F("Enter current reading:"));
+  tft.setCursor(20, 75);
+  tft.println(F("Current Reading:"));
 
-  // Input box
-  tft.drawRect(10, 58, 140, 30, COLOR_LINE);
+  // Input box (same style as account screen)
+  tft.drawRect(20, 85, 280, 60, COLOR_LINE);
 
-  tft.setTextColor(COLOR_AMOUNT);
-  tft.setTextSize(2);
-  tft.setCursor(20, 66);
+  tft.setFreeFont(&FreeSans18pt7b);
+  tft.setTextColor(COLOR_TEXT);
+  tft.setCursor(55, 125);
   if (inputBuffer.length() > 0) {
     tft.println(inputBuffer);
   } else {
-    // Placeholder
     tft.setTextColor(COLOR_LABEL);
-    tft.println(F("___"));
+    tft.println(F("_____"));
   }
-  tft.setTextSize(1);
-  
+
+  // Footer controls
+  tft.setFreeFont(&FreeSans9pt7b);
   tft.setTextColor(COLOR_LABEL);
-  tft.setCursor(20, 95);
-  tft.println(F("D - Calculate"));
-  tft.setCursor(32, 107);
-  tft.println(F("B - Clear"));
-  tft.setCursor(28, 119);
-  tft.println(F("C - Cancel"));
+  tft.setCursor(35, 180);
+  tft.println(F("D-Calculate  B-Clear  C-Cancel"));
 }
 
 #endif // ENTER_READING_SCREEN_H

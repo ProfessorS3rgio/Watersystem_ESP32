@@ -10,41 +10,73 @@ extern TFT_eSPI tft;
 extern Customer* currentCustomer;
 extern unsigned long correctPreviousReading;
 
+static String truncateText(const String& s, int maxLen) {
+  if ((int)s.length() <= maxLen) return s;
+  if (maxLen <= 3) return s.substring(0, maxLen);
+  return s.substring(0, maxLen - 3) + "...";
+}
+
 void displayCustomerInfo() {
   tft.fillScreen(COLOR_BG);
   
   Customer* cust = currentCustomer;
   if (cust == nullptr) return;
-  
-  tft.setTextFont(4);  // Sans-serif font for header
-  tft.setTextSize(1);
+
+  // Payment-summary style header + borders
+  tft.fillRect(0, 0, 320, 5, TFT_BLUE);
+  tft.fillRect(0, 235, 320, 5, TFT_BLUE);
+
+  tft.setFreeFont(&FreeSansBold9pt7b);
   tft.setTextColor(COLOR_HEADER);
-  tft.setCursor(80, 20);
+  tft.setCursor(95, 25);
   tft.println(F("CUSTOMER INFO"));
-  
-  tft.drawLine(0, 30, 320, 30, COLOR_LINE);
-  
-  tft.setTextFont(2);  // Sans-serif font for labels
-  tft.setTextSize(1);
+  tft.drawLine(0, 35, 320, 35, COLOR_LINE);
+
+  // Compact layout (2.8" 320x240)
+  const int leftX = 10;
+  const int rightX = 180;
+  const int lineH = 24;
+  int y = 60;
+
+  tft.setFreeFont(&FreeSans9pt7b);
+
+  // Row 1: Account + Status
   tft.setTextColor(COLOR_LABEL);
-  tft.setCursor(20, 50);
+  tft.setCursor(leftX, y);
   tft.print(F("Account: "));
   tft.setTextColor(COLOR_TEXT);
-  tft.println(cust->account_no);
-  
+  tft.print(cust->account_no);
+
   tft.setTextColor(COLOR_LABEL);
-  tft.setCursor(20, 70);
+  tft.setCursor(rightX, y);
+  tft.print(F("Status: "));
+  if (String(cust->status) == "inactive") {
+    tft.setTextColor(TFT_RED);
+    tft.println(F("Inactive"));
+  } else {
+    tft.setTextColor(TFT_GREEN);
+    tft.println(F("Active"));
+  }
+
+  // Row 2: Name
+  y += lineH;
+  tft.setTextColor(COLOR_LABEL);
+  tft.setCursor(leftX, y);
   tft.print(F("Name: "));
   tft.setTextColor(COLOR_TEXT);
-  tft.println(cust->customer_name);
-  
+  tft.println(truncateText(cust->customer_name, 22));
+
+  // Row 3: Address
+  y += lineH;
   tft.setTextColor(COLOR_LABEL);
-  tft.setCursor(20, 90);
+  tft.setCursor(leftX, y);
   tft.print(F("Address: "));
   tft.setTextColor(COLOR_TEXT);
-  tft.println(cust->address);
-  
-  tft.drawLine(0, 110, 320, 110, COLOR_LINE);
+  tft.println(truncateText(cust->address, 20));
+
+  // Divider
+  int afterInfoY = y + lineH;
+  tft.drawLine(0, afterInfoY, 320, afterInfoY, COLOR_LINE);
   
   // Check if customer has existing reading and show correct previous reading
   unsigned long displayPrevReading = cust->previous_reading;
@@ -57,24 +89,29 @@ void displayCustomerInfo() {
   }
   
   correctPreviousReading = displayPrevReading;
-  
+
+  // Reading block
+  int readingY = afterInfoY + 30;
   tft.setTextColor(COLOR_LABEL);
-  tft.setCursor(20, 130);
+  tft.setCursor(leftX, readingY);
   tft.print(F("Previous Reading: "));
   tft.setTextColor(COLOR_AMOUNT);
   tft.println(displayPrevReading);
-  
+
   if (hasReading) {
     tft.setTextColor(TFT_RED);
-    tft.setCursor(20, 150);
+    tft.setCursor(leftX, readingY + 22);
     tft.println(F("Reading already done this month"));
-    tft.setTextColor(COLOR_LABEL);
-    tft.setCursor(35, 180);
-    tft.println(F("D-Continue  C-Cancel"));
+  }
+
+  // Footer hints (aligned like payment summary)
+  tft.setFreeFont(&FreeSans9pt7b);
+  tft.setTextColor(COLOR_LABEL);
+  tft.setCursor(65, 220);
+  if (hasReading) {
+    tft.println(F("Press D to Continue   C to Cancel"));
   } else {
-    tft.setTextColor(COLOR_LABEL);
-    tft.setCursor(35, 180);
-    tft.println(F("D-Reading  C-Cancel"));
+    tft.println(F("Press D for Reading   C to Cancel"));
   }
 }
 
