@@ -22,6 +22,7 @@ class Bill extends Model
         'due_date',
         'status',
         'void_reason',
+        'customer_account_number',
     ];
 
     protected $casts = [

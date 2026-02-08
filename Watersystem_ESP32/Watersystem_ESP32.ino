@@ -217,6 +217,9 @@ void setup() {
   // Initialize Customer Types Database
   initCustomerTypesDatabase();
 
+  // Initialize Settings Database
+  initSettingsDatabase();
+
   // Initialize Bills Database
   initBillsDatabase();
 
@@ -354,6 +357,43 @@ void loop() {
       return;
     }
 
+    if (raw == "RESET") {
+      Serial.println(F("Resetting sync status for readings, bills, and bill transactions..."));
+      if (db) {
+        // Reset readings sync status
+        int rc1 = sqlite3_exec(db, "UPDATE readings SET synced = 0, last_sync = NULL WHERE synced = 1;", NULL, NULL, NULL);
+        if (rc1 == SQLITE_OK) {
+          Serial.println(F("Readings sync status reset."));
+        } else {
+          Serial.print(F("Error resetting readings: "));
+          Serial.println(sqlite3_errmsg(db));
+        }
+
+        // Reset bills sync status
+        int rc2 = sqlite3_exec(db, "UPDATE bills SET synced = 0, last_sync = NULL WHERE synced = 1;", NULL, NULL, NULL);
+        if (rc2 == SQLITE_OK) {
+          Serial.println(F("Bills sync status reset."));
+        } else {
+          Serial.print(F("Error resetting bills: "));
+          Serial.println(sqlite3_errmsg(db));
+        }
+
+        // Reset bill_transactions sync status
+        int rc3 = sqlite3_exec(db, "UPDATE bill_transactions SET synced = 0, last_sync = NULL WHERE synced = 1;", NULL, NULL, NULL);
+        if (rc3 == SQLITE_OK) {
+          Serial.println(F("Bill transactions sync status reset."));
+        } else {
+          Serial.print(F("Error resetting bill transactions: "));
+          Serial.println(sqlite3_errmsg(db));
+        }
+
+        Serial.println(F("Sync reset complete. All unsynced data will be exported on next sync."));
+      } else {
+        Serial.println(F("Database not open."));
+      }
+      return;
+    }
+
     if (handleSyncCommands(raw)) return;
 
     // ---- Existing console commands ----
@@ -426,7 +466,7 @@ void loop() {
     else if (cmd.length() > 0) {
       Serial.print(F("Unknown: "));
       Serial.println(cmd);
-      Serial.println(F("Commands: P, D, S, L, DD, CT, B, BT, DB, DB_ALL, DROPDB, DROPR, DROPB, DROPBT, DROPC, START, TIME, SET_TIME <YYYY-MM-DD HH:MM:SS>"));
+      Serial.println(F("Commands: P, D, S, L, DD, CT, B, BT, DB, DB_ALL, DROPDB, DROPR, DROPB, DROPBT, DROPC, RESET, START, TIME, SET_TIME <YYYY-MM-DD HH:MM:SS>"));
     }
   }
 }

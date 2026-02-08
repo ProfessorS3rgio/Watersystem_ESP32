@@ -57,7 +57,7 @@ static int getBillIdByReferenceNumber(const String& billRef) {
 }
 
 static bool markBillPaidById(int billId) {
-  const char* sql = "UPDATE bills SET status = 'Paid', updated_at = ? WHERE bill_id = ?;";
+  const char* sql = "UPDATE bills SET status = 'Paid', synced = 0, last_sync = NULL, updated_at = ? WHERE bill_id = ?;";
   sqlite3_stmt* stmt;
   int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
   if (rc != SQLITE_OK) {
@@ -76,7 +76,7 @@ static bool markBillPaidById(int billId) {
 }
 
 static bool markBillPendingById(int billId) {
-  const char* sql = "UPDATE bills SET status = 'Pending', updated_at = ? WHERE bill_id = ?;";
+  const char* sql = "UPDATE bills SET status = 'Pending', synced = 0, last_sync = NULL, updated_at = ? WHERE bill_id = ?;";
   sqlite3_stmt* stmt;
   int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
   if (rc != SQLITE_OK) {
@@ -272,7 +272,7 @@ bool markAllBillTransactionsSynced() {
 
 // Function to update transaction type (e.g., void a payment)
 bool updateTransactionType(int transactionId, const String& newType) {
-  const char* sql = "UPDATE bill_transactions SET type = ?, updated_at = ? WHERE bill_transaction_id = ?;";
+  const char* sql = "UPDATE bill_transactions SET type = ?, synced = 0, last_sync = NULL, updated_at = ? WHERE bill_transaction_id = ?;";
   sqlite3_stmt* stmt;
   int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
   if (rc != SQLITE_OK) {

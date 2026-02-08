@@ -60,6 +60,7 @@ class ReadingController extends Controller
             'readings.*.previous_reading' => ['required', 'integer', 'min:0'],
             'readings.*.current_reading' => ['required', 'integer', 'min:0'],
             'readings.*.usage_m3' => ['required', 'integer', 'min:0'],
+            'readings.*.customer_account_number' => ['required', 'string', 'max:255'],
             'readings.*.reading_at' => ['nullable', 'integer', 'min:0'], // epoch seconds
         ]);
 
@@ -101,11 +102,12 @@ class ReadingController extends Controller
                         'current_reading' => (int) $row['current_reading'],
                         'usage_m3' => (int) $row['usage_m3'],
                         'reading_at' => $readingAt,
+                        'customer_account_number' => $row['customer_account_number'],
                         'read_by_user_id' => null,
                     ]);
                     $updated++;
                 } else {
-                    DB::insert("INSERT INTO reading (reading_id, customer_id, device_uid, previous_reading, current_reading, usage_m3, reading_at, read_by_user_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
+                    DB::insert("INSERT INTO reading (reading_id, customer_id, device_uid, previous_reading, current_reading, usage_m3, reading_at, customer_account_number, read_by_user_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
                         (int) $row['reading_id'],
                         $customer->customer_id,
                         $row['device_uid'] ?? null,
@@ -113,6 +115,7 @@ class ReadingController extends Controller
                         (int) $row['current_reading'],
                         (int) $row['usage_m3'],
                         $readingAt,
+                        $row['customer_account_number'],
                         null,
                         now(),
                         now(),
@@ -127,6 +130,28 @@ class ReadingController extends Controller
             'inserted' => $inserted,
             'updated' => $updated,
             'skipped' => $skipped,
+        ]);
+    }
+
+    /**
+     * Mark readings as synced after successful device sync.
+     */
+    public function markSynced(Request $request)
+    {
+        $validated = $request->validate([
+            'reading_ids' => ['required', 'array'],
+            'reading_ids.*' => ['required', 'integer'],
+        ]);
+
+        $updated = Reading::whereIn('reading_id', $validated['reading_ids'])
+            ->update([
+                'Synced' => true,
+                'last_sync' => now(),
+            ]);
+
+        return response()->json([
+            'updated' => $updated,
+            'message' => "{$updated} readings marked as synced",
         ]);
     }
 }

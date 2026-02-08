@@ -53,10 +53,17 @@ static int getNextBillReferenceSequence(int year) {
 
   int seq = 1;
   char *errMsg = nullptr;
-  int rc = sqlite3_exec(db, "BEGIN IMMEDIATE;", nullptr, nullptr, &errMsg);
-  if (rc != SQLITE_OK) {
-    if (errMsg) sqlite3_free(errMsg);
-    return 1;
+  // If we're already inside a transaction (e.g., bulk test-data generation),
+  // starting a new one will fail and would cause the sequence to always return 1.
+  // In that case, just do the read+increment within the existing transaction.
+  bool ownsTxn = (sqlite3_get_autocommit(db) != 0);
+  int rc = SQLITE_OK;
+  if (ownsTxn) {
+    rc = sqlite3_exec(db, "BEGIN IMMEDIATE;", nullptr, nullptr, &errMsg);
+    if (rc != SQLITE_OK) {
+      if (errMsg) sqlite3_free(errMsg);
+      return 1;
+    }
   }
 
   // Ensure row exists for this year
@@ -70,7 +77,7 @@ static int getNextBillReferenceSequence(int year) {
     }
     sqlite3_finalize(stmt);
     if (rc != SQLITE_OK) {
-      (void)sqlite3_exec(db, "ROLLBACK;", nullptr, nullptr, nullptr);
+      if (ownsTxn) (void)sqlite3_exec(db, "ROLLBACK;", nullptr, nullptr, nullptr);
       return 1;
     }
   }
@@ -88,7 +95,7 @@ static int getNextBillReferenceSequence(int year) {
     }
     sqlite3_finalize(stmt);
     if (rc != SQLITE_OK) {
-      (void)sqlite3_exec(db, "ROLLBACK;", nullptr, nullptr, nullptr);
+      if (ownsTxn) (void)sqlite3_exec(db, "ROLLBACK;", nullptr, nullptr, nullptr);
       return 1;
     }
   }
@@ -104,12 +111,12 @@ static int getNextBillReferenceSequence(int year) {
     }
     sqlite3_finalize(stmt);
     if (rc != SQLITE_OK) {
-      (void)sqlite3_exec(db, "ROLLBACK;", nullptr, nullptr, nullptr);
+      if (ownsTxn) (void)sqlite3_exec(db, "ROLLBACK;", nullptr, nullptr, nullptr);
       return 1;
     }
   }
 
-  (void)sqlite3_exec(db, "COMMIT;", nullptr, nullptr, nullptr);
+  if (ownsTxn) (void)sqlite3_exec(db, "COMMIT;", nullptr, nullptr, nullptr);
   return seq;
 }
 
@@ -412,7 +419,7 @@ bool hasReadingThisMonth(int customerId) {
 // ===== UPDATE EXISTING READING =====
 void updateExistingReading(int readingId, unsigned long currentReading, unsigned long usage) {
   String nowStr = getCurrentDateTimeString();
-  String query = "UPDATE readings SET current_reading = " + String(currentReading) + ", usage_m3 = " + String(usage) + ", updated_at = '" + nowStr + "' WHERE reading_id = " + String(readingId) + ";";
+  String query = "UPDATE readings SET current_reading = " + String(currentReading) + ", usage_m3 = " + String(usage) + ", synced = 0, last_sync = NULL, updated_at = '" + nowStr + "' WHERE reading_id = " + String(readingId) + ";";
   sqlite3_exec(db, query.c_str(), NULL, NULL, NULL);
 }
 
@@ -462,7 +469,7 @@ void updateExistingBill(int customerId, int readingId, float charges, float tota
   Serial.print(F(", reading "));
   Serial.println(readingId);
   String nowStr = getCurrentDateTimeString();
-  String query = "UPDATE bills SET charges = " + String(charges, 2) + ", total_due = " + String(totalDue, 2) + ", rate_per_m3 = " + String(rate, 2) + ", updated_at = '" + nowStr + "' WHERE customer_id = " + String(customerId) + " AND reading_id = " + String(readingId) + ";";
+  String query = "UPDATE bills SET charges = " + String(charges, 2) + ", total_due = " + String(totalDue, 2) + ", rate_per_m3 = " + String(rate, 2) + ", synced = 0, last_sync = NULL, updated_at = '" + nowStr + "' WHERE customer_id = " + String(customerId) + " AND reading_id = " + String(readingId) + ";";
   // Serial.println(query);  // Commented out to save heap memory
   sqlite3_exec(db, query.c_str(), NULL, NULL, NULL);
 }

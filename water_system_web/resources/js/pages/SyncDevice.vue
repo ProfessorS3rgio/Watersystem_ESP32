@@ -59,13 +59,13 @@
               </button>
 
               <button
-                @click="showDropConfirm = true"
-                class="bg-red-600 hover:bg-red-700 text-white px-4 py-3 rounded-lg font-medium shadow transition-all duration-200 flex items-center justify-center space-x-2"
+                @click="showResetConfirm = true"
+                class="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-3 rounded-lg font-medium shadow transition-all duration-200 flex items-center justify-center space-x-2"
               >
                 <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
-                <span>Drop Database</span>
+                <span>Reset Sync Status</span>
               </button>
 
               <button
@@ -248,16 +248,16 @@
       @cancel="showRestartConfirm = false"
     />
 
-    <!-- Drop Database Confirmation -->
+    <!-- Reset Sync Status Confirmation -->
     <ConfirmDialog
-      :is-open="showDropConfirm"
-      title="Drop Database"
-      :message="'This will delete all data in the ESP32 database including customers, readings, and settings. The database will be reinitialized.<br><br>Are you sure you want to drop the database?'"
-      confirm-text="Drop Database"
+      :is-open="showResetConfirm"
+      title="Reset Sync Status"
+      :message="'This will reset the sync status for all records in the web database. All records will be marked as unsynced (Synced = 0, last_sync = null), allowing them to be synced again with the device.<br><br>Are you sure you want to reset the sync status?'"
+      confirm-text="Reset Sync Status"
       cancel-text="Cancel"
       :is-loading="false"
-      @confirm="dropDatabase(addLog, sendLineDevice)"
-      @cancel="showDropConfirm = false"
+      @confirm="resetSyncStatus(addLog)"
+      @cancel="showResetConfirm = false"
     />
 
     <!-- Command Success Modal -->
@@ -283,6 +283,7 @@ import { useSyncCustomers } from '../composables/Sync/useSyncCustomers'
 import { useSyncCustomerTypes } from '../composables/Sync/useSyncCustomerTypes'
 import { useSyncDeductions } from '../composables/Sync/useSyncDeductions'
 import { useSyncBarangays } from '../composables/Sync/useSyncBarangays'
+import { useSyncSettings } from '../composables/Sync/useSyncSettings'
 import { useSyncReadings } from '../composables/Sync/useSyncReadings'
 import { useSyncBills } from '../composables/Sync/useSyncBills'
 import { useSyncData } from '../composables/Sync/useSyncData'
@@ -333,6 +334,10 @@ export default {
     } = useSyncBarangays()
 
     const {
+      pushSettingsToDevice
+    } = useSyncSettings()
+
+    const {
       syncReadingsFromDevice,
       handleDeviceLine: handleDeviceLineReadings
     } = useSyncReadings()
@@ -357,13 +362,15 @@ export default {
       showFormatConfirm,
       showRestartConfirm,
       showDropConfirm,
+      showResetConfirm,
       showCommandSuccess,
       commandSuccessMessage,
       sendCommand,
       sendCustomCommand,
       formatSdCard,
       restartDevice,
-      dropDatabase
+      dropDatabase,
+      resetSyncStatus
     } = useSyncController()
 
     return {
@@ -388,6 +395,7 @@ export default {
       pushCustomerTypesToDevice,
       pushDeductionsToDevice,
       pushBarangaysToDevice,
+      pushSettingsToDevice,
       syncReadingsFromDevice,
       handleDeviceLineReadings,
       syncBillsFromDevice,
@@ -409,7 +417,9 @@ export default {
       formatSdCard,
       restartDevice,
       dropDatabase,
-      showDropConfirm
+      resetSyncStatus,
+      showDropConfirm,
+      showResetConfirm
     }
   },
   data() {
@@ -506,6 +516,7 @@ export default {
         pushCustomerTypesToDevice: this.pushCustomerTypesToDevice,
         pushDeductionsToDevice: this.pushDeductionsToDevice,
         pushBarangaysToDevice: this.pushBarangaysToDevice,
+        pushSettingsToDevice: this.pushSettingsToDevice,
         syncReadingsFromDevice: this.syncReadingsFromDevice,
         syncBillsFromDevice: this.syncBillsFromDevice,
         pushCustomersToDevice: this.pushCustomersToDevice,

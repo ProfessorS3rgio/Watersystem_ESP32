@@ -292,6 +292,7 @@ class BillController extends Controller
             'bills.*.penalty' => ['nullable', 'numeric'],
             'bills.*.total_due' => ['nullable', 'numeric'],
             'bills.*.status' => ['nullable', 'string', 'max:255'],
+            'bills.*.customer_account_number' => ['required', 'string', 'max:255'],
             'bills.*.created_at' => ['nullable', 'string'],
             'bills.*.updated_at' => ['nullable', 'string'],
         ]);
@@ -314,6 +315,7 @@ class BillController extends Controller
                     'penalty' => $row['penalty'] ?? 0,
                     'total_due' => $row['total_due'] ?? 0,
                     'status' => $row['status'] ?? 'Pending',
+                    'customer_account_number' => $row['customer_account_number'],
                     'created_at' => $row['created_at'] ?? now(),
                     'updated_at' => $row['updated_at'] ?? now(),
                 ]
@@ -326,6 +328,28 @@ class BillController extends Controller
 
         return response()->json([
             'processed' => $processed,
+        ]);
+    }
+
+    /**
+     * Mark bills as synced after successful device sync.
+     */
+    public function markSynced(Request $request)
+    {
+        $validated = $request->validate([
+            'bill_ids' => ['required', 'array'],
+            'bill_ids.*' => ['required', 'integer'],
+        ]);
+
+        $updated = Bill::whereIn('bill_id', $validated['bill_ids'])
+            ->update([
+                'Synced' => true,
+                'last_sync' => now(),
+            ]);
+
+        return response()->json([
+            'updated' => $updated,
+            'message' => "{$updated} bills marked as synced",
         ]);
     }
 }

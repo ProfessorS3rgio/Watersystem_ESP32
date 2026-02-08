@@ -108,7 +108,8 @@ export function useSyncReadings() {
               previous_reading: Number(reading.previous_reading || 0),
               current_reading: Number(reading.current_reading || 0),
               usage_m3: Number(reading.usage_m3 || 0),
-              reading_at: Number(reading.reading_at || 0)
+              reading_at: Number(reading.reading_at || 0),
+              customer_account_number: reading.customer_account_number || '',
             })
           }
           chunkBuffer = '' // Clear after successful parse
@@ -139,6 +140,11 @@ export function useSyncReadings() {
       if (Number(processed) !== Number(deviceReadings.length)) {
         throw new Error('Upserted readings count does not match device export count')
       }
+
+      // Mark readings as synced in web database
+      const readingIds = deviceReadings.map(r => r.reading_id)
+      const marked = await databaseService.markReadingsSynced(readingIds)
+      console.log('Readings marked as synced in web database:', marked)
     } catch (err) {
       console.error('Failed to upsert readings to database:', err)
       throw err

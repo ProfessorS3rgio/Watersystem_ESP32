@@ -29,16 +29,20 @@ void initDatabase() {
 
 void createAllTables() {
   // Barangay sequence table
-  const char *sql_barangay = "CREATE TABLE IF NOT EXISTS barangay_sequence (brgy_id INTEGER PRIMARY KEY AUTOINCREMENT, barangay TEXT UNIQUE, prefix TEXT, next_number INTEGER, updated_at TEXT);";
+  const char *sql_barangay = "CREATE TABLE IF NOT EXISTS barangay_sequence (brgy_id INTEGER PRIMARY KEY AUTOINCREMENT, barangay TEXT UNIQUE, prefix TEXT, next_number INTEGER, synced INTEGER DEFAULT 0, last_sync TEXT, updated_at TEXT);";
   sqlite3_exec(db, sql_barangay, NULL, NULL, NULL);
 
   // Deductions table
-  const char *sql_deductions = "CREATE TABLE IF NOT EXISTS deductions (deduction_id INTEGER PRIMARY KEY, name TEXT, type TEXT, value REAL, created_at TEXT, updated_at TEXT);";
+  const char *sql_deductions = "CREATE TABLE IF NOT EXISTS deductions (deduction_id INTEGER PRIMARY KEY, name TEXT, type TEXT, value REAL, synced INTEGER DEFAULT 0, last_sync TEXT, created_at TEXT, updated_at TEXT);";
   sqlite3_exec(db, sql_deductions, NULL, NULL, NULL);
 
   // Customer types table
-  const char *sql_customer_types = "CREATE TABLE IF NOT EXISTS customer_types (type_id INTEGER PRIMARY KEY, type_name TEXT UNIQUE, rate_per_m3 REAL, min_m3 INTEGER DEFAULT 0, min_charge REAL, penalty REAL, created_at TEXT, updated_at TEXT);";
+  const char *sql_customer_types = "CREATE TABLE IF NOT EXISTS customer_types (type_id INTEGER PRIMARY KEY, type_name TEXT UNIQUE, rate_per_m3 REAL, min_m3 INTEGER DEFAULT 0, min_charge REAL, penalty REAL, synced INTEGER DEFAULT 0, last_sync TEXT, created_at TEXT, updated_at TEXT);";
   sqlite3_exec(db, sql_customer_types, NULL, NULL, NULL);
+
+  // Settings table
+  const char *sql_settings = "CREATE TABLE IF NOT EXISTS settings (id INTEGER PRIMARY KEY, bill_due_days INTEGER DEFAULT 5, disconnection_days INTEGER DEFAULT 8, synced INTEGER DEFAULT 0, last_sync TEXT, created_at TEXT, updated_at TEXT);";
+  sqlite3_exec(db, sql_settings, NULL, NULL, NULL);
 
   // Customers table
   const char *sql_customers = "CREATE TABLE IF NOT EXISTS customers (customer_id INTEGER PRIMARY KEY, account_no TEXT UNIQUE, type_id INTEGER, customer_name TEXT, deduction_id INTEGER, brgy_id INTEGER, address TEXT, previous_reading INTEGER, status TEXT DEFAULT 'active', created_at TEXT, updated_at TEXT, FOREIGN KEY(deduction_id) REFERENCES deductions(deduction_id), FOREIGN KEY(type_id) REFERENCES customer_types(type_id), FOREIGN KEY(brgy_id) REFERENCES barangay_sequence(brgy_id));";
@@ -61,8 +65,6 @@ void createAllTables() {
   const char *sql_bills = "CREATE TABLE IF NOT EXISTS bills (bill_id INTEGER PRIMARY KEY, reference_number TEXT UNIQUE, customer_id INTEGER, reading_id INTEGER, device_uid TEXT, bill_date TEXT, rate_per_m3 REAL, charges REAL, penalty REAL, total_due REAL, status TEXT DEFAULT 'Pending', created_at TEXT, updated_at TEXT, synced INTEGER DEFAULT 0, last_sync TEXT, customer_account_number TEXT, FOREIGN KEY(customer_id) REFERENCES customers(customer_id), FOREIGN KEY(reading_id) REFERENCES readings(reading_id));";
   sqlite3_exec(db, sql_bills, NULL, NULL, NULL);
   // Add device_uid column if not exists
-  const char *sql_add_device_uid_bills = "ALTER TABLE bills ADD COLUMN device_uid TEXT;";
-  sqlite3_exec(db, sql_add_device_uid_bills, NULL, NULL, NULL); // Ignore error if column exists
   // Create index on customer_account_number for faster lookups
   const char *sql_index_bills_account = "CREATE INDEX IF NOT EXISTS idx_bills_account ON bills(customer_account_number);";
   sqlite3_exec(db, sql_index_bills_account, NULL, NULL, NULL);

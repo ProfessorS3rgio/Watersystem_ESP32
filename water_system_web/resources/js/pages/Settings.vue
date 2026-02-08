@@ -3,7 +3,7 @@
     <div class="p-8">
       <div class="mb-8">
         <h1 class="text-3xl font-bold mb-2 transition-colors duration-200" :class="isDark ? 'text-white' : 'text-gray-900'">Settings</h1>
-        <p class="transition-colors duration-200" :class="isDark ? 'text-gray-400' : 'text-gray-600'">Configure billing rate, due days, and penalty rules</p>
+        <p class="transition-colors duration-200" :class="isDark ? 'text-gray-400' : 'text-gray-600'">Configure billing due days and disconnection rules</p>
       </div>
 
       <div class="bg-white rounded-lg shadow p-6" :class="isDark ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'">
@@ -12,19 +12,6 @@
           <div v-if="errorMessage" class="text-sm text-red-600 mb-4">{{ errorMessage }}</div>
 
           <form class="space-y-4" @submit.prevent="saveSettings">
-            <div>
-              <label class="block text-sm font-medium mb-1">Bill Rate (PHP per m³)</label>
-              <input
-                v-model.number="form.rate_per_m3"
-                type="number"
-                step="0.01"
-                min="0"
-                class="w-full px-4 py-2 rounded-lg border"
-                :class="inputClass(isDark)"
-                required
-              />
-            </div>
-
             <div>
               <label class="block text-sm font-medium mb-1">Days Before Due Date</label>
               <input
@@ -39,29 +26,16 @@
             </div>
 
             <div>
-              <label class="block text-sm font-medium mb-1">Penalty Applies After (days past due)</label>
+              <label class="block text-sm font-medium mb-1">Disconnection Days (days past due)</label>
               <input
-                v-model.number="form.penalty_after_days"
+                v-model.number="form.disconnection_days"
                 type="number"
                 min="0"
                 class="w-full px-4 py-2 rounded-lg border"
                 :class="inputClass(isDark)"
                 required
               />
-              <p class="text-xs mt-1" :class="isDark ? 'text-gray-400' : 'text-gray-500'">If today is greater than due date + this many days, penalty will be applied</p>
-            </div>
-
-            <div>
-              <label class="block text-sm font-medium mb-1">Penalty Amount (PHP)</label>
-              <input
-                v-model.number="form.penalty_amount"
-                type="number"
-                step="0.01"
-                min="0"
-                class="w-full px-4 py-2 rounded-lg border"
-                :class="inputClass(isDark)"
-                required
-              />
+              <p class="text-xs mt-1" :class="isDark ? 'text-gray-400' : 'text-gray-500'">If today is greater than due date + this many days, service may be disconnected</p>
             </div>
 
             <div class="pt-2 flex items-center justify-end gap-3">
@@ -104,10 +78,8 @@ export default {
       errorMessage: '',
       successMessage: '',
       form: {
-        rate_per_m3: 15.0,
-        bill_due_days: 15,
-        penalty_after_days: 0,
-        penalty_amount: 0.0,
+        bill_due_days: 5,
+        disconnection_days: 8,
       }
     }
   },
@@ -141,10 +113,8 @@ export default {
         const json = await res.json()
         const d = json?.data || {}
         this.form = {
-          rate_per_m3: Number(d.rate_per_m3 ?? 15.0),
-          bill_due_days: Number(d.bill_due_days ?? 15),
-          penalty_after_days: Number(d.penalty_after_days ?? 0),
-          penalty_amount: Number(d.penalty_amount ?? 0.0),
+          bill_due_days: Number(d.bill_due_days ?? 5),
+          disconnection_days: Number(d.disconnection_days ?? 8),
         }
       } catch (e) {
         this.errorMessage = e?.message || 'Failed to load settings'

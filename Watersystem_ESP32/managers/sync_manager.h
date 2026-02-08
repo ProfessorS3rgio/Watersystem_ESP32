@@ -8,6 +8,7 @@
 #include "../database/deduction_database.h"
 #include "../database/customer_type_database.h"
 #include "../database/barangay_database.h"
+#include "../database/settings_database.h"
 #include "../configuration/config.h"
 #include <ArduinoJson.h>
 #include <vector>
@@ -21,6 +22,7 @@
 #include "sync/barangay_sync.h"
 #include "sync/customer_type_sync.h"
 #include "sync/customer_sync.h"
+#include "sync/settings_sync.h"
 
 // Function to handle all sync protocol commands
 bool handleSyncCommands(String raw) {
@@ -100,6 +102,11 @@ bool handleSyncCommands(String raw) {
   if (raw.startsWith("UPSERT_CUSTOMER_TYPE|")) {
     String payload = raw.substring(String("UPSERT_CUSTOMER_TYPE|").length());
     return handleUpsertCustomerType(payload);
+  }
+
+  if (raw.startsWith("UPSERT_SETTINGS|")) {
+    String payload = raw.substring(String("UPSERT_SETTINGS|").length());
+    return handleUpsertSettings(payload);
   }
 
   if (raw.startsWith("UPSERT_BILLS_JSON_CHUNK|")) {

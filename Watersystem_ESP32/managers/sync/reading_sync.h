@@ -31,7 +31,7 @@ bool handleExportReadings() {
 
   // Prepare statement for chunked query
   sqlite3_stmt* stmt;
-  const char* sql = "SELECT reading_id, customer_id, device_uid, previous_reading, current_reading, usage_m3, reading_at, synced, last_sync FROM readings WHERE synced = 0 ORDER BY reading_id LIMIT ? OFFSET ?;";
+  const char* sql = "SELECT reading_id, customer_id, device_uid, previous_reading, current_reading, usage_m3, reading_at, synced, last_sync, customer_account_number FROM readings WHERE synced = 0 ORDER BY reading_id LIMIT ? OFFSET ?;";
   int rc2 = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
   if (rc2 != SQLITE_OK) {
     Serial.println(F("Failed to prepare readings query"));
@@ -58,6 +58,7 @@ bool handleExportReadings() {
       obj["reading_at"] = (unsigned long)sqlite3_column_int64(stmt, 6);
       obj["synced"] = (int)sqlite3_column_int(stmt, 7);
       obj["last_sync"] = sqlite3_column_text(stmt, 8) ? String((const char*)sqlite3_column_text(stmt, 8)) : "";
+      obj["customer_account_number"] = String((const char*)sqlite3_column_text(stmt, 9));
     }
 
     Serial.print(F("READINGS_CHUNK|"));
@@ -76,6 +77,17 @@ bool handleExportReadings() {
 
   sqlite3_finalize(stmt);
   Serial.println(F("END_READINGS_JSON"));
+  
+  // Mark all exported readings as synced
+  const char* updateSql = "UPDATE readings SET synced = 1, last_sync = datetime('now') WHERE synced = 0;";
+  int updateRc = sqlite3_exec(db, updateSql, NULL, NULL, NULL);
+  if (updateRc != SQLITE_OK) {
+    Serial.print(F("Failed to mark readings as synced: "));
+    Serial.println(sqlite3_errmsg(db));
+  } else {
+    Serial.println(F("Marked exported readings as synced"));
+  }
+  
   return true;
 }
 

@@ -14,13 +14,10 @@ return new class extends Migration
         Schema::create('settings', function (Blueprint $table) {
             $table->id();
 
-            $table->decimal('rate_per_m3', 10, 2)->default(15.00);
-            $table->integer('bill_due_days')->default(15);
-
-            // Penalty rule:
-            // if today > due_date + penalty_after_days, then apply penalty_amount.
-            $table->integer('penalty_after_days')->default(0);
-            $table->decimal('penalty_amount', 10, 2)->default(0.00);
+            $table->integer('bill_due_days')->default(5);
+            $table->integer('disconnection_days')->default(8);
+            $table->boolean('Synced')->default(false);
+            $table->timestamp('last_sync')->nullable();
 
             $table->timestamps();
         });

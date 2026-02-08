@@ -32,7 +32,7 @@ class CustomerSeeder extends Seeder
 
         $customers = [];
 
-        for ($i = 0; $i < 1000; $i++) {
+        for ($i = 0; $i < 100; $i++) {
             $number = $startNumber + $i;
             $accountNo = $prefix . '-' . str_pad($number, 3, '0', STR_PAD_LEFT);
             $typeId = rand(1, 4);

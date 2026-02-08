@@ -18,6 +18,8 @@ return new class extends Migration
             $table->integer('min_m3')->default(0);
             $table->decimal('min_charge', 10, 2);
             $table->decimal('penalty', 10, 2);
+            $table->boolean('Synced')->default(false);
+            $table->datetime('last_sync')->nullable();
             $table->timestamps();
         });
     }

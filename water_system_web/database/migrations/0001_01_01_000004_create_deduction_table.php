@@ -16,6 +16,8 @@ return new class extends Migration
             $table->string('name')->unique();
             $table->enum('type', ['percentage', 'fixed']);
             $table->decimal('value', 10, 2);
+            $table->boolean('Synced')->default(false);
+            $table->datetime('last_sync')->nullable();
             $table->timestamps();
         });
     }

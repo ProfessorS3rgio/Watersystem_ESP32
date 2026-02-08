@@ -194,7 +194,7 @@ bool handleExportBills() {
 
   // Prepare statement for chunked query
   sqlite3_stmt* stmt;
-  const char* sql = "SELECT bill_id, reference_number, customer_id, reading_id, device_uid, bill_date, rate_per_m3, charges, penalty, total_due, status, synced, last_sync FROM bills WHERE synced = 0 ORDER BY bill_id LIMIT ? OFFSET ?;";
+  const char* sql = "SELECT bill_id, reference_number, customer_id, reading_id, device_uid, bill_date, rate_per_m3, charges, penalty, total_due, status, synced, last_sync, customer_account_number FROM bills WHERE synced = 0 ORDER BY bill_id LIMIT ? OFFSET ?;";
   int rc2 = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
   if (rc2 != SQLITE_OK) {
     Serial.println(F("Failed to prepare bills query"));
@@ -225,6 +225,7 @@ bool handleExportBills() {
       obj["status"] = String((const char*)sqlite3_column_text(stmt, 10));
       obj["synced"] = (int)sqlite3_column_int(stmt, 11);
       obj["last_sync"] = sqlite3_column_text(stmt, 12) ? String((const char*)sqlite3_column_text(stmt, 12)) : "";
+      obj["customer_account_number"] = String((const char*)sqlite3_column_text(stmt, 13));
     }
 
     Serial.print(F("BILLS_CHUNK|"));
@@ -243,6 +244,17 @@ bool handleExportBills() {
 
   sqlite3_finalize(stmt);
   Serial.println(F("END_BILLS_JSON"));
+  
+  // Mark all exported bills as synced
+  const char* updateSql = "UPDATE bills SET synced = 1, last_sync = datetime('now') WHERE synced = 0;";
+  int updateRc = sqlite3_exec(db, updateSql, NULL, NULL, NULL);
+  if (updateRc != SQLITE_OK) {
+    Serial.print(F("Failed to mark bills as synced: "));
+    Serial.println(sqlite3_errmsg(db));
+  } else {
+    Serial.println(F("Marked exported bills as synced"));
+  }
+  
   return true;
 }
 
@@ -332,6 +344,17 @@ bool handleExportBillTransactions() {
 
   sqlite3_finalize(stmt);
   Serial.println(F("END_BILL_TRANSACTIONS_JSON"));
+  
+  // Mark all exported bill transactions as synced
+  const char* updateSql = "UPDATE bill_transactions SET synced = 1, last_sync = datetime('now') WHERE synced = 0;";
+  int updateRc = sqlite3_exec(db, updateSql, NULL, NULL, NULL);
+  if (updateRc != SQLITE_OK) {
+    Serial.print(F("Failed to mark bill transactions as synced: "));
+    Serial.println(sqlite3_errmsg(db));
+  } else {
+    Serial.println(F("Marked exported bill transactions as synced"));
+  }
+  
   return true;
 }
 

@@ -13,7 +13,6 @@ return new class extends Migration
     {
         Schema::create('bill_transaction', function (Blueprint $table) {
             $table->id('bill_transaction_id');
-            $table->unsignedBigInteger('bill_id');
             $table->string('bill_reference_number');
             $table->string('device_uid');
             $table->enum('type', ['payment', 'void']);
@@ -24,11 +23,15 @@ return new class extends Migration
             $table->dateTime('transaction_date');
             $table->string('payment_method');
             $table->unsignedBigInteger('processed_by_user_id')->nullable();
+            $table->string('processed_by_device_uid')->nullable();
             $table->text('notes')->nullable();
+            $table->boolean('Synced')->default(false);
+            $table->datetime('last_sync')->nullable();
             $table->timestamps();
 
-            $table->foreign('bill_id')->references('bill_id')->on('bill');
+            $table->foreign('bill_reference_number')->references('reference_number')->on('bill');
             $table->foreign('device_uid')->references('device_uid')->on('device');
+            $table->foreign('processed_by_device_uid')->references('device_uid')->on('device');
             $table->foreign('processed_by_user_id')->references('id')->on('users');
         });
     }

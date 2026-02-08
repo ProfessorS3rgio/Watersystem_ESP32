@@ -20,6 +20,7 @@ return new class extends Migration
             $table->integer('print_count')->default(0);
             $table->integer('customer_count')->default(0);
             $table->datetime('last_sync')->nullable();
+            $table->boolean('Synced')->default(false);
             $table->timestamps();
 
             $table->index('device_uid');

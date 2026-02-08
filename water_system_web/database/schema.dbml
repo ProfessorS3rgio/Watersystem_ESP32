@@ -43,41 +43,50 @@ Table customer_type {
   min_m3 integer [default: 0]        // minimum cubic meters to charge
   min_charge decimal(10,2)           // optional: minimum charge if min_m3 applies
   penalty decimal(10,2)  
+  Synced boolean
+  last_sync datetime
   created_at datetime
   updated_at datetime
 }
 
 Table reading {
   reading_id integer [primary key]
-  customer_id integer
-  device_uid integer
+  customer_id integer 
+  customer_account_number varchar
+  device_uid varchar
   previous_reading integer
   current_reading integer
   usage_m3 integer
   reading_at datetime
   read_by_user_id integer [null]
+  Synced boolean
+  last_sync datetime
   created_at datetime
   updated_at datetime
 }
 
 Table bill {
   bill_id integer [primary key]
-  reference_number integer [unique]
+  reference_number varchar [unique]
   customer_id integer
   customer_account_number varchar
+  device_uid varchar
   reading_id integer
-  bill_date date
+  bill_date date 
   rate_per_m3 decimal
   charges decimal
   penalty decimal
-  total_due decimal
+  total_due decimal 
   due_date date [null]
   // Optional: "DRAFT", "ISSUED", "PAID", "VOID"
   status bill_status [not null, default: 'Pending']
+  Synced boolean
+  last_sync datetime
   created_at datetime
   updated_at datetime
   indexes {
     reference_number [unique]
+    customer_id
   }
 }
 enum bill_status{
@@ -106,8 +115,8 @@ Table device    {
 
 Table bill_transaction {
   bill_transaction_id integer [primary key]
-  bill_id integer
-  bill_reference_number integer
+  bill_reference_number varchar [unique]
+  device_uid varchar
   type enum('payment', 'void')
   source enum('Office',"Device")
   amount decimal(10, 2)
@@ -116,7 +125,10 @@ Table bill_transaction {
   transaction_date datetime  
   payment_method varchar
   processed_by_user_id integer [null]
+  processed_by_device_uid varchar [null]
   notes text [null]
+  Synced boolean
+  last_sync datetime
   created_at datetime
   updated_at datetime
 }
@@ -164,10 +176,8 @@ Table bill_deduction {
 
 Table settings {
   id integer [primary key]
-  rate_per_m3 decimal(10, 2) [default: 15.00] // should be remove later on
-  bill_due_days integer [default: 15] 
-  penalty_after_days integer [default: 0]
-  penalty_amount decimal(10, 2) [default: 0.00]
+  bill_due_days integer [default: 5] 
+  disconnection_days integer [default: 8] 
   created_at datetime
   updated_at datetime
 }  
@@ -179,7 +189,6 @@ Ref: bill.reading_id > reading.reading_id
 Ref: device.brgy_id > barangay_sequence.brgy_id
 Ref: customer.brgy_id > barangay_sequence.brgy_id// References to Laravel's existing users table
 Ref: reading.read_by_user_id > users.id
-Ref: bill_transaction.bill_id > bill.bill_id
 Ref: bill_transaction.bill_reference_number > bill.reference_number
 Ref: bill_transaction.processed_by_user_id > users.id
 Ref: reading.device_uid > device.device_uid
@@ -188,3 +197,5 @@ Ref: customer_deduction.customer_id > customer.customer_id
 Ref: customer_deduction.deduction_id > deduction.deduction_id
 Ref: bill_deduction.bill_id > bill.bill_id
 Ref: bill_deduction.deduction_id > deduction.deduction_id
+Ref: bill.device_uid > device.device_uid
+Ref: bill_transaction. processed_by_device_uid > device.device_uid

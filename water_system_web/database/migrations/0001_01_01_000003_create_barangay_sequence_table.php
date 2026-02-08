@@ -16,6 +16,8 @@ return new class extends Migration
             $table->string('barangay')->unique();
             $table->char('prefix', 1);
             $table->integer('next_number');
+            $table->boolean('Synced')->default(false);
+            $table->timestamp('last_sync')->nullable();
             $table->timestamp('updated_at');
         });
     }

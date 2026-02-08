@@ -5,6 +5,7 @@
 #include "customers_database.h"
 #include "readings_database.h"
 #include "bill_database.h"
+#include "bill_transactions_database.h"
 #include <Arduino.h>
 #include <vector>
 
@@ -22,6 +23,102 @@ static int getTableCount(const char* tableName) {
   if (rc == SQLITE_ROW) cnt = sqlite3_column_int(cstmt, 0);
   sqlite3_finalize(cstmt);
   return cnt;
+}
+
+// Ensure `bill_reference_sequence` is aligned with existing `bills.reference_number`
+// for the current year, so new generated reference numbers won't collide.
+static void ensureBillReferenceSequenceUpToDate() {
+  int year = getCurrentYearFromRTC();
+  if (year <= 0) return;
+
+  const char* maxSql =
+    // Ref format: REF + 3-digit account + 4-digit year + sequence (variable length)
+    // Sequence starts at position 11 and may exceed 2 digits (e.g., 100, 101...).
+    "SELECT MAX(CAST(SUBSTR(reference_number, 11) AS INTEGER)) "
+    "FROM bills WHERE SUBSTR(reference_number, 7, 4) = ?;";
+
+  sqlite3_stmt* stmt = nullptr;
+  int rc = sqlite3_prepare_v2(db, maxSql, -1, &stmt, NULL);
+  if (rc != SQLITE_OK) {
+    Serial.print(F("Failed to prepare sequence max query: "));
+    Serial.println(sqlite3_errmsg(db));
+    return;
+  }
+
+  char yearStr[5];
+  sprintf(yearStr, "%04d", year);
+  sqlite3_bind_text(stmt, 1, yearStr, -1, SQLITE_TRANSIENT);
+
+  int maxSeq = 0;
+  if (sqlite3_step(stmt) == SQLITE_ROW) {
+    if (sqlite3_column_type(stmt, 0) != SQLITE_NULL) {
+      maxSeq = sqlite3_column_int(stmt, 0);
+    }
+  }
+  sqlite3_finalize(stmt);
+
+  int nextSeq = maxSeq + 1;
+  if (nextSeq < 1) nextSeq = 1;
+
+  const char* upsertSql =
+    "INSERT INTO bill_reference_sequence(year, next_number) VALUES(?, ?) "
+    "ON CONFLICT(year) DO UPDATE SET next_number = excluded.next_number;";
+
+  sqlite3_stmt* up = nullptr;
+  rc = sqlite3_prepare_v2(db, upsertSql, -1, &up, NULL);
+  if (rc != SQLITE_OK) {
+    // Fallback for older SQLite builds without UPSERT support
+    const char* legacySql = "INSERT OR REPLACE INTO bill_reference_sequence(year, next_number) VALUES(?, ?);";
+    rc = sqlite3_prepare_v2(db, legacySql, -1, &up, NULL);
+  }
+  if (rc != SQLITE_OK) {
+    Serial.print(F("Failed to prepare sequence upsert: "));
+    Serial.println(sqlite3_errmsg(db));
+    return;
+  }
+
+  sqlite3_bind_int(up, 1, year);
+  sqlite3_bind_int(up, 2, nextSeq);
+  (void)sqlite3_step(up);
+  sqlite3_finalize(up);
+
+  Serial.print(F("Bill ref sequence synced. Year="));
+  Serial.print(year);
+  Serial.print(F(" next_number="));
+  Serial.println(nextSeq);
+}
+
+static float pickCashReceived(float amountDue) {
+  // Use common cash denominations and pick the smallest that covers the due.
+  // This produces realistic receipts like: due=445 -> cash=500 -> change=55
+  const float denoms[] = {20, 50, 100, 200, 500, 1000};
+  for (float d : denoms) {
+    if (amountDue <= d) return d;
+  }
+  // For larger amounts, round up to the next 500.
+  const int step = 500;
+  int rounded = ((int)amountDue + (step - 1)) / step * step;
+  return (float)rounded;
+}
+
+static void normalizeSyncFieldsForTable(const char* tableName) {
+  if (!tableName || !db) return;
+
+  // If last_sync was mistakenly stored as 0 (string or numeric), normalize to NULL.
+  char sql1[192];
+  sprintf(sql1,
+    "UPDATE %s SET last_sync=NULL "
+    "WHERE last_sync IS NOT NULL AND (CAST(last_sync AS TEXT)='0' OR CAST(last_sync AS TEXT)='');",
+    tableName);
+  (void)sqlite3_exec(db, sql1, NULL, NULL, NULL);
+
+  // If synced was mistakenly stored as a datetime string, force it back to 0.
+  char sql2[192];
+  sprintf(sql2,
+    "UPDATE %s SET synced=0 "
+    "WHERE synced IS NULL OR CAST(synced AS TEXT) LIKE '____-__-__%%';",
+    tableName);
+  (void)sqlite3_exec(db, sql2, NULL, NULL, NULL);
 }
 
 // Function to generate test bill transactions
@@ -70,33 +167,26 @@ void generateTestBillTransactions(int billCount) {
     }
     if (exists) continue;  // Skip if transaction already exists
 
-    // Create a payment transaction
-    const char* transSql = "INSERT INTO bill_transactions (bill_id, bill_reference_number, type, source, amount, cash_received, change, transaction_date, payment_method, processed_by_device_uid, notes, created_at, updated_at) VALUES (?, ?, 'payment', 'Device', ?, ?, 0, datetime('now'), 'cash', ?, 'Test payment', datetime('now'), datetime('now'));";
-    sqlite3_stmt* transStmt;
-    int rc2 = sqlite3_prepare_v2(db, transSql, -1, &transStmt, NULL);
-    if (rc2 == SQLITE_OK) {
-      sqlite3_bind_int(transStmt, 1, billId);
-      sqlite3_bind_text(transStmt, 2, refNum.c_str(), -1, SQLITE_TRANSIENT);
-      sqlite3_bind_double(transStmt, 3, totalDue);
-      sqlite3_bind_double(transStmt, 4, totalDue);
-      sqlite3_bind_text(transStmt, 5, getDeviceUID().c_str(), -1, SQLITE_TRANSIENT);
-      int rc_step = sqlite3_step(transStmt);
-      if (rc_step == SQLITE_DONE) {
-        transCount++;
-        // Progress indicator
-        if (transCount % 100 == 0) {
-          Serial.print(F("Generated "));
-          Serial.print(transCount);
-          Serial.println(F(" transactions..."));
-        }
-      } else {
-        Serial.print(F("Transaction insert failed: "));
-        Serial.println(sqlite3_errmsg(db));
+    // Create a payment transaction using the same production path so fields match
+    // (notes, timestamps, and bill status updates).
+    float cashReceived = pickCashReceived(totalDue);
+    float changeAmount = cashReceived - totalDue;
+    if (cashReceived < totalDue) {
+      cashReceived = totalDue;
+      changeAmount = 0.0f;
+    }
+
+    bool ok = recordPaymentTransaction(billId, refNum, totalDue, cashReceived, changeAmount);
+    if (ok) {
+      transCount++;
+      if (transCount % 100 == 0) {
+        Serial.print(F("Generated "));
+        Serial.print(transCount);
+        Serial.println(F(" transactions..."));
       }
-      sqlite3_finalize(transStmt);
     } else {
-      Serial.print(F("Transaction prepare failed: "));
-      Serial.println(sqlite3_errmsg(db));
+      Serial.print(F("Payment transaction failed for bill ref: "));
+      Serial.println(refNum);
     }
 
     // Yield to prevent watchdog reset
@@ -106,6 +196,9 @@ void generateTestBillTransactions(int billCount) {
   sqlite3_finalize(stmt);
   sqlite3_finalize(checkStmt);
   sqlite3_exec(db, "COMMIT;", NULL, NULL, NULL);
+
+  // Safety: normalize any legacy swapped/incorrect sync field values.
+  normalizeSyncFieldsForTable("bill_transactions");
 
   Serial.print(F("Generated "));
   Serial.print(transCount);
@@ -117,6 +210,9 @@ void generateTestReadingsAndBills(int count) {
   Serial.print(F("Generating "));
   Serial.print(count);
   Serial.println(F(" test readings and bills..."));
+
+  // Make sure REF number sequence table is aligned before generating new bills.
+  ensureBillReferenceSequenceUpToDate();
 
   // Check current counts
   int currentReadings = getTableCount("readings");
@@ -245,6 +341,10 @@ void generateTestReadingsAndBills(int count) {
 
   // Now generate some bill transactions for the new bills
   generateTestBillTransactions(successCount);
+
+  // Safety: normalize any legacy swapped/incorrect sync field values.
+  normalizeSyncFieldsForTable("readings");
+  normalizeSyncFieldsForTable("bills");
 
   // Verify counts after commit
   int afterReadings = getTableCount("readings");

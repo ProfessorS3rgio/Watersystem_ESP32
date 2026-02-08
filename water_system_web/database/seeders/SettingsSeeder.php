@@ -5,24 +5,22 @@ namespace Database\Seeders;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
-class DeductionSeeder extends Seeder
+class SettingsSeeder extends Seeder
 {
     /**
      * Run the database seeds.
      */
     public function run(): void
     {
-        \DB::table('deduction')->insert([
+        \DB::table('settings')->insert([
             [
-                'name' => 'Senior Citizen',
-                'type' => 'percentage',
-                'value' => 5.00, // 5% discount
+                'bill_due_days' => 5,
+                'disconnection_days' => 8,
                 'Synced' => false,
                 'last_sync' => null,
                 'created_at' => now(),
                 'updated_at' => now(),
             ],
-            
         ]);
     }
 }

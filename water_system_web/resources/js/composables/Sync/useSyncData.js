@@ -1,6 +1,7 @@
 import { ref, computed } from 'vue'
 import { serialService } from '../../services/serialService'
 import { databaseService } from '../../services/databaseService'
+import { useSyncSettings } from './useSyncSettings'
 
 export function useSyncData() {
   const isSyncing = ref(false)
@@ -45,6 +46,7 @@ export function useSyncData() {
     pushCustomerTypesToDevice,
     pushDeductionsToDevice,
     pushBarangaysToDevice,
+    pushSettingsToDevice,
     syncReadingsFromDevice,
     syncBillsFromDevice,
     pushCustomersToDevice,
@@ -111,26 +113,77 @@ export function useSyncData() {
       // Sync customer types from DB to device first (needed for customer references)
       addLog('Fetching customer types from database...')
       const dbCustomerTypes = await databaseService.fetchCustomerTypesFromDatabase()
-      addLog(`Database has ${dbCustomerTypes.length} customer types`)
-      addLog(`Pushing ${dbCustomerTypes.length} customer types to ESP32...`)
-      await pushCustomerTypesToDevice(dbCustomerTypes)
-      addLog('✓ Customer types sync completed')
+      const unsyncedCustomerTypes = dbCustomerTypes.filter(ct => !ct.Synced || ct.last_sync === null)
+      if (unsyncedCustomerTypes.length > 0) {
+        addLog(`Database has ${unsyncedCustomerTypes.length} unsynced customer types`)
+        addLog(`Pushing ${unsyncedCustomerTypes.length} customer types to ESP32...`)
+        await pushCustomerTypesToDevice(unsyncedCustomerTypes)
+        addLog('✓ Customer types sync completed')
+
+        // Mark customer types as synced in web database
+        addLog('Marking customer types as synced in web database...')
+        const customerTypeIds = unsyncedCustomerTypes.map(ct => ct.type_id || ct.id)
+        await databaseService.markCustomerTypesSynced(customerTypeIds)
+        addLog(`✓ Marked ${customerTypeIds.length} customer types as synced`)
+      } else {
+        addLog('Customer types are already synced, skipping...')
+      }
 
       // Sync deductions from DB to device
       addLog('Fetching deductions from database...')
       const dbDeductions = await databaseService.fetchDeductionsFromDatabase()
-      addLog(`Database has ${dbDeductions.length} deductions`)
-      addLog(`Pushing ${dbDeductions.length} deductions to ESP32...`)
-      await pushDeductionsToDevice(dbDeductions)
-      addLog('✓ Deductions sync completed')
+      const unsyncedDeductions = dbDeductions.filter(d => !d.Synced || d.last_sync === null)
+      if (unsyncedDeductions.length > 0) {
+        addLog(`Database has ${unsyncedDeductions.length} unsynced deductions`)
+        addLog(`Pushing ${unsyncedDeductions.length} deductions to ESP32...`)
+        await pushDeductionsToDevice(unsyncedDeductions)
+        addLog('✓ Deductions sync completed')
+
+        // Mark deductions as synced in web database
+        addLog('Marking deductions as synced in web database...')
+        const deductionIds = unsyncedDeductions.map(d => d.deduction_id || d.id)
+        await databaseService.markDeductionsSynced(deductionIds)
+        addLog(`✓ Marked ${deductionIds.length} deductions as synced`)
+      } else {
+        addLog('Deductions are already synced, skipping...')
+      }
 
       // Sync barangays from DB to device
       addLog('Fetching barangays from database...')
       const dbBarangays = await databaseService.fetchBarangaysFromDatabase()
-      addLog(`Database has ${dbBarangays.length} barangays`)
-      addLog(`Pushing ${dbBarangays.length} barangays to ESP32...`)
-      await pushBarangaysToDevice(dbBarangays)
-      addLog('✓ Barangays sync completed')
+      const unsyncedBarangays = dbBarangays.filter(b => !b.Synced || b.last_sync === null)
+      if (unsyncedBarangays.length > 0) {
+        addLog(`Database has ${unsyncedBarangays.length} unsynced barangays`)
+        addLog(`Pushing ${unsyncedBarangays.length} barangays to ESP32...`)
+        await pushBarangaysToDevice(unsyncedBarangays)
+        addLog('✓ Barangays sync completed')
+
+        // Mark barangays as synced in web database
+        addLog('Marking barangays as synced in web database...')
+        const brgyIds = unsyncedBarangays.map(b => b.brgy_id || b.id)
+        await databaseService.markBarangaysSynced(brgyIds)
+        addLog(`✓ Marked ${brgyIds.length} barangays as synced`)
+      } else {
+        addLog('Barangays are already synced, skipping...')
+      }
+
+      // Sync settings from DB to device
+      addLog('Fetching settings from database...')
+      const dbSettings = await databaseService.fetchSettingsFromDatabase()
+      if (dbSettings && (!dbSettings.Synced || dbSettings.last_sync === null)) {
+        addLog(`Database has 1 unsynced setting`)
+        addLog(`Pushing 1 setting to ESP32...`)
+        await pushSettingsToDevice([dbSettings])
+        addLog('✓ Settings sync completed')
+
+        // Mark settings as synced in web database
+        addLog('Marking settings as synced in web database...')
+        const settingIds = [dbSettings.id]
+        await databaseService.markSettingsSynced(settingIds)
+        addLog(`✓ Marked 1 setting as synced`)
+      } else {
+        addLog('Settings are already synced, skipping...')
+      }
 
       // Sync readings (device -> DB)
       await syncReadingsFromDevice()

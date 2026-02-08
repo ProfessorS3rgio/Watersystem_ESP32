@@ -8,6 +8,7 @@ export function useSyncController() {
   const showFormatConfirm = ref(false)
   const showRestartConfirm = ref(false)
   const showDropConfirm = ref(false)
+  const showResetConfirm = ref(false)
   const showCommandSuccess = ref(false)
   const commandSuccessMessage = ref('')
 
@@ -117,6 +118,35 @@ export function useSyncController() {
     }
   }
 
+  const resetSyncStatus = async (addLog) => {
+    try {
+      addLog('Resetting sync status...')
+      
+      const response = await fetch('/sync/reset-status', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+        },
+        credentials: 'same-origin'
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+
+      const result = await response.json()
+      
+      commandSuccessMessage.value = `Sync status has been reset successfully. ${result.total_reset} records updated.`
+      showCommandSuccess.value = true
+      addLog(`✓ Sync status reset successfully - ${result.total_reset} records updated`)
+    } catch (error) {
+      addLog('Reset sync status failed: ' + (error?.message || String(error)))
+    } finally {
+      showResetConfirm.value = false
+    }
+  }
+
   return {
     // Reactive state
     customCommand,
@@ -125,6 +155,7 @@ export function useSyncController() {
     showFormatConfirm,
     showRestartConfirm,
     showDropConfirm,
+    showResetConfirm,
     showCommandSuccess,
     commandSuccessMessage,
 
@@ -133,6 +164,7 @@ export function useSyncController() {
     sendCustomCommand,
     formatSdCard,
     restartDevice,
-    dropDatabase
+    dropDatabase,
+    resetSyncStatus
   }
 }

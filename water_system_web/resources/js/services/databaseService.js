@@ -116,5 +116,65 @@ export const databaseService = {
       if (error.response?.status === 401) throw new Error('Unauthorized (login required)')
       throw new Error('Failed to mark customers as synced: ' + (error.response?.data?.message || error.message))
     }
+  },
+
+  async markReadingsSynced(readingIds) {
+    try {
+      const res = await window.axios.post('/readings/mark-synced', { reading_ids: readingIds })
+      return Number(res.data?.updated || 0)
+    } catch (error) {
+      if (error.response?.status === 401) throw new Error('Unauthorized (login required)')
+      throw new Error('Failed to mark readings as synced: ' + (error.response?.data?.message || error.message))
+    }
+  },
+
+  async markBillsSynced(billIds) {
+    try {
+      const res = await window.axios.post('/bills/mark-synced', { bill_ids: billIds })
+      return Number(res.data?.updated || 0)
+    } catch (error) {
+      if (error.response?.status === 401) throw new Error('Unauthorized (login required)')
+      throw new Error('Failed to mark bills as synced: ' + (error.response?.data?.message || error.message))
+    }
+  },
+
+  async markDeductionsSynced(deductionIds) {
+    try {
+      const res = await window.axios.post('/deductions/mark-synced', { deduction_ids: deductionIds })
+      return Number(res.data?.updated || 0)
+    } catch (error) {
+      if (error.response?.status === 401) throw new Error('Unauthorized (login required)')
+      throw new Error('Failed to mark deductions as synced: ' + (error.response?.data?.message || error.message))
+    }
+  },
+
+  async markCustomerTypesSynced(customerTypeIds) {
+    try {
+      const res = await window.axios.post('/customer-types/mark-synced', { customer_type_ids: customerTypeIds })
+      return Number(res.data?.updated || 0)
+    } catch (error) {
+      if (error.response?.status === 401) throw new Error('Unauthorized (login required)')
+      throw new Error('Failed to mark customer types as synced: ' + (error.response?.data?.message || error.message))
+    }
+  },
+
+  async markBarangaysSynced(brgyIds) {
+    try {
+      const res = await window.axios.post('/barangays/mark-synced', { brgy_ids: brgyIds })
+      return Number(res.data?.updated || 0)
+    } catch (error) {
+      if (error.response?.status === 401) throw new Error('Unauthorized (login required)')
+      throw new Error('Failed to mark barangays as synced: ' + (error.response?.data?.message || error.message))
+    }
+  },
+
+  async markSettingsSynced(settingIds) {
+    try {
+      const res = await window.axios.post('/settings/mark-synced', { setting_ids: settingIds })
+      return Number(res.data?.updated || 0)
+    } catch (error) {
+      if (error.response?.status === 401) throw new Error('Unauthorized (login required)')
+      throw new Error('Failed to mark settings as synced: ' + (error.response?.data?.message || error.message))
+    }
   }
 }

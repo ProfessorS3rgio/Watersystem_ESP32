@@ -11,6 +11,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\CustomerTypeController;
 use App\Http\Controllers\BarangaySequenceController;
 use App\Http\Controllers\DeductionController;
+use App\Http\Controllers\SyncController;
 
 Route::get('/', function () {
     return view('welcome');
@@ -31,8 +32,11 @@ Route::middleware('auth')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index']);
 
     Route::get('/customer-types', [CustomerTypeController::class, 'index']);
+    Route::post('/customer-types/mark-synced', [CustomerTypeController::class, 'markSynced']);
     Route::get('/barangays', [BarangaySequenceController::class, 'index']);
+    Route::post('/barangays/mark-synced', [BarangaySequenceController::class, 'markSynced']);
     Route::get('/deductions', [DeductionController::class, 'index']);
+    Route::post('/deductions/mark-synced', [DeductionController::class, 'markSynced']);
 
     Route::get('/customers', [CustomerController::class, 'index']);
     Route::post('/customers', [CustomerController::class, 'store']);
@@ -42,12 +46,14 @@ Route::middleware('auth')->group(function () {
     Route::post('/customers/mark-synced', [CustomerController::class, 'markSynced']);
 
     Route::get('/customers/{customer}/readings', [ReadingController::class, 'indexByCustomer']);
+    Route::post('/readings/mark-synced', [ReadingController::class, 'markSynced']);
 
     Route::get('/customers/{customer}/bills', [BillController::class, 'indexByCustomer']);
     Route::get('/customers/{customer}/payments', [BillController::class, 'paymentsByCustomer']);
     Route::get('/bills', [BillController::class, 'index']);
     Route::post('/bills/{bill}/pay', [BillController::class, 'pay']);
     Route::get('/bills/{bill}/payment', [BillController::class, 'getPayment']);
+    Route::post('/bills/mark-synced', [BillController::class, 'markSynced']);
     Route::get('/bills/today-payments', [BillController::class, 'todayPayments']);
     Route::get('/bills/monthly-payments', [BillController::class, 'monthlyPayments']);
     Route::get('/bills/stats', [BillController::class, 'stats']);
@@ -62,4 +68,7 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/settings', [SettingsController::class, 'show']);
     Route::put('/settings', [SettingsController::class, 'update']);
+    Route::post('/settings/mark-synced', [SettingsController::class, 'markSynced']);
+
+    Route::post('/sync/reset-status', [SyncController::class, 'resetStatus']);
 });

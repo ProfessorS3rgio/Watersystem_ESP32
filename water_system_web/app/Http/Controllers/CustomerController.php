@@ -61,7 +61,7 @@ class CustomerController extends Controller
                 $join->on('b.customer_id', '=', 'customer.customer_id')
                     ->on('b.bill_date', '=', 'lb.latest_bill_date');
             })
-            ->orderBy('customer.customer_name')
+            ->orderBy('customer.account_no')
             ->get([
                 // alias primary key to `id` for frontend compatibility
                 'customer.customer_id as id',

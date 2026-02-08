@@ -14,12 +14,15 @@ return new class extends Migration
         Schema::create('reading', function (Blueprint $table) {
             $table->id('reading_id');
             $table->unsignedBigInteger('customer_id');
+            $table->string('customer_account_number');
             $table->string('device_uid');
             $table->integer('previous_reading');
             $table->integer('current_reading');
             $table->integer('usage_m3');
             $table->dateTime('reading_at');
             $table->unsignedBigInteger('read_by_user_id')->nullable();
+            $table->boolean('Synced')->default(false);
+            $table->datetime('last_sync')->nullable();
             $table->timestamps();
 
             $table->foreign('customer_id')->references('customer_id')->on('customer');

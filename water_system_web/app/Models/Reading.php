@@ -18,6 +18,7 @@ class Reading extends Model
         'usage_m3',
         'reading_at',
         'read_by_user_id',
+        'customer_account_number',
     ];
 
     protected $casts = [

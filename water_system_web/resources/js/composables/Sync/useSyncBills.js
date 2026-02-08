@@ -99,6 +99,7 @@ export function useSyncBills() {
               penalty: Number(bill.penalty || 0),
               total_due: Number(bill.total_due || 0),
               status: bill.status || 'pending',
+              customer_account_number: bill.customer_account_number || '',
             })
           }
           chunkBuffer = '' // Clear after successful parse
@@ -121,6 +122,12 @@ export function useSyncBills() {
 
     const processed = await databaseService.upsertBillsToDatabase(deviceBills)
     console.log('Bills synced to database, processed:', processed)
+
+    // Mark bills as synced in web database
+    const billIds = deviceBills.map(b => b.bill_id)
+    const marked = await databaseService.markBillsSynced(billIds)
+    console.log('Bills marked as synced in web database:', marked)
+
     return processed
   }
 

@@ -15,10 +15,8 @@ class SettingsController extends Controller
         }
 
         return Setting::create([
-            'rate_per_m3' => (float) env('WATER_RATE_PER_M3', 15.00),
-            'bill_due_days' => (int) env('BILL_DUE_DAYS', 15),
-            'penalty_after_days' => (int) env('PENALTY_AFTER_DAYS', 0),
-            'penalty_amount' => (float) env('PENALTY_AMOUNT', 0.00),
+            'bill_due_days' => (int) env('BILL_DUE_DAYS', 5),
+            'disconnection_days' => (int) env('DISCONNECTION_DAYS', 8),
         ]);
     }
 
@@ -36,10 +34,8 @@ class SettingsController extends Controller
         $row = $this->ensureSettingsRow();
 
         $validated = $request->validate([
-            'rate_per_m3' => ['required', 'numeric', 'min:0', 'max:100000'],
             'bill_due_days' => ['required', 'integer', 'min:0', 'max:365'],
-            'penalty_after_days' => ['required', 'integer', 'min:0', 'max:365'],
-            'penalty_amount' => ['required', 'numeric', 'min:0', 'max:100000'],
+            'disconnection_days' => ['required', 'integer', 'min:0', 'max:365'],
         ]);
 
         $row->fill($validated);
@@ -47,6 +43,28 @@ class SettingsController extends Controller
 
         return response()->json([
             'data' => $row,
+        ]);
+    }
+
+    /**
+     * Mark settings as synced after successful device sync.
+     */
+    public function markSynced(Request $request)
+    {
+        $validated = $request->validate([
+            'setting_ids' => ['required', 'array'],
+            'setting_ids.*' => ['required', 'integer'],
+        ]);
+
+        $updated = Setting::whereIn('id', $validated['setting_ids'])
+            ->update([
+                'Synced' => true,
+                'last_sync' => now(),
+            ]);
+
+        return response()->json([
+            'updated' => $updated,
+            'message' => "{$updated} settings marked as synced",
         ]);
     }
 }
