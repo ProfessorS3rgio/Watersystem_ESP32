@@ -48,12 +48,12 @@ function handleChunk(chunk) {
     if (trimmed.length > 0) emitLine(trimmed);
   }
 
-  // flush if device prints without newlines
-  if (rxBuffer.length > 200) {
-    const flushed = rxBuffer.trimEnd();
-    rxBuffer = '';
-    if (flushed.length > 0) emitLine(flushed);
-  }
+  // NOTE:
+  // Do NOT aggressively flush partial lines.
+  // Large JSON exports are sent as a single newline-terminated line; flushing early
+  // splits JSON and breaks parsing on the client.
+  // If a device truly prints without newlines, this buffer will grow, but our ESP32
+  // protocol uses '\n' for all messages.
 }
 
 async function startReadLoop() {

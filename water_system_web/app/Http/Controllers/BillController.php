@@ -280,7 +280,7 @@ class BillController extends Controller
     public function sync(Request $request)
     {
         $validated = $request->validate([
-            'bills' => ['required', 'array', 'max:1000'],
+            'bills' => ['required', 'array', 'max:2000'],
             'bills.*.bill_id' => ['nullable', 'integer'],
             'bills.*.reference_number' => ['required', 'string', 'max:255'],
             'bills.*.customer_id' => ['required', 'integer', 'exists:customer,customer_id'],
@@ -328,6 +328,100 @@ class BillController extends Controller
 
         return response()->json([
             'processed' => $processed,
+        ]);
+    }
+
+    /**
+     * Bulk upsert bill transactions coming from the device.
+     * Expects: { bill_transactions: [ {...} ] }
+     */
+    public function syncTransactions(Request $request)
+    {
+        \Log::info('Syncing bill transactions', ['count' => count($request->bill_transactions ?? [])]);
+
+        $validated = $request->validate([
+            // Allow large device exports; client will still batch to keep requests small.
+            'bill_transactions' => ['required', 'array', 'max:2000'],
+            'bill_transactions.*.bill_transaction_id' => ['nullable', 'integer'],
+            'bill_transactions.*.bill_id' => ['nullable', 'integer'],
+            'bill_transactions.*.bill_reference_number' => ['required', 'string'],
+            'bill_transactions.*.type' => ['required', 'string'],
+            'bill_transactions.*.source' => ['required', 'string'],
+            'bill_transactions.*.amount' => ['required', 'numeric'],
+            'bill_transactions.*.cash_received' => ['nullable', 'numeric'],
+            'bill_transactions.*.change' => ['required', 'numeric'],
+            'bill_transactions.*.transaction_date' => ['required', 'string'],
+            'bill_transactions.*.payment_method' => ['required', 'string'],
+            'bill_transactions.*.processed_by_device_uid' => ['nullable', 'string'],
+            'bill_transactions.*.notes' => ['nullable', 'string'],
+            'bill_transactions.*.created_at' => ['nullable', 'string'],
+            'bill_transactions.*.updated_at' => ['nullable', 'string'],
+        ]);
+
+        $transactions = $validated['bill_transactions'];
+        $processed = 0;
+
+        foreach ($transactions as $row) {
+            try {
+                BillTransaction::updateOrCreate(
+                    [
+                        'bill_reference_number' => $row['bill_reference_number'],
+                        'transaction_date' => $row['transaction_date'],
+                        'amount' => $row['amount'],
+                    ],
+                    [
+                        'device_uid' => $row['processed_by_device_uid'] ?? null,
+                        'type' => $row['type'],
+                        'source' => $row['source'],
+                        'cash_received' => $row['cash_received'] ?? null,
+                        'change' => $row['change'],
+                        'payment_method' => $row['payment_method'],
+                        'processed_by_device_uid' => $row['processed_by_device_uid'] ?? null,
+                        'notes' => $row['notes'] ?? null,
+                        'Synced' => true,
+                        'last_sync' => now(),
+                        'created_at' => $row['created_at'] ?? now(),
+                        'updated_at' => $row['updated_at'] ?? now(),
+                    ]
+                );
+
+                $processed++;
+            } catch (\Exception $e) {
+                \Log::error('Failed to sync bill transaction', [
+                    'bill_reference_number' => $row['bill_reference_number'],
+                    'transaction_date' => $row['transaction_date'],
+                    'amount' => $row['amount'],
+                    'error' => $e->getMessage()
+                ]);
+            }
+        }
+
+        \Log::info('Bill transactions synced', ['processed' => $processed]);
+
+        return response()->json([
+            'processed' => $processed,
+        ]);
+    }
+
+    /**
+     * Mark bill transactions as synced after successful device sync.
+     */
+    public function markTransactionsSynced(Request $request)
+    {
+        $validated = $request->validate([
+            'bill_transaction_ids' => ['required', 'array'],
+            'bill_transaction_ids.*' => ['required', 'integer'],
+        ]);
+
+        $updated = BillTransaction::whereIn('bill_transaction_id', $validated['bill_transaction_ids'])
+            ->update([
+                'Synced' => true,
+                'last_sync' => now(),
+            ]);
+
+        return response()->json([
+            'updated' => $updated,
+            'message' => "{$updated} bill transactions marked as synced",
         ]);
     }
 

@@ -18,6 +18,7 @@
 #include "sync/device_sync.h"
 #include "sync/reading_sync.h"
 #include "sync/bill_sync.h"
+#include "sync/bill_transaction_sync.h"
 #include "sync/deduction_sync.h"
 #include "sync/barangay_sync.h"
 #include "sync/customer_type_sync.h"

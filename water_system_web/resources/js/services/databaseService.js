@@ -98,6 +98,16 @@ export const databaseService = {
     }
   },
 
+  async syncBillTransactionsToDatabase(billTransactions) {
+    try {
+      const res = await window.axios.post('/bill-transactions/sync', { bill_transactions: billTransactions })
+      return Number(res.data?.processed || 0)
+    } catch (error) {
+      if (error.response?.status === 401) throw new Error('Unauthorized (login required)')
+      throw new Error('Bill transactions sync failed: ' + (error.response?.data?.message || error.message))
+    }
+  },
+
   async syncDeviceInfoToDatabase(deviceInfo) {
     try {
       const res = await window.axios.post('/devices/sync', { device_info: deviceInfo })
@@ -135,6 +145,16 @@ export const databaseService = {
     } catch (error) {
       if (error.response?.status === 401) throw new Error('Unauthorized (login required)')
       throw new Error('Failed to mark bills as synced: ' + (error.response?.data?.message || error.message))
+    }
+  },
+
+  async markBillTransactionsSynced(billTransactionIds) {
+    try {
+      const res = await window.axios.post('/bill-transactions/mark-synced', { bill_transaction_ids: billTransactionIds })
+      return Number(res.data?.updated || 0)
+    } catch (error) {
+      if (error.response?.status === 401) throw new Error('Unauthorized (login required)')
+      throw new Error('Failed to mark bill transactions as synced: ' + (error.response?.data?.message || error.message))
     }
   },
 

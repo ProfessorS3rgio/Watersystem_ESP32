@@ -378,9 +378,8 @@ void loop() {
           Serial.println(sqlite3_errmsg(db));
         }
 
-        // Reset bill_transactions sync status
-        int rc3 = sqlite3_exec(db, "UPDATE bill_transactions SET synced = 0, last_sync = NULL WHERE synced = 1;", NULL, NULL, NULL);
-        if (rc3 == SQLITE_OK) {
+        // Reset bill_transactions sync status (batched)
+        if (resetBillTransactionsSyncStatusBatched(200)) {
           Serial.println(F("Bill transactions sync status reset."));
         } else {
           Serial.print(F("Error resetting bill transactions: "));
@@ -388,6 +387,24 @@ void loop() {
         }
 
         Serial.println(F("Sync reset complete. All unsynced data will be exported on next sync."));
+      } else {
+        Serial.println(F("Database not open."));
+      }
+      return;
+    }
+
+    if (raw == "RESET_BILL_TRANSACTION") {
+      Serial.println(F("Resetting sync status for bill transactions..."));
+      if (db) {
+        // Reset bill_transactions sync status (batched)
+        if (resetBillTransactionsSyncStatusBatched(200)) {
+          Serial.println(F("Bill transactions sync status reset."));
+        } else {
+          Serial.print(F("Error resetting bill transactions: "));
+          Serial.println(sqlite3_errmsg(db));
+        }
+
+        Serial.println(F("Bill transactions reset complete. All unsynced transactions will be exported on next sync."));
       } else {
         Serial.println(F("Database not open."));
       }
@@ -466,7 +483,7 @@ void loop() {
     else if (cmd.length() > 0) {
       Serial.print(F("Unknown: "));
       Serial.println(cmd);
-      Serial.println(F("Commands: P, D, S, L, DD, CT, B, BT, DB, DB_ALL, DROPDB, DROPR, DROPB, DROPBT, DROPC, RESET, START, TIME, SET_TIME <YYYY-MM-DD HH:MM:SS>"));
+      Serial.println(F("Commands: P, D, S, L, DD, CT, B, BT, DB, DB_ALL, DROPDB, DROPR, DROPB, DROPBT, DROPC, RESET, RESET_BILL_TRANSACTION, START, TIME, SET_TIME <YYYY-MM-DD HH:MM:SS>"));
     }
   }
 }

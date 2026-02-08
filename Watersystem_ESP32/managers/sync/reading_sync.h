@@ -24,7 +24,7 @@ bool handleExportReadings() {
     totalReadings = sqlite3_column_int(countStmt, 0);
   }
   sqlite3_finalize(countStmt);
-  const int CHUNK_SIZE = 150;
+  const int CHUNK_SIZE = 500;
   int totalChunks = (totalReadings + CHUNK_SIZE - 1) / CHUNK_SIZE;
   Serial.print(F("BEGIN_READINGS_JSON|"));
   Serial.println(totalChunks);
@@ -44,7 +44,7 @@ bool handleExportReadings() {
     sqlite3_bind_int(stmt, 1, CHUNK_SIZE);
     sqlite3_bind_int(stmt, 2, offset);
 
-    DynamicJsonDocument doc(65536);  // Larger doc for 150 items
+    DynamicJsonDocument doc(65536);  // Larger doc for 1000 items
     JsonArray arr = doc.to<JsonArray>();
 
     while (sqlite3_step(stmt) == SQLITE_ROW) {

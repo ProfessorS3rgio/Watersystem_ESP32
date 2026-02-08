@@ -263,11 +263,136 @@ bool getLatestTransactionForBill(String billRef, BillTransaction& transaction) {
 
 // ===== MARK ALL BILL TRANSACTIONS SYNCED =====
 bool markAllBillTransactionsSynced() {
-  String nowStr = getCurrentDateTimeString();
-  char sql[128];
-  sprintf(sql, "UPDATE bill_transactions SET synced = 1, last_sync = '%s', updated_at = '%s';", nowStr.c_str(), nowStr.c_str());
-  int rc = sqlite3_exec(db, sql, NULL, NULL, NULL);
-  return rc == SQLITE_OK;
+  const int batchSize = 200;
+  const char* selectSql =
+    "SELECT bill_transaction_id FROM bill_transactions "
+    "WHERE synced = 0 ORDER BY bill_transaction_id LIMIT ?;";
+
+  sqlite3_stmt* selectStmt;
+  int rc = sqlite3_prepare_v2(db, selectSql, -1, &selectStmt, NULL);
+  if (rc != SQLITE_OK) {
+    Serial.print(F("Failed to prepare markAllBillTransactionsSynced: "));
+    Serial.println(sqlite3_errmsg(db));
+    return false;
+  }
+
+  while (true) {
+    std::vector<int> ids;
+    ids.reserve(batchSize);
+
+    sqlite3_bind_int(selectStmt, 1, batchSize);
+    while ((rc = sqlite3_step(selectStmt)) == SQLITE_ROW) {
+      ids.push_back(sqlite3_column_int(selectStmt, 0));
+    }
+    sqlite3_reset(selectStmt);
+    sqlite3_clear_bindings(selectStmt);
+
+    if (ids.empty()) {
+      break;
+    }
+
+    String updateSql = "UPDATE bill_transactions SET synced = 1, last_sync = ?, updated_at = ? WHERE bill_transaction_id IN (";
+    for (size_t i = 0; i < ids.size(); ++i) {
+      if (i > 0) updateSql += ",";
+      updateSql += "?";
+    }
+    updateSql += ");";
+
+    sqlite3_stmt* updateStmt;
+    rc = sqlite3_prepare_v2(db, updateSql.c_str(), -1, &updateStmt, NULL);
+    if (rc != SQLITE_OK) {
+      Serial.print(F("Failed to prepare markAllBillTransactionsSynced update: "));
+      Serial.println(sqlite3_errmsg(db));
+      sqlite3_finalize(selectStmt);
+      return false;
+    }
+
+    String nowStr = getCurrentDateTimeString();
+    sqlite3_bind_text(updateStmt, 1, nowStr.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(updateStmt, 2, nowStr.c_str(), -1, SQLITE_TRANSIENT);
+    for (size_t i = 0; i < ids.size(); ++i) {
+      sqlite3_bind_int(updateStmt, (int)i + 3, ids[i]);
+    }
+
+    rc = sqlite3_step(updateStmt);
+    sqlite3_finalize(updateStmt);
+    if (rc != SQLITE_DONE) {
+      Serial.print(F("Failed to mark bill transactions as synced: "));
+      Serial.println(sqlite3_errmsg(db));
+      sqlite3_finalize(selectStmt);
+      return false;
+    }
+
+    delay(5);
+  }
+
+  sqlite3_finalize(selectStmt);
+  return true;
+}
+
+// ===== RESET BILL TRANSACTIONS SYNC STATUS (BATCHED) =====
+bool resetBillTransactionsSyncStatusBatched(int batchSize) {
+  const char* selectSql =
+    "SELECT bill_transaction_id FROM bill_transactions "
+    "WHERE synced = 1 ORDER BY bill_transaction_id LIMIT ?;";
+
+  sqlite3_stmt* selectStmt;
+  int rc = sqlite3_prepare_v2(db, selectSql, -1, &selectStmt, NULL);
+  if (rc != SQLITE_OK) {
+    Serial.print(F("Failed to prepare resetBillTransactionsSyncStatusBatched: "));
+    Serial.println(sqlite3_errmsg(db));
+    return false;
+  }
+
+  while (true) {
+    std::vector<int> ids;
+    ids.reserve(batchSize);
+
+    sqlite3_bind_int(selectStmt, 1, batchSize);
+    while ((rc = sqlite3_step(selectStmt)) == SQLITE_ROW) {
+      ids.push_back(sqlite3_column_int(selectStmt, 0));
+    }
+    sqlite3_reset(selectStmt);
+    sqlite3_clear_bindings(selectStmt);
+
+    if (ids.empty()) {
+      break;
+    }
+
+    String updateSql = "UPDATE bill_transactions SET synced = 0, last_sync = NULL WHERE bill_transaction_id IN (";
+    for (size_t i = 0; i < ids.size(); ++i) {
+      if (i > 0) updateSql += ",";
+      updateSql += "?";
+    }
+    updateSql += ");";
+
+    sqlite3_stmt* updateStmt;
+    rc = sqlite3_prepare_v2(db, updateSql.c_str(), -1, &updateStmt, NULL);
+    if (rc != SQLITE_OK) {
+      Serial.print(F("Failed to prepare resetBillTransactionsSyncStatusBatched update: "));
+      Serial.println(sqlite3_errmsg(db));
+      sqlite3_finalize(selectStmt);
+      return false;
+    }
+
+    for (size_t i = 0; i < ids.size(); ++i) {
+      sqlite3_bind_int(updateStmt, (int)i + 1, ids[i]);
+    }
+
+    rc = sqlite3_step(updateStmt);
+    sqlite3_finalize(updateStmt);
+    if (rc != SQLITE_DONE) {
+      Serial.print(F("Failed to reset bill transactions sync status: "));
+      Serial.println(sqlite3_errmsg(db));
+      sqlite3_finalize(selectStmt);
+      return false;
+    }
+
+    delay(5);
+  }
+
+  sqlite3_finalize(selectStmt);
+  return true;
 }
 
 // Function to update transaction type (e.g., void a payment)

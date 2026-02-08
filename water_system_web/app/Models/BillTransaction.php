@@ -11,15 +11,20 @@ class BillTransaction extends Model
     protected $primaryKey = 'bill_transaction_id';
 
     protected $fillable = [
-        'bill_id',
+        'bill_reference_number',
+        'device_uid',
         'type',
+        'source',
         'amount',
         'cash_received',
         'change',
         'transaction_date',
         'payment_method',
         'processed_by_user_id',
-        'notes'
+        'processed_by_device_uid',
+        'notes',
+        'Synced',
+        'last_sync'
     ];
 
     protected $casts = [
@@ -31,7 +36,7 @@ class BillTransaction extends Model
 
     public function bill(): BelongsTo
     {
-        return $this->belongsTo(Bill::class);
+        return $this->belongsTo(Bill::class, 'bill_reference_number', 'reference_number');
     }
 
     public function processedBy(): BelongsTo

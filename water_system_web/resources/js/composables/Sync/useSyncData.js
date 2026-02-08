@@ -2,6 +2,7 @@ import { ref, computed } from 'vue'
 import { serialService } from '../../services/serialService'
 import { databaseService } from '../../services/databaseService'
 import { useSyncSettings } from './useSyncSettings'
+import { useSyncBillTransactions } from './useSyncBillTransactions'
 
 export function useSyncData() {
   const isSyncing = ref(false)
@@ -11,7 +12,13 @@ export function useSyncData() {
   const isJsonLog = (message) => {
     if (!message.startsWith('Device ← ')) return false
     const dataPart = message.substring(10).trim()
-    return dataPart.includes('"bill_id"') || dataPart.includes('"reading_id"') || dataPart.includes('"customer_id"')
+    return (
+      dataPart.includes('"bill_id"') ||
+      dataPart.includes('"reading_id"') ||
+      dataPart.includes('"customer_id"') ||
+      dataPart.includes('"bill_transaction_id"') ||
+      dataPart.startsWith('BILL_TRANSACTIONS_CHUNK|')
+    )
   }
 
   const filteredSyncLogs = computed(() => syncLogs.value.filter(log => !isJsonLog(log.message)))
@@ -49,6 +56,7 @@ export function useSyncData() {
     pushSettingsToDevice,
     syncReadingsFromDevice,
     syncBillsFromDevice,
+    exportBillTransactionsFromDevice,
     pushCustomersToDevice,
     refreshDeviceInfo,
     sendLineDevice,
@@ -181,6 +189,13 @@ export function useSyncData() {
         const settingIds = [dbSettings.id]
         await databaseService.markSettingsSynced(settingIds)
         addLog(`✓ Marked 1 setting as synced`)
+
+        // Reload SD card to apply new settings
+        addLog('Reloading SD card on ESP32 to apply new settings...')
+        await sendLineDevice('RELOAD_SD')
+        // Wait a moment for reload
+        await new Promise(r => setTimeout(r, 1000))
+        await refreshDeviceInfo()
       } else {
         addLog('Settings are already synced, skipping...')
       }
@@ -190,6 +205,18 @@ export function useSyncData() {
 
       // Sync bills (device -> DB)
       await syncBillsFromDevice()
+
+      // Sync bill transactions (device -> DB)
+      try {
+        const processed = await exportBillTransactionsFromDevice()
+        if (Number(processed) > 0) {
+          addLog(`✓ Synced ${processed} bill transactions`)
+        } else {
+          addLog('Bill transactions are already synced, skipping...')
+        }
+      } catch (e) {
+        throw new Error('Bill transactions sync failed: ' + (e?.message || String(e)))
+      }
 
       // Separate customers into new and updated
       const { newCustomers, updatedCustomers } = separateCustomersBySyncStatus(filteredDbCustomers)
@@ -220,13 +247,6 @@ export function useSyncData() {
       const epochNow = Math.floor(Date.now() / 1000)
       await sendLineDevice('SET_LAST_SYNC|' + String(epochNow))
 
-      await refreshDeviceInfo()
-
-      // Reload SD card to apply new settings
-      addLog('Reloading SD card on ESP32...')
-      await sendLineDevice('RELOAD_SD')
-      // Wait a moment for reload
-      await new Promise(r => setTimeout(r, 1000))
       await refreshDeviceInfo()
 
       // Show success dialog

@@ -286,6 +286,7 @@ import { useSyncBarangays } from '../composables/Sync/useSyncBarangays'
 import { useSyncSettings } from '../composables/Sync/useSyncSettings'
 import { useSyncReadings } from '../composables/Sync/useSyncReadings'
 import { useSyncBills } from '../composables/Sync/useSyncBills'
+import { useSyncBillTransactions } from '../composables/Sync/useSyncBillTransactions'
 import { useSyncData } from '../composables/Sync/useSyncData'
 import { useSyncController } from '../composables/Sync/useSyncController'
 
@@ -348,6 +349,12 @@ export default {
     } = useSyncBills()
 
     const {
+      exportBillTransactionsFromDevice,
+      handleExportLine: handleExportLineBillTransactions,
+      handleAck: handleAckBillTransactions
+    } = useSyncBillTransactions()
+
+    const {
       isSyncing,
       syncLogs,
       filteredSyncLogs,
@@ -400,6 +407,9 @@ export default {
       handleDeviceLineReadings,
       syncBillsFromDevice,
       handleDeviceLineBills,
+      exportBillTransactionsFromDevice,
+      handleExportLineBillTransactions,
+      handleAckBillTransactions,
       isSyncing,
       syncLogs,
       filteredSyncLogs,
@@ -488,6 +498,21 @@ export default {
         return false // Hide verbose JSON chunks
       }
 
+      if (t.startsWith('BILL_TRANSACTIONS_CHUNK|')) {
+        return false // Hide verbose JSON chunks
+      }
+
+      // Sometimes the serial layer may emit fragments of long JSON lines.
+      // Hide those too to keep the log clean.
+      if (
+        t.includes('"bill_transaction_id"') ||
+        t.includes('"bill_reference_number"') ||
+        t.includes('"processed_by_device_uid"') ||
+        t.includes('"transaction_date"')
+      ) {
+        return false
+      }
+
       // Everything else (Exporting..., Done., Totals, ACK/ERR) is useful.
       return true
     },
@@ -519,9 +544,9 @@ export default {
         pushSettingsToDevice: this.pushSettingsToDevice,
         syncReadingsFromDevice: this.syncReadingsFromDevice,
         syncBillsFromDevice: this.syncBillsFromDevice,
+        exportBillTransactionsFromDevice: this.exportBillTransactionsFromDevice,
         pushCustomersToDevice: this.pushCustomersToDevice,
         refreshDeviceInfo: this.refreshDeviceInfo,
-
         sendLineDevice: this.sendLineDevice,
         onSyncSuccess: () => {
           this.showSuccessDialog = true
@@ -554,6 +579,8 @@ export default {
       this.handleDeviceLineDevice(line)
       this.handleDeviceLineReadings(line)
       this.handleDeviceLineBills(line)
+      this.handleExportLineBillTransactions(line)
+      this.handleAckBillTransactions(line)
 
       if (line.startsWith('ERR|')) {
         // Error handling is done in the individual handlers

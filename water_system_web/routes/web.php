@@ -58,6 +58,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/bills/monthly-payments', [BillController::class, 'monthlyPayments']);
     Route::get('/bills/stats', [BillController::class, 'stats']);
     Route::get('/bills/transactions', [BillController::class, 'transactions']);
+    Route::post('/bill-transactions/sync', [BillController::class, 'syncTransactions']);
+    Route::post('/bill-transactions/mark-synced', [BillController::class, 'markTransactionsSynced']);
 
     Route::post('/readings/sync', [ReadingController::class, 'sync']);
     Route::post('/bills/sync', [BillController::class, 'sync']);
