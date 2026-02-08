@@ -12,9 +12,6 @@
 #include "database_manager.h"
 #include <ArduinoJson.h>
 
-// Device ID for this ESP32 device (Makilas barangay)
-static const int DEVICE_ID = 2;
-
 static long g_timeOffsetSeconds = 0; // epochNow ~= millis()/1000 + offset
 
 // ===== READING DATA STRUCTURE =====

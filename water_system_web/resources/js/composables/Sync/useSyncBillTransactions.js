@@ -12,6 +12,8 @@ export function useSyncBillTransactions() {
   const exportEndMarker = ref(null)
   const exportLinePrefix = ref(null)
   const lastAck = ref(null)
+  const exportEndReceived = ref(false)
+  const exportEndLines = ref([])
 
   const sendLine = async (line) => {
     const text = String(line).replace(/\r|\n/g, ' ')
@@ -138,9 +140,18 @@ export function useSyncBillTransactions() {
     }
 
     if (exportEndMarker.value && t.startsWith(exportEndMarker.value)) {
-      const lines = exportLines.value.slice()
+      // Don't finish yet, wait for marking confirmation
+      exportEndReceived.value = true
+      exportEndLines.value = exportLines.value.slice()
       exportLines.value = []
-      finishExport(null, lines)
+      return
+    }
+
+    if (exportEndReceived.value && t === 'Bill transactions marked as synced') {
+      // Now finish the export
+      finishExport(null, exportEndLines.value)
+      exportEndReceived.value = false
+      exportEndLines.value = []
       return
     }
 

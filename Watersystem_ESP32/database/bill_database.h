@@ -6,11 +6,24 @@
 #include "customer_type_database.h"
 #include "deduction_database.h"
 #include "device_info.h"
+#include "settings_database.h"
 #include <time.h>
 #include <SD.h>
 #include <vector>
 #include "database_manager.h"
 #include <ArduinoJson.h>
+
+static int getBillDueDaysSetting() {
+  Setting* s = getSettings();
+  if (s && s->bill_due_days > 0 && s->bill_due_days <= 365) return s->bill_due_days;
+  return 5;
+}
+
+static int getDisconnectionDaysSetting() {
+  Setting* s = getSettings();
+  if (s && s->disconnection_days > 0 && s->disconnection_days <= 365) return s->disconnection_days;
+  return 8;
+}
 
 // Forward declarations
 float calculateDeductions(float baseAmount, unsigned long deductionId);
@@ -558,7 +571,7 @@ bool generateBillForCustomer(String accountNo, unsigned long currentReading) {
     currentBill.accountNo = customer->account_no;
     currentBill.address = customer->address;
     currentBill.collector = COLLECTOR_NAME_VALUE;
-    currentBill.dueDate = calculateDueDate(existingBillDate, 5);
+    currentBill.dueDate = calculateDueDate(existingBillDate, getBillDueDaysSetting());
     currentBill.billDate = existingBillDate;
     currentBill.prevReading = oldPreviousReading;
     currentBill.currReading = currentReading;
@@ -623,8 +636,8 @@ bool generateBillForCustomer(String accountNo, unsigned long currentReading) {
     bill.status = "Pending";
     bill.customer_account_number = customer->account_no;
     
-    // Calculate due date: 5 days after bill date
-    String dueDateStr = calculateDueDate(bill.bill_date, 5);
+    // Calculate due date based on settings
+    String dueDateStr = calculateDueDate(bill.bill_date, getBillDueDaysSetting());
 
     // Save bill to DB
     if (saveBillToDB(bill)) {
@@ -716,6 +729,7 @@ bool getBillForCustomer(String accountNo) {
     currentBill.collector = COLLECTOR_NAME_VALUE;
     currentBill.refNumber = (const char*)sqlite3_column_text(stmt, 0);
     currentBill.billDate = (const char*)sqlite3_column_text(stmt, 1);
+    currentBill.dueDate = calculateDueDate(currentBill.billDate, getBillDueDaysSetting());
     currentBill.rate = sqlite3_column_double(stmt, 2);
     currentBill.subtotal = sqlite3_column_double(stmt, 3);
     currentBill.penalty = sqlite3_column_double(stmt, 4);

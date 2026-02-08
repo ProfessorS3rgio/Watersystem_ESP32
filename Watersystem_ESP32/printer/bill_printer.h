@@ -45,9 +45,9 @@ void printBill() {
 
   printer.justify('L');
   // Ref No and Date/Time
-  printer.print(F("Ref No       : "));
+  printer.print(F("Ref No      : "));
   printer.println(currentBill.refNumber);
-  printer.print(F("Date/Time    : "));
+  printer.print(F("Date & Time  : "));
   printer.println(formatDateTime12Hour(currentBill.readingDateTime));
   printer.println(F("--------------------------------"));
   YIELD_WDT();
@@ -143,9 +143,10 @@ void printBill() {
   printer.justify('L');
   printer.boldOn();
   printer.print(F("Due Date     : "));
-  printer.println(currentBill.dueDate);
+  String dueDate = calculateDueDate(currentBill.billDate, getBillDueDaysSetting());
+  printer.println(dueDate);
   printer.print(F("Disconnection : "));
-  String disconnectionDate = calculateDueDate(currentBill.billDate, 8);
+  String disconnectionDate = calculateDueDate(currentBill.billDate, getDisconnectionDaysSetting());
   printer.println(disconnectionDate);
   printer.boldOff();
   printer.println(F("--------------------------------"));

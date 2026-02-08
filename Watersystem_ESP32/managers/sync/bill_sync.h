@@ -175,7 +175,7 @@ bool handleExportBills() {
   Serial.println(F("Exporting bills..."));
   // Get total count
   sqlite3_stmt* countStmt;
-  const char* countSql = "SELECT COUNT(*) FROM bills WHERE synced = 0;";
+  const char* countSql = "SELECT COUNT(*) FROM bills WHERE synced = 0 AND last_sync IS NULL;";
   int rc = sqlite3_prepare_v2(db, countSql, -1, &countStmt, NULL);
   if (rc != SQLITE_OK) {
     Serial.println(F("Failed to prepare count query"));
@@ -194,7 +194,7 @@ bool handleExportBills() {
 
   // Prepare statement for chunked query
   sqlite3_stmt* stmt;
-  const char* sql = "SELECT bill_id, reference_number, customer_id, reading_id, device_uid, bill_date, rate_per_m3, charges, penalty, total_due, status, synced, last_sync, customer_account_number FROM bills WHERE synced = 0 ORDER BY bill_id LIMIT ? OFFSET ?;";
+  const char* sql = "SELECT bill_id, reference_number, customer_id, reading_id, device_uid, bill_date, rate_per_m3, charges, penalty, total_due, status, synced, last_sync, customer_account_number FROM bills WHERE synced = 0 AND last_sync IS NULL ORDER BY bill_id LIMIT ? OFFSET ?;";
   int rc2 = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
   if (rc2 != SQLITE_OK) {
     Serial.println(F("Failed to prepare bills query"));

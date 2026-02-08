@@ -335,7 +335,8 @@ export default {
     } = useSyncBarangays()
 
     const {
-      pushSettingsToDevice
+      pushSettingsToDevice,
+      handleAck: handleAckSettings
     } = useSyncSettings()
 
     const {
@@ -403,6 +404,7 @@ export default {
       pushDeductionsToDevice,
       pushBarangaysToDevice,
       pushSettingsToDevice,
+      handleAckSettings,
       syncReadingsFromDevice,
       handleDeviceLineReadings,
       syncBillsFromDevice,
@@ -573,6 +575,7 @@ export default {
       if (line.startsWith('ACK|')) {
         // Handle chunk ACKs
         this.handleChunkAck(line)
+        this.handleAckSettings(line)
       }
 
       // Handle device info and readings exports

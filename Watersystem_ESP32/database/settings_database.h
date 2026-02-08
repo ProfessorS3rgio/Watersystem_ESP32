@@ -42,10 +42,12 @@ void initSettingsDatabase() {
 }
 
 // ===== UPSERT SETTING FROM SYNC =====
-bool upsertSettingFromSync(unsigned long settingId, int billDueDays, int disconnectionDays, unsigned long createdAt, unsigned long updatedAt) {
+bool upsertSettingFromSync(unsigned long settingId, int billDueDays, int disconnectionDays) {
   char sql[512];
-  sprintf(sql, "INSERT OR REPLACE INTO settings (id, bill_due_days, disconnection_days, created_at, updated_at) VALUES (%lu, %d, %d, '%lu', '%lu');",
-          settingId, billDueDays, disconnectionDays, createdAt, updatedAt);
+  // Store human-readable RTC-backed timestamps, consistent with other tables/viewers.
+  String nowStr = getCurrentDateTimeString();
+  sprintf(sql, "INSERT OR REPLACE INTO settings (id, bill_due_days, disconnection_days, created_at, updated_at, synced, last_sync) VALUES (%lu, %d, %d, '%s', '%s', 1, '%s');",
+          settingId, billDueDays, disconnectionDays, nowStr.c_str(), nowStr.c_str(), nowStr.c_str());
   int rc = sqlite3_exec(db, sql, NULL, NULL, NULL);
   if (rc == SQLITE_OK) {
     loadSettingsFromDB(); // Reload vector

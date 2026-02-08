@@ -100,6 +100,18 @@ static int printDeviceInfoCallback(void *data, int argc, char **argv, char **azC
   return 0;
 }
 
+// Settings callback
+static int printSettingsCallback(void *data, int argc, char **argv, char **azColName) {
+  Serial.print(atoi(argv[0])); Serial.print(F(" | "));
+  Serial.print(atoi(argv[1])); Serial.print(F(" | "));
+  Serial.print(atoi(argv[2])); Serial.print(F(" | "));
+  Serial.print(atoi(argv[3])); Serial.print(F(" | "));
+  Serial.print(argv[4] ? argv[4] : ""); Serial.print(F(" | "));
+  Serial.print(argv[5]); Serial.print(F(" | "));
+  Serial.println(argv[6]);
+  return 0;
+}
+
 // Bill Transactions callback
 static int printBillTransactionCallback(void *data, int argc, char **argv, char **azColName) {
   Serial.print(atoi(argv[0])); Serial.print(F(" | "));
@@ -256,6 +268,26 @@ void printDeviceInfoList() {
   Serial.println(F("================================"));
 }
 
+// Function to print settings list (limited to 100)
+void printSettingsList() {
+  Serial.println(F("===== SETTINGS DATABASE ====="));
+  Serial.println(F("ID | Bill Due Days | Disconnection Days | Synced | Last Sync | Created | Updated"));
+  Serial.println(F("---|---------------|-------------------|--------|----------|---------|--------"));
+  const char *sql = "SELECT id, bill_due_days, disconnection_days, synced, last_sync, created_at, updated_at FROM settings LIMIT 100;";
+  sqlite3_exec(db, sql, printSettingsCallback, NULL, NULL);
+  Serial.println(F("================================"));
+}
+
+// Function to print settings list (full)
+void printSettingsListFull() {
+  Serial.println(F("===== SETTINGS DATABASE ====="));
+  Serial.println(F("ID | Bill Due Days | Disconnection Days | Synced | Last Sync | Created | Updated"));
+  Serial.println(F("---|---------------|-------------------|--------|----------|---------|--------"));
+  const char *sql = "SELECT id, bill_due_days, disconnection_days, synced, last_sync, created_at, updated_at FROM settings;";
+  sqlite3_exec(db, sql, printSettingsCallback, NULL, NULL);
+  Serial.println(F("================================"));
+}
+
 // Function to print bill transactions list (limited to 100)
 void printBillTransactionsList() {
   Serial.println(F("===== BILL TRANSACTIONS DATABASE ====="));
@@ -288,6 +320,10 @@ void displayAllDatabaseData() {
 
   Serial.println(F("=== CUSTOMER TYPES DATABASE ==="));
   printCustomerTypesList();
+  Serial.println();
+
+  Serial.println(F("=== SETTINGS DATABASE ==="));
+  printSettingsList();
   Serial.println();
 
   Serial.println(F("=== CUSTOMERS DATABASE ==="));
@@ -323,6 +359,10 @@ void displayAllDatabaseDataFull() {
 
   Serial.println(F("=== CUSTOMER TYPES DATABASE ==="));
   printCustomerTypesListFull();
+  Serial.println();
+
+  Serial.println(F("=== SETTINGS DATABASE ==="));
+  printSettingsListFull();
   Serial.println();
 
   Serial.println(F("=== CUSTOMERS DATABASE ==="));

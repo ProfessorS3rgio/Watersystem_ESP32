@@ -12,7 +12,7 @@ bool handleExportReadings() {
   Serial.println(F("Exporting readings..."));
   // Get total count
   sqlite3_stmt* countStmt;
-  const char* countSql = "SELECT COUNT(*) FROM readings;";
+  const char* countSql = "SELECT COUNT(*) FROM readings WHERE synced = 0 AND last_sync IS NULL;";
   int rc = sqlite3_prepare_v2(db, countSql, -1, &countStmt, NULL);
   if (rc != SQLITE_OK) {
     Serial.println(F("Failed to prepare count query"));
@@ -31,7 +31,7 @@ bool handleExportReadings() {
 
   // Prepare statement for chunked query
   sqlite3_stmt* stmt;
-  const char* sql = "SELECT reading_id, customer_id, device_uid, previous_reading, current_reading, usage_m3, reading_at, synced, last_sync, customer_account_number FROM readings WHERE synced = 0 ORDER BY reading_id LIMIT ? OFFSET ?;";
+  const char* sql = "SELECT reading_id, customer_id, device_uid, previous_reading, current_reading, usage_m3, reading_at, synced, last_sync, customer_account_number FROM readings WHERE synced = 0 AND last_sync IS NULL ORDER BY reading_id LIMIT ? OFFSET ?;";
   int rc2 = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
   if (rc2 != SQLITE_OK) {
     Serial.println(F("Failed to prepare readings query"));
