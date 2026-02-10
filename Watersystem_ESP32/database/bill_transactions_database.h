@@ -34,7 +34,7 @@ struct ReceiptData {
   String billRefNumber;
 };
 
-extern ReceiptData currentReceipt;
+// extern ReceiptData currentReceipt;
 
 static int getBillIdByReferenceNumber(const String& billRef) {
   const char* sql = "SELECT bill_id FROM bills WHERE reference_number = ? LIMIT 1;";
@@ -455,5 +455,7 @@ bool voidPaymentTransaction(int transactionId) {
 
   return true;
 }
+
+ReceiptData currentReceipt;
 
 #endif // BILL_TRANSACTIONS_DATABASE_H
