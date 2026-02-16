@@ -12,41 +12,46 @@ class DashboardController extends Controller
 {
     public function index(Request $request)
     {
-        $start = Carbon::now()->startOfMonth()->toDateString();
-        $end = Carbon::now()->endOfMonth()->toDateString();
+        try {
+            $start = Carbon::now()->startOfMonth()->toDateString();
+            $end = Carbon::now()->endOfMonth()->toDateString();
 
-        $totalCustomers = Customer::query()->count();
+            $totalCustomers = Customer::query()->count();
 
-        // Heuristic: treat each distinct Reading.source as a "device".
+// Heuristic: treat each distinct Reading.device_uid as a "device".
         // Today it's typically just "device"; later you can set a unique device id.
         $numberOfDevices = Reading::query()
-            ->whereNotNull('source')
+            ->whereNotNull('device_uid')
             ->distinct()
-            ->count('source');
+            ->count('device_uid');
 
-        $totalCollectableThisMonth = (float) DB::table('bill')
-            ->where(function ($q) {
-                $q->whereNull('status')
-                    ->orWhereRaw('LOWER(status) != ?', ['paid']);
-            })
-            ->where(function ($q) use ($start, $end) {
-                $q->whereBetween('due_date', [$start, $end])
-                    ->orWhere(function ($q) use ($start, $end) {
-                        $q->whereNull('due_date')->whereBetween('bill_date', [$start, $end]);
-                    });
-            })
-            ->sum('total_due');
+            $totalCollectableThisMonth = (float) DB::table('bill')
+                ->where(function ($q) {
+                    $q->whereNull('status')
+                        ->orWhereRaw('LOWER(status) != ?', ['paid']);
+                })
+                ->where(function ($q) use ($start, $end) {
+                    $q->whereBetween('due_date', [$start, $end])
+                        ->orWhere(function ($q) use ($start, $end) {
+                            $q->whereNull('due_date')->whereBetween('bill_date', [$start, $end]);
+                        });
+                })
+                ->sum('total_due');
 
-        $totalSalesThisMonth = (float) DB::table('bill')
-            ->whereRaw('LOWER(COALESCE(status, \'\')) = ?', ['paid'])
-            ->whereBetween('bill_date', [$start, $end])
-            ->sum('total_due');
+            $totalSalesThisMonth = (float) DB::table('bill')
+                ->whereRaw('LOWER(COALESCE(status, \'\')) = ?', ['paid'])
+                ->whereBetween('bill_date', [$start, $end])
+                ->sum('total_due');
 
-        return response()->json([
-            'total_collectable_this_month' => $totalCollectableThisMonth,
-            'number_of_devices' => $numberOfDevices,
-            'total_customers' => $totalCustomers,
-            'total_sales_this_month' => $totalSalesThisMonth,
-        ]);
+            return response()->json([
+                'total_collectable_this_month' => $totalCollectableThisMonth,
+                'number_of_devices' => $numberOfDevices,
+                'total_customers' => $totalCustomers,
+                'total_sales_this_month' => $totalSalesThisMonth,
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Dashboard error: ' . $e->getMessage());
+            return response()->json(['error' => 'Internal server error'], 500);
+        }
     }
 }
