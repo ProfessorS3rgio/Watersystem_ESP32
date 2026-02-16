@@ -286,14 +286,14 @@ export function useBilling() {
 
     const loadBillingStats = async () => {
       try {
-        // Load today's payments
-        const todayResponse = await fetch('/bills/today-payments', {
+        // Load month's collectable
+        const collectableResponse = await fetch('/bills/monthly-collectable', {
           headers: { 'Accept': 'application/json' },
           credentials: 'same-origin'
         })
-        if (todayResponse.ok) {
-          const todayData = await todayResponse.json()
-          todaysPayments.value = todayData.total || 0
+        if (collectableResponse.ok) {
+          const collectableData = await collectableResponse.json()
+          todaysPayments.value = collectableData.total || 0
         }
 
         // Load monthly payments

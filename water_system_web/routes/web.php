@@ -56,6 +56,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/bills/mark-synced', [BillController::class, 'markSynced']);
     Route::get('/bills/today-payments', [BillController::class, 'todayPayments']);
     Route::get('/bills/monthly-payments', [BillController::class, 'monthlyPayments']);
+    Route::get('/bills/monthly-collectable', [BillController::class, 'monthlyCollectable']);
     Route::get('/bills/stats', [BillController::class, 'stats']);
     Route::get('/bills/transactions', [BillController::class, 'transactions']);
     Route::post('/bill-transactions/sync', [BillController::class, 'syncTransactions']);

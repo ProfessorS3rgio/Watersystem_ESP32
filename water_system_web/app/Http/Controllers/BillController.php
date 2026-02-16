@@ -161,6 +161,22 @@ class BillController extends Controller
         ]);
     }
 
+    public function monthlyCollectable(Request $request)
+    {
+        $currentMonth = now()->month;
+        $currentYear = now()->year;
+
+        $collectable = Bill::where('status', 'pending')
+            ->whereYear('due_date', $currentYear)
+            ->whereMonth('due_date', $currentMonth)
+            ->get();
+
+        return response()->json([
+            'count' => $collectable->count(),
+            'total' => $collectable->sum('total_due'),
+        ]);
+    }
+
     public function stats(Request $request)
     {
         $pending = Bill::where('status', 'pending')->count();

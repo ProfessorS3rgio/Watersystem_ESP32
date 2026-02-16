@@ -66,7 +66,7 @@
                 <span :class="isDark ? 'text-gray-400' : 'text-gray-600'">{{ bill.customer?.account_no || 'N/A' }}</span>
               </td>
               <td class="py-2 px-2">
-                <span :class="isDark ? 'text-gray-400' : 'text-gray-600'">{{ formatDate(bill.due_date) }}</span>
+                <span :class="isDark ? 'text-gray-400' : 'text-gray-600'">{{ bill.status.toLowerCase() === 'paid' ? '' : formatDate(bill.due_date) }}</span>
               </td>
               <td class="py-2 px-2">
                 <span class="font-semibold text-green-600">₱{{ formatMoney(bill.total_due) }}</span>
@@ -215,9 +215,9 @@ export default {
       this.$emit('go-to-page', page)
     },
     getStatusClass(status) {
-      switch (status) {
+      switch (status.toLowerCase()) {
         case 'paid':
-          return 'bg-green-100 text-green-800'
+          return 'bg-green-500 text-white'
         case 'pending':
           return 'bg-yellow-100 text-yellow-800'
         default:

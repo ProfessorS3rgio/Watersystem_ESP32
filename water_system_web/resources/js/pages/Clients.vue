@@ -13,6 +13,8 @@
     <StatsCards
       :customers="customers"
       :barangays="barangays"
+      :selectedBarangay="selectedBarangay"
+      @select-barangay="selectedBarangay = $event"
     />
 
      <div class="mb-6">
@@ -273,6 +275,15 @@ export default {
     const usageComposable = useUsage()
     const isViewModalOpen = ref(false)
     const viewingCustomer = ref(null)
+    const selectedBarangay = ref(null)
+
+    const filteredCustomers = computed(() => {
+      let filtered = customersComposable.filteredCustomers.value
+      if (selectedBarangay.value !== null) {
+        filtered = filtered.filter(customer => customer.brgy_id === selectedBarangay.value)
+      }
+      return filtered
+    })
 
     const openViewModal = (customer) => {
       viewingCustomer.value = customer
@@ -587,6 +598,8 @@ export default {
       previewAccountNoNew,
       isViewModalOpen,
       viewingCustomer,
+      selectedBarangay,
+      filteredCustomers,
     }
   }
 }

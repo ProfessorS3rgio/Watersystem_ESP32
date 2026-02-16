@@ -1,6 +1,13 @@
 <template>
   <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-    <div v-for="(barangay, index) in barangays" :key="barangay.brgy_id" class="bg-white rounded-lg shadow p-6">
+    <!-- Barangay Cards -->
+    <div
+      v-for="(barangay, index) in barangays"
+      :key="barangay.brgy_id"
+      @click="$emit('select-barangay', selectedBarangay === barangay.brgy_id ? null : barangay.brgy_id)"
+      class="bg-white rounded-lg shadow p-6 cursor-pointer transition-all duration-200 hover:shadow-lg"
+      :class="selectedBarangay === barangay.brgy_id ? 'ring-2 ring-indigo-500 bg-indigo-50' : 'hover:bg-gray-50'"
+    >
       <div class="flex items-center">
         <div class="h-12 w-12 rounded-lg flex items-center justify-center" :class="getIconColor(index)">
           <svg class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -9,7 +16,7 @@
         </div>
         <div class="ml-4">
           <p class="text-sm text-gray-600">{{ barangay.barangay }}</p>
-          <p class="text-2xl font-bold text-gray-900">{{ getClientCount(barangay.brgy_id) }}</p>
+          <p class="text-2xl font-bold text-gray-900">{{ displayedCounts[barangay.brgy_id] || 0 }}</p>
         </div>
       </div>
     </div>
@@ -17,7 +24,7 @@
 </template>
 
 <script>
-import { computed } from 'vue'
+import { ref, watchEffect } from 'vue'
 
 export default {
   name: 'StatsCards',
@@ -29,10 +36,16 @@ export default {
     barangays: {
       type: Array,
       default: () => []
+    },
+    selectedBarangay: {
+      type: [Number, String, null],
+      default: null
     }
   },
+  emits: ['select-barangay'],
   setup(props) {
     const colors = ['bg-blue-500', 'bg-green-500', 'bg-yellow-500', 'bg-red-500', 'bg-purple-500', 'bg-indigo-500', 'bg-pink-500', 'bg-teal-500']
+    const displayedCounts = ref({})
 
     const getIconColor = (index) => {
       return colors[index % colors.length]
@@ -42,9 +55,45 @@ export default {
       return props.customers.filter(customer => customer.brgy_id === brgyId).length
     }
 
+    const animateCount = (key, target) => {
+      const start = 0
+      if (start === target) {
+        displayedCounts.value[key] = target
+        return
+      }
+
+      const duration = 1000 // 1 second total
+      const steps = 60 // 60 fps for smooth animation
+      const increment = Math.max(1, Math.ceil(target / steps))
+      const delay = duration / steps
+      let current = start
+
+      const animate = () => {
+        current += increment
+        if (current >= target) {
+          current = target
+        }
+        displayedCounts.value[key] = current
+        if (current < target) {
+          setTimeout(animate, delay)
+        }
+      }
+
+      animate()
+    }
+
+    // Animate counts whenever customers or barangays change
+    watchEffect(() => {
+      props.barangays.forEach(barangay => {
+        const target = getClientCount(barangay.brgy_id)
+        animateCount(barangay.brgy_id, target)
+      })
+    })
+
     return {
       getIconColor,
-      getClientCount
+      getClientCount,
+      displayedCounts
     }
   }
 }

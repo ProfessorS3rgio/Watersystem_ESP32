@@ -9,8 +9,8 @@
           </svg>
         </div>
         <div class="ml-4">
-          <p class="text-sm font-medium" :class="isDark ? 'text-gray-400' : 'text-gray-600'">Today's Payments</p>
-          <p class="text-2xl font-bold" :class="isDark ? 'text-white' : 'text-gray-900'">₱{{ formatMoney(todaysPayments) }}</p>
+          <p class="text-sm font-medium" :class="isDark ? 'text-gray-400' : 'text-gray-600'">Month's Collectable</p>
+          <p class="text-2xl font-bold" :class="isDark ? 'text-white' : 'text-gray-900'">₱{{ formatMoney(displayedValues.todaysPayments) }}</p>
         </div>
       </div>
     </div>
@@ -24,7 +24,7 @@
         </div>
         <div class="ml-4">
           <p class="text-sm font-medium" :class="isDark ? 'text-gray-400' : 'text-gray-600'">This Month Collected</p>
-          <p class="text-2xl font-bold" :class="isDark ? 'text-white' : 'text-gray-900'">₱{{ formatMoney(totalCollected) }}</p>
+          <p class="text-2xl font-bold" :class="isDark ? 'text-white' : 'text-gray-900'">₱{{ formatMoney(displayedValues.totalCollected) }}</p>
         </div>
       </div>
     </div>
@@ -38,7 +38,7 @@
         </div>
         <div class="ml-4">
           <p class="text-sm font-medium" :class="isDark ? 'text-gray-400' : 'text-gray-600'">Pending Bills</p>
-          <p class="text-2xl font-bold" :class="isDark ? 'text-white' : 'text-gray-900'">{{ pendingBillsCount }}</p>
+          <p class="text-2xl font-bold" :class="isDark ? 'text-white' : 'text-gray-900'">{{ displayedValues.pendingBillsCount }}</p>
         </div>
       </div>
     </div>
@@ -52,7 +52,7 @@
         </div>
         <div class="ml-4">
           <p class="text-sm font-medium" :class="isDark ? 'text-gray-400' : 'text-gray-600'">Overdue Bills</p>
-          <p class="text-2xl font-bold" :class="isDark ? 'text-white' : 'text-gray-900'">{{ overdueBillsCount }}</p>
+          <p class="text-2xl font-bold" :class="isDark ? 'text-white' : 'text-gray-900'">{{ displayedValues.overdueBillsCount }}</p>
         </div>
       </div>
     </div>
@@ -109,6 +109,8 @@
 </template>
 
 <script>
+import { ref, watchEffect } from 'vue'
+
 export default {
   name: 'BillingSummary',
   props: {
@@ -137,14 +139,63 @@ export default {
       default: () => []
     }
   },
-  methods: {
-    formatMoney(amount) {
+  setup(props) {
+    const displayedValues = ref({
+      todaysPayments: 0,
+      totalCollected: 0,
+      pendingBillsCount: 0,
+      overdueBillsCount: 0
+    })
+
+    const animateCount = (key, target) => {
+      const start = 0
+      if (start === target) {
+        displayedValues.value[key] = target
+        return
+      }
+
+      const duration = 1000 // 1 second total
+      const steps = 60 // 60 fps for smooth animation
+      const increment = Math.max(1, Math.ceil(target / steps))
+      const delay = duration / steps
+      let current = start
+
+      const animate = () => {
+        current += increment
+        if (current >= target) {
+          current = target
+        }
+        displayedValues.value[key] = current
+        if (current < target) {
+          setTimeout(animate, delay)
+        }
+      }
+
+      animate()
+    }
+
+    // Animate counts whenever props change
+    watchEffect(() => {
+      animateCount('todaysPayments', props.todaysPayments)
+      animateCount('totalCollected', props.totalCollected)
+      animateCount('pendingBillsCount', props.pendingBillsCount)
+      animateCount('overdueBillsCount', props.overdueBillsCount)
+    })
+
+    const formatMoney = (amount) => {
       if (amount === null || amount === undefined) return '0.00'
       return parseFloat(amount).toFixed(2)
-    },
-    formatDate(date) {
+    }
+
+    const formatDate = (date) => {
       if (!date) return ''
       return new Date(date).toLocaleDateString() + ' ' + new Date(date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+    }
+
+    return {
+      displayedValues,
+      formatMoney,
+      formatDate
     }
   }
 }
