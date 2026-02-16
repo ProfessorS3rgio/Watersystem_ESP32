@@ -187,7 +187,7 @@ export function useBilling() {
           const data = await response.json()
           paymentReceipt.value = {
             ...data.data,
-            bill_no: bill.bill_no,
+            reference_number: bill.reference_number,
             cash_received: received,
             change: change,
             created_at: new Date().toISOString()
@@ -268,7 +268,7 @@ export function useBilling() {
 
         // Create receipt data from bill and payment
         const receiptData = {
-          bill_no: bill.bill_no,
+          reference_number: bill.reference_number,
           amount_paid: bill.total_due,
           cash_received: paymentData.cash_received,
           change: paymentData.change_amount || paymentData.change,
@@ -485,7 +485,7 @@ export function useBilling() {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            bill_no: receiptData.bill_no,
+            reference_number: receiptData.reference_number,
             customer_name: customerName,
             amount_paid: receiptData.amount_paid,
             cash_received: receiptData.cash_received,

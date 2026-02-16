@@ -85,7 +85,7 @@
               </span>
             </td>
             <td class="px-6 py-4 whitespace-nowrap text-sm" :class="isDark ? 'text-gray-300' : 'text-gray-900'">
-              {{ transaction.bill?.bill_no }}
+              {{ transaction.bill?.reference_number }}
             </td>
             <td class="px-6 py-4 whitespace-nowrap text-sm" :class="isDark ? 'text-gray-300' : 'text-gray-900'">
               {{ transaction.bill?.customer?.customer_name }}

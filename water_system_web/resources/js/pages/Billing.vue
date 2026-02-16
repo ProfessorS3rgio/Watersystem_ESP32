@@ -79,7 +79,7 @@
             <div class="mb-4 p-4 rounded-lg border" :class="isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'">
               <h4 class="font-semibold mb-2">Bill Details</h4>
               <div class="space-y-1 text-sm">
-                <p><span class="font-medium">Bill:</span> {{ selectedBill?.bill_no }}</p>
+                <p><span class="font-medium">Bill:</span> {{ selectedBill?.reference_number }}</p>
                 <p><span class="font-medium">Customer:</span> {{ selectedBill?.customer?.customer_name }}</p>
                 <p><span class="font-medium">Amount Due:</span> ₱{{ formatMoney(selectedBill?.total_due) }}</p>
               </div>

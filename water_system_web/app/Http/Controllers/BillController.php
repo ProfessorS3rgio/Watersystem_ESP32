@@ -45,7 +45,9 @@ class BillController extends Controller
     {
         $status = $request->query('status');
 
-        $query = Bill::where('customer_id', $customer->id);
+        $customerId = $customer->getKey();
+
+        $query = Bill::where('customer_id', $customerId);
 
         if ($status) {
             $query->where('status', $status);
@@ -62,8 +64,10 @@ class BillController extends Controller
     {
         $limit = $request->query('limit', 10);
 
-        $payments = BillTransaction::whereHas('bill', function ($query) use ($customer) {
-            $query->where('customer_id', $customer->id);
+        $customerId = $customer->getKey();
+
+        $payments = BillTransaction::whereHas('bill', function ($query) use ($customerId) {
+            $query->where('customer_id', $customerId);
         })
         ->whereIn('type', ['payment', 'void'])
         ->with(['bill', 'processedBy'])
@@ -72,8 +76,8 @@ class BillController extends Controller
         ->get()
         ->map(function ($transaction) {
             return [
-                'id' => $transaction->id,
-                'bill_no' => $transaction->bill->bill_no,
+                'id' => $transaction->getKey(),
+                'reference_number' => $transaction->bill?->reference_number ?? $transaction->bill_reference_number,
                 'amount_paid' => $transaction->amount,
                 'cash_received' => $transaction->cash_received,
                 'change' => $transaction->change,
@@ -112,7 +116,7 @@ class BillController extends Controller
 
         // Create transaction record
         BillTransaction::create([
-            'bill_id' => $bill->id,
+            'bill_reference_number' => $bill->reference_number,
             'type' => 'payment',
             'amount' => $validated['amount_paid'],
             'cash_received' => $validated['cash_received'],
@@ -197,7 +201,7 @@ class BillController extends Controller
 
         // Create transaction record
         BillTransaction::create([
-            'bill_id' => $bill->id,
+            'bill_reference_number' => $bill->reference_number,
             'type' => 'payment',
             'amount' => $bill->total_due,
             'cash_received' => $bill->total_due,
@@ -231,7 +235,7 @@ class BillController extends Controller
 
         // Create transaction record for void
         BillTransaction::create([
-            'bill_id' => $bill->id,
+            'bill_reference_number' => $bill->reference_number,
             'type' => 'void',
             'amount' => $bill->total_due,
             'transaction_date' => now(),
@@ -260,7 +264,7 @@ class BillController extends Controller
 
     public function getPayment(Request $request, Bill $bill)
     {
-        $transaction = BillTransaction::where('bill_id', $bill->id)
+        $transaction = BillTransaction::where('bill_reference_number', $bill->reference_number)
             ->where('type', 'payment')
             ->first();
 
@@ -275,7 +279,7 @@ class BillController extends Controller
 
     /**
      * Bulk upsert bills coming from the device.
-     * Expects: { bills: [ {bill_id, reference_number, customer_id, reading_id, bill_no, bill_date, rate_per_m3, charges, penalty, total_due, status, created_at, updated_at} ] }
+     * Expects: { bills: [ {bill_id, reference_number, customer_id, reading_id, bill_date, rate_per_m3, charges, penalty, total_due, status, created_at, updated_at} ] }
      */
     public function sync(Request $request)
     {

@@ -23,7 +23,7 @@
           <div v-for="bill in pendingBills" :key="bill.id" class="border rounded-lg p-4" :class="isDark ? 'border-gray-600 bg-gray-700' : 'border-gray-200 bg-gray-50'">
             <div class="flex justify-between items-start mb-3">
               <div>
-                <h4 class="font-semibold">Bill #{{ bill.bill_no }}</h4>
+                <h4 class="font-semibold">Bill #{{ bill.reference_number }}</h4>
                 <p class="text-sm" :class="isDark ? 'text-gray-400' : 'text-gray-600'">
                   Due: {{ formatDate(bill.due_date) }}
                 </p>

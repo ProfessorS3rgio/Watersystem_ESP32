@@ -4,34 +4,33 @@
 
 | TFT Pin | ESP32       | Notes                          |
 |---------|-------------|--------------------------------|
-| VDD     | 3.3V        | Power                          |
-| GND     | GND         | Ground                         |
-| CS      | GPIO 15     | Chip Select                    |
-| RST     | GPIO 4      | Reset                          |
-| DC      | GPIO 2      | Data/Command                   |
-| MOSI    | GPIO 13     | MOSI (SPI)                     |
-| SCK     | GPIO 14     | CLK (SPI)                      |
-| BLK     | GPIO 21     | Backlight                      |
+| VDD     | 3.3V        | Power (Solid Orange)           |
+| GND     | GND         | Ground (Solid Black)           |
+| CS      | GPIO 15     | Chip Select (Solid green)      |
+| RST     | GPIO 4      | Reset (stripe green)           |
+| DC      | GPIO 2      | Data/Command (stripe blue)     |
+| MOSI    | GPIO 13     | MOSI (SPI) (stripe Orange)     |
+| SCK     | GPIO 14     | CLK (SPI) (Solid blue)         |
+| BLK     | GPIO 21     | Backlight (stripe brown)       |
 
 ## Thermal Printer (UART2)
 
 | Printer Pin | ESP32    | Notes                    |
 |-------------|----------|--------------------------|
-| TX          | GPIO 16  | ESP32 RX ← Printer TX    |
-| RX          | GPIO 17  | ESP32 TX → Printer RX    |
-| GND         | GND      | Common ground            |
-| VCC         | 5V-9V    | Printer power supply     |
+| TX          | GPIO 16  | ESP32 RX ← Printer TX (solid blue) |
+| RX          | GPIO 17  | ESP32 TX → Printer RX (solid green) |
+| DTR         | GPIO 5   | ESP32 DTR → Printer DTR (stripe blue) |
+| GND         | GND      | Common ground (solid brown) |
+| VCC         | 5V-9V    | Printer power supply (solid orange) |
 
 ## SD Card Module (SPI - Separate Bus)
 
 | SD Card Pin | ESP32    | Notes                      |
 |-------------|----------|----------------------------|
-| 3V3         | 3.3V     | Power                      |
-| GND         | GND      | Ground                     |
-| CS          | GPIO 22  | Chip Select (dedicated)    |
-| MOSI        | GPIO 23  | SD SPI                     |
-| CLK         | GPIO 18  | SD SPI                     |
-| MISO        | GPIO 19  | SD SPI                     |
+| CS          | GPIO 22  | Chip Select (dedicated) (stripe blue) |
+| MOSI        | GPIO 23  | SD SPI (solid green)       |
+| CLK         | GPIO 18  | SD SPI (solid blue)        |
+| MISO        | GPIO 19  | SD SPI (stripe green)      |
 
 ## RTC Module (DS3231 - I2C)
 
@@ -43,23 +42,33 @@
 | SCL     | GPIO 27  | I2C Clock                  |
 | NC      | -        | Not Connected             |
 
-## 4x4 Matrix Keypad (Direct Wiring)
+## MCP23017 I/O Expander (I2C)
 
-> **Note:** 10-pin keypad — Pin 1 and Pin 10 are NC (Not Connected).
-> Use pins 2-9 only (viewing keypad from front, left to right).
+| MCP23017 Pin | ESP32    | Notes                      |
+|--------------|----------|----------------------------|
+| VCC          | 3.3V     | Power                      |
+| GND          | GND      | Ground                     |
+| SDA          | GPIO 26  | I2C Data (shared with RTC) |
+| SCL          | GPIO 27  | I2C Clock (shared with RTC)|
+| RESET        | 3.3V     | Reset (active low, tie high)|
+| A0           | GND      | Address bit 0 (address 0x20)|
+| A1           | GND      | Address bit 1              |
+| A2           | GND      | Address bit 2              |
 
-| Keypad Pin | ESP32    | Notes                      |
-|------------|----------|----------------------------|
-| Pin 1      | -        | NC (Not Connected)         |
-| Pin 2 (C1) | -        | NC (Not Connected)         |
-| Pin 3 (C2) | -        | NC (Not Connected)         |
-| Pin 4 (C3) | -        | NC (Not Connected)         |
-| Pin 5 (C4) | -        | NC (Not Connected)         |
-| Pin 6 (R1) | -        | NC (Not Connected)         |
-| Pin 7 (R2) | -        | NC (Not Connected)         |
-| Pin 8 (R3) | -        | NC (Not Connected)         |
-| Pin 9 (R4) | -        | NC (Not Connected)         |
-| Pin 10     | -        | NC (Not Connected)         |
+## 4x4 Matrix Keypad (via MCP23017)
+
+> **Note:** Keypad connected to MCP23017 GPIO pins. Board labels are used (e.g., A0 = GPA0).
+
+| Keypad Pin | MCP23017 Board Pin | MCP23017 GPIO | Notes                      |
+|------------|---------------------|---------------|----------------------------|
+| R1         | A0                  | GPA0          | Row 1                      |
+| R2         | A1                  | GPA1          | Row 2                      |
+| R3         | A2                  | GPA2          | Row 3                      |
+| R4         | A3                  | GPA3          | Row 4                      |
+| C1         | A4                  | GPA4          | Column 1                   |
+| C2         | A5                  | GPA5          | Column 2                   |
+| C3         | A6                  | GPA6          | Column 3                   |
+| C4         | A7                  | GPA7          | Column 4                   |
 
 > **Keypad Layout:**
 > ```
@@ -76,7 +85,7 @@
 |------|-----------------------|------------------|
 | 2    | TFT DC                | ILI9341 Display  |
 | 4    | TFT RST               | ILI9341 Display  |
-| 5    | -                     | -                 |
+| 5    | Printer DTR            | Thermal Printer  |
 | 13   | TFT MOSI              | ILI9341 Display  |
 | 14   | TFT SCLK              | ILI9341 Display  |
 | 15   | TFT CS                | ILI9341 Display  |
@@ -88,8 +97,8 @@
 | 22   | SD Card CS            | SD Card Module   |
 | 23   | SD SPI MOSI           | SD Card Module   |
 | 25   | -                     | -                 |
-| 26   | RTC SDA              | RTC Module        |
-| 27   | RTC SCL              | RTC Module        |
+| 26   | I2C SDA              | RTC Module, MCP23017 |
+| 27   | I2C SCL              | RTC Module, MCP23017 |
 | 32   | -                     | -                 |
 | 33   | -                     | -                 |
 | 34   | -                     | -                 |

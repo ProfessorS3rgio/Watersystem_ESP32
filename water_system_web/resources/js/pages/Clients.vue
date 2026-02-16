@@ -40,68 +40,65 @@
         <table class="w-full">
           <thead class="bg-gray-50">
             <tr>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Account No</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer Name</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Barangay</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Address</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Previous Reading</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Current Reading</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Latest Bill</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Usage</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-48">Actions</th>
+              <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Account No</th>
+              <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer Name</th>
+              <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Previous Reading</th>
+              <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Current Reading</th>
+              <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Latest Bill</th>
+              <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+              <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Usage</th>
+              <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-48">Actions</th>
             </tr>
           </thead>
           <tbody class="bg-white divide-y divide-gray-200">
             <tr v-if="isLoading">
-              <td class="px-6 py-6 text-sm text-gray-600" colspan="9">Loading customers...</td>
+              <td class="px-6 py-6 text-sm text-gray-600" colspan="8">Loading customers...</td>
             </tr>
             <tr v-if="errorMessage">
-              <td class="px-6 py-6 text-sm text-red-600" colspan="11">{{ errorMessage }}</td>
+              <td class="px-6 py-6 text-sm text-red-600" colspan="8">{{ errorMessage }}</td>
             </tr>
             <tr v-else-if="filteredCustomers.length === 0">
-              <td class="px-6 py-6 text-sm text-gray-600" colspan="11">No customers found.</td>
+              <td class="px-6 py-6 text-sm text-gray-600" colspan="8">No customers found.</td>
             </tr>
             <tr v-else v-for="customer in filteredCustomers" :key="customer.id" class="hover:bg-gray-50">
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ customer.account_no }}</td>
-              <td class="px-6 py-4 whitespace-nowrap">
+              <td class="px-4 py-2.5 whitespace-nowrap text-sm text-gray-900">{{ customer.account_no }}</td>
+              <td class="px-4 py-2.5 whitespace-nowrap">
                 <div class="flex items-center">
-                  <div class="h-8 w-8 bg-indigo-100 rounded-full flex items-center justify-center">
-                    <span class="text-indigo-600 font-medium text-sm">{{ (customer.customer_name || '?').charAt(0) }}</span>
+                  <div class="h-7 w-7 bg-indigo-100 rounded-full flex items-center justify-center">
+                    <span class="text-indigo-600 font-medium text-xs">{{ (customer.customer_name || '?').charAt(0) }}</span>
                   </div>
-                  <div class="ml-3">
+                  <div class="ml-2">
                     <p class="text-sm font-medium text-gray-900">{{ customer.customer_name }}</p>
                   </div>
                 </div>
               </td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ getTypeName(customer.type_id) }}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ getBarangayName(customer.brgy_id) }}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{{ customer.address }}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ customer.previous_reading }}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ customer.current_reading ?? '-' }}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm">
-                <span v-if="customer.latest_bill_state === 'paid'" class="px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">Paid</span>
-                <span v-else-if="customer.latest_bill_state === 'due'" class="px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">Due</span>
-                <span v-else-if="customer.latest_bill_state === 'pending'" class="px-3 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">Pending</span>
-                <span v-else class="px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700">No Bill</span>
+              <td class="px-4 py-2.5 whitespace-nowrap text-sm text-gray-900">{{ customer.previous_reading }}</td>
+              <td class="px-4 py-2.5 whitespace-nowrap text-sm text-gray-900">{{ customer.current_reading ?? '-' }}</td>
+              <td class="px-4 py-2.5 whitespace-nowrap text-sm">
+                <span v-if="customer.latest_bill_state === 'paid'" class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Paid</span>
+                <span v-else-if="customer.latest_bill_state === 'due'" class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">Due</span>
+                <span v-else-if="customer.latest_bill_state === 'pending'" class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">Pending</span>
+                <span v-else class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">No Bill</span>
               </td>
-              <td class="px-6 py-4 whitespace-nowrap">
-                <span :class="customer.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'" class="px-3 py-1 rounded-full text-xs font-medium">
+              <td class="px-4 py-2.5 whitespace-nowrap">
+                <span :class="customer.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'" class="px-2.5 py-0.5 rounded-full text-xs font-medium">
                   {{ customer.status === 'active' ? 'Active' : 'Disconnected' }}
                 </span>
               </td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm">
-                <button @click="openUsageModal(customer)" class="text-indigo-600 hover:text-indigo-900 font-medium">
+              <td class="px-4 py-2.5 whitespace-nowrap text-sm">
+                <button @click="openUsageModal(customer)" class="text-indigo-600 hover:text-indigo-900 font-medium text-xs">
                   View Usage
                 </button>
               </td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm">
-                <div class="flex flex-wrap gap-2">
+              <td class="px-4 py-2.5 whitespace-nowrap text-sm">
+                <div class="flex flex-wrap gap-1.5">
+                  <button @click="openViewModal(customer)" class="text-white bg-indigo-500 box-border border border-transparent hover:bg-indigo-600 focus:ring-4 focus:ring-indigo-300 shadow-xs font-medium leading-5 rounded-full text-xs px-2.5 py-1 focus:outline-none">
+                    View
+                  </button>
                   <button
                     v-if="customer.status === 'active'"
                     @click="disconnectCustomer(customer)"
-                    class="text-white bg-red-500 box-border border border-transparent hover:bg-red-600 focus:ring-4 focus:ring-red-300 shadow-xs font-medium leading-5 rounded-full text-sm px-3 py-1.5 focus:outline-none"
+                    class="text-white bg-red-500 box-border border border-transparent hover:bg-red-600 focus:ring-4 focus:ring-red-300 shadow-xs font-medium leading-5 rounded-full text-xs px-2.5 py-1 focus:outline-none"
                     title="Disconnect this customer"
                   >
                     Disconnect
@@ -109,15 +106,15 @@
                   <button
                     v-else
                     @click="reconnectCustomer(customer)"
-                    class="text-white bg-green-500 box-border border border-transparent hover:bg-green-600 focus:ring-4 focus:ring-green-300 shadow-xs font-medium leading-5 rounded-full text-sm px-3 py-1.5 focus:outline-none"
+                    class="text-white bg-green-500 box-border border border-transparent hover:bg-green-600 focus:ring-4 focus:ring-green-300 shadow-xs font-medium leading-5 rounded-full text-xs px-2.5 py-1 focus:outline-none"
                     title="Reconnect this customer"
                   >
                     Reconnect
                   </button>
-                  <button @click="openEditModal(customer)" class="text-white bg-blue-500 box-border border border-transparent hover:bg-blue-600 focus:ring-4 focus:ring-blue-300 shadow-xs font-medium leading-5 rounded-full text-sm px-3 py-1.5 focus:outline-none">
+                  <button @click="openEditModal(customer)" class="text-white bg-blue-500 box-border border border-transparent hover:bg-blue-600 focus:ring-4 focus:ring-blue-300 shadow-xs font-medium leading-5 rounded-full text-xs px-2.5 py-1 focus:outline-none">
                     Edit
                   </button>
-                  <button @click="openDeleteModal(customer)" class="text-white bg-red-500 box-border border border-transparent hover:bg-red-600 focus:ring-4 focus:ring-red-300 shadow-xs font-medium leading-5 rounded-full text-sm px-3 py-1.5 focus:outline-none">
+                  <button @click="openDeleteModal(customer)" class="text-white bg-red-500 box-border border border-transparent hover:bg-red-600 focus:ring-4 focus:ring-red-300 shadow-xs font-medium leading-5 rounded-full text-xs px-2.5 py-1 focus:outline-none">
                     Remove
                   </button>
                 </div>
@@ -125,6 +122,66 @@
             </tr>
           </tbody>
         </table>
+      </div>
+    </div>
+
+    <div v-if="isViewModalOpen" class="fixed inset-0 z-50">
+      <div class="absolute inset-0 bg-black/50" @click="closeViewModal"></div>
+      <div class="absolute inset-0 flex items-center justify-center p-4">
+        <div class="w-full max-w-2xl rounded-xl shadow-2xl" :class="isDark ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'">
+          <div class="px-6 py-4 border-b" :class="isDark ? 'border-gray-800' : 'border-gray-200'">
+            <div class="flex items-start justify-between gap-4">
+              <div>
+                <h3 class="text-lg font-semibold">Client Details</h3>
+                <p class="text-sm mt-1" :class="isDark ? 'text-gray-300' : 'text-gray-600'">
+                  {{ viewingCustomer?.customer_name || '-' }} • {{ viewingCustomer?.account_no || '-' }}
+                </p>
+              </div>
+              <span
+                :class="viewingCustomer?.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'"
+                class="px-2.5 py-1 rounded-full text-xs font-medium"
+              >
+                {{ viewingCustomer?.status === 'active' ? 'Active' : 'Disconnected' }}
+              </span>
+            </div>
+          </div>
+
+          <div class="px-6 py-5">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div class="rounded-lg p-3" :class="isDark ? 'bg-gray-800/80' : 'bg-gray-50'">
+                <p class="text-xs uppercase tracking-wide" :class="isDark ? 'text-gray-400' : 'text-gray-500'">Type</p>
+                <p class="text-sm font-medium mt-1">{{ getTypeName(viewingCustomer?.type_id) }}</p>
+              </div>
+              <div class="rounded-lg p-3" :class="isDark ? 'bg-gray-800/80' : 'bg-gray-50'">
+                <p class="text-xs uppercase tracking-wide" :class="isDark ? 'text-gray-400' : 'text-gray-500'">Barangay</p>
+                <p class="text-sm font-medium mt-1">{{ getBarangayName(viewingCustomer?.brgy_id) }}</p>
+              </div>
+              <div class="rounded-lg p-3" :class="isDark ? 'bg-gray-800/80' : 'bg-gray-50'">
+                <p class="text-xs uppercase tracking-wide" :class="isDark ? 'text-gray-400' : 'text-gray-500'">Previous Reading</p>
+                <p class="text-sm font-medium mt-1">{{ viewingCustomer?.previous_reading ?? '-' }}</p>
+              </div>
+              <div class="rounded-lg p-3" :class="isDark ? 'bg-gray-800/80' : 'bg-gray-50'">
+                <p class="text-xs uppercase tracking-wide" :class="isDark ? 'text-gray-400' : 'text-gray-500'">Current Reading</p>
+                <p class="text-sm font-medium mt-1">{{ viewingCustomer?.current_reading ?? '-' }}</p>
+              </div>
+            </div>
+
+            <div class="rounded-lg p-3 mt-3" :class="isDark ? 'bg-gray-800/80' : 'bg-gray-50'">
+              <p class="text-xs uppercase tracking-wide" :class="isDark ? 'text-gray-400' : 'text-gray-500'">Address</p>
+              <p class="text-sm mt-1">{{ viewingCustomer?.address || '-' }}</p>
+            </div>
+          </div>
+
+          <div class="px-6 py-4 border-t flex justify-end" :class="isDark ? 'border-gray-800' : 'border-gray-200'">
+            <button
+              @click="closeViewModal"
+              class="px-4 py-2 rounded-lg font-medium"
+              :class="isDark ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-900'"
+            >
+              Close
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -214,6 +271,18 @@ export default {
     const modalsComposable = useModals()
     const formComposable = useCustomerForm()
     const usageComposable = useUsage()
+    const isViewModalOpen = ref(false)
+    const viewingCustomer = ref(null)
+
+    const openViewModal = (customer) => {
+      viewingCustomer.value = customer
+      isViewModalOpen.value = true
+    }
+
+    const closeViewModal = () => {
+      isViewModalOpen.value = false
+      viewingCustomer.value = null
+    }
 
     // Modal handlers with form integration
     const openAddModal = () => {
@@ -503,6 +572,8 @@ export default {
       closeDeleteModal,
       openUsageModal,
       closeUsageModal,
+      openViewModal,
+      closeViewModal,
       disconnectCustomer,
       reconnectCustomer,
       confirmDelete,
@@ -514,6 +585,8 @@ export default {
       getTypeName,
       getBarangayName,
       previewAccountNoNew,
+      isViewModalOpen,
+      viewingCustomer,
     }
   }
 }

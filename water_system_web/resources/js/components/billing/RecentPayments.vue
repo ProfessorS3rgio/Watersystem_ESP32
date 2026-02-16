@@ -1,5 +1,5 @@
 <template>
-  <div v-if="selectedCustomer && !selectedBill" class="bg-white rounded-lg shadow-sm border" :class="isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'">
+  <div v-if="selectedCustomer" class="bg-white rounded-lg shadow-sm border" :class="isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'">
     <div class="px-6 py-4 border-b" :class="isDark ? 'border-gray-700' : 'border-gray-200'">
       <h3 class="text-lg font-semibold">Recent Payments</h3>
     </div>
@@ -21,7 +21,7 @@
         <div v-for="payment in recentPayments" :key="payment.id" class="flex justify-between items-center p-3 border rounded-lg" :class="payment.type === 'void' ? (isDark ? 'border-red-600 bg-red-900/20' : 'border-red-200 bg-red-50') : (isDark ? 'border-gray-600 bg-gray-700' : 'border-gray-200 bg-gray-50')">
           <div>
             <p class="font-medium">
-              Bill #{{ payment.bill_no }}
+              Bill #{{ payment.reference_number }}
               <span v-if="payment.type === 'void'" class="ml-2 px-2 py-1 text-xs font-medium rounded" :class="isDark ? 'bg-red-700 text-red-200' : 'bg-red-100 text-red-800'">Voided</span>
             </p>
             <p class="text-sm" :class="isDark ? 'text-gray-400' : 'text-gray-600'">{{ formatDate(payment.created_at) }}</p>

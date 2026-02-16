@@ -3,7 +3,7 @@
 SPIClass SPI_SD(VSPI);
 #include <SD.h>
 #include "Adafruit_Thermal.h"
-#include <Keypad.h>
+#include <Adafruit_MCP23X17.h>
 #include <time.h>
 #include <Wire.h>
 #include <RTClib.h>
@@ -20,6 +20,7 @@ SPIClass SPI_SD(VSPI);
 #include <TFT_eSPI.h>
 
 // ===== REFACTORED HEADER FILES =====
+#include "components/battery_monitor.h"
 #include "configuration/config.h"
 #include "database/customers_database.h"
 #include "database/readings_database.h"
@@ -55,6 +56,12 @@ Adafruit_Thermal printer(&printerSerial);
 // ===== RTC MODULE =====
 RTC_DS3231 rtc;
 
+// ===== MCP23017 I/O EXPANDER =====
+Adafruit_MCP23X17 mcp;
+
+// ===== BATTERY MONITOR =====
+BatteryMonitor batteryMonitor(BATTERY_PIN, 1486, 0, 10, 2000, 4200, CHARGING_PIN_MCP);
+
 // ===== KEYPAD SIMULATION HELPER =====
 bool isValidKeypadKey(char key) {
   const char validKeys[] = {'1','2','3','A','4','5','6','B','7','8','9','C','*','0','#','D'};
@@ -82,6 +89,16 @@ void setup() {
       Serial.println(F("RTC time preserved"));
     }
   }
+  
+  // Initialize MCP23017
+  if (!mcp.begin_I2C(MCP23017_ADDR)) {
+    Serial.println("Error initializing MCP23017");
+    while (1);
+  }
+  Serial.println(F("MCP23017 initialized"));
+  
+  // Set charging detection pin as input
+  mcp.pinMode(9, INPUT);  // GPB1 for charging state
   
   // Initialize TFT Backlight
   pinMode(TFT_BLK, OUTPUT);
@@ -144,11 +161,34 @@ void setup() {
 }
 
 void loop() {
+  // ===== DEBUG: SERIAL PRINT CHARGING STATE =====
+  static unsigned long lastPrint = 0;
+  if (millis() - lastPrint > 1000) {  // Print every 1 second
+    batteryMonitor.measure();  // Force a new ADC sample each cycle (no cached reading)
+
+    const int adcMidpoint_mV = batteryMonitor.getAdc_mV();
+    const int battery_mV = batteryMonitor.getVoltage_mV();
+    const int battery_pct = batteryMonitor.getPercentage();
+
+    Serial.print(F("Charging state: "));
+    Serial.println(batteryMonitor.isCharging() ? "CHARGING" : "NOT CHARGING");
+    Serial.print(F("ADC Midpoint: "));
+    Serial.print(adcMidpoint_mV);
+    Serial.println(F(" mV"));
+    Serial.print(F("Battery Voltage: "));
+    Serial.print(battery_mV);
+    Serial.println(F(" mV"));
+    Serial.print(F("Battery Percentage: "));
+    Serial.print(battery_pct);
+    Serial.println(F(" %"));
+    lastPrint = millis();
+  }
+  
   // ===== KEYPAD INPUT =====
-  // char key = keypad.getKey();  // Commented out since keypad is disabled
-  // if (key) {
-  //   handleKeypadInput(key);
-  // }
+  char key = getKey();
+  if (key != '\0') {
+    handleKeypadInput(key);
+  }
   
   // ===== SERIAL INPUT =====
   if (Serial.available()) {

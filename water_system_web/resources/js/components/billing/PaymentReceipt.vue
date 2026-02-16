@@ -21,7 +21,7 @@
           </div>
           <div class="space-y-2 text-sm">
             <p><span class="font-medium">Customer:</span> {{ customerName }}</p>
-            <p><span class="font-medium">Bill:</span> {{ receipt.bill_no }}</p>
+            <p><span class="font-medium">Bill:</span> {{ receipt.reference_number }}</p>
             <p><span class="font-medium">Amount Paid:</span> ₱{{ formatMoney(receipt.amount_paid) }}</p>
             <p><span class="font-medium">Cash Received:</span> ₱{{ formatMoney(receipt.cash_received) }}</p>
             <p><span class="font-medium">Change:</span> ₱{{ formatMoney(receipt.change) }}</p>

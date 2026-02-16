@@ -36,16 +36,16 @@ class Bill extends Model
 
     public function customer()
     {
-        return $this->belongsTo(Customer::class);
+        return $this->belongsTo(Customer::class, 'customer_id', 'customer_id');
     }
 
     public function reading()
     {
-        return $this->belongsTo(Reading::class);
+        return $this->belongsTo(Reading::class, 'reading_id', 'reading_id');
     }
 
     public function transactions()
     {
-        return $this->hasMany(BillTransaction::class);
+        return $this->hasMany(BillTransaction::class, 'bill_reference_number', 'reference_number');
     }
 }

@@ -182,7 +182,7 @@ export default {
         return (
           String(bill.customer?.customer_name || '').toLowerCase().includes(q) ||
           String(bill.customer?.account_no || '').toLowerCase().includes(q) ||
-          String(bill.bill_no || '').toLowerCase().includes(q)
+          String(bill.reference_number || '').toLowerCase().includes(q)
         )
       })
     }

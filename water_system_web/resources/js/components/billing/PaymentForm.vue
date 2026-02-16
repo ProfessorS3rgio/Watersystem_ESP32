@@ -8,7 +8,7 @@
         <h4 class="font-semibold mb-2">Bill Details</h4>
         <div class="grid grid-cols-2 gap-4 text-sm">
           <div>
-            <p><span class="font-medium">Bill Number:</span> {{ selectedBill.bill_no }}</p>
+            <p><span class="font-medium">Bill Number:</span> {{ selectedBill.reference_number }}</p>
             <p><span class="font-medium">Customer:</span> {{ customerName }}</p>
           </div>
           <div>

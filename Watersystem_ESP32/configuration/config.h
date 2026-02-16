@@ -35,14 +35,20 @@
 #define RTC_SDA 26
 #define RTC_SCL 27
 
-// ===== 4x4 KEYPAD PINS (Direct Wiring) =====
-// Keypad pinout (left to right, keys facing you):
-// [NC] [C1] [C2] [C3] [C4] [R1] [R2] [R3] [R4] [NC]
-//  1    2    3    4    5    6    7    8    9    10
+// ===== MCP23017 I/O EXPANDER (I2C) =====
+#define MCP23017_ADDR 0x20  // A0-A2 grounded
+
+// ===== BATTERY MONITOR =====
+#define BATTERY_PIN 25  // ADC pin for battery voltage measurement
+#define CHARGING_PIN_MCP 9  // MCP23017 GPB1 for charging state
+
+// ===== 4x4 KEYPAD PINS (via MCP23017) =====
 #define KEYPAD_ROWS 4
 #define KEYPAD_COLS 4
-// Row Pins: GPIO 26, 27, 32, 33 (R1, R2, R3, R4)
-// Col Pins: GPIO 25, 5, 34, 35 (C1, C2, C3, C4)
+// Row Pins: MCP23017 GPA0-GPA3 (R1, R2, R3, R4)
+// Col Pins: MCP23017 GPA4-GPA7 (C1, C2, C3, C4)
+const byte KEYPAD_ROW_PINS[KEYPAD_ROWS] = {0, 1, 2, 3};  // GPA0-GPA3
+const byte KEYPAD_COL_PINS[KEYPAD_COLS] = {4, 5, 6, 7};  // GPA4-GPA7
 
 // ===== TFT COLORS =====
 #define TFT_BLACK   0x0000
@@ -73,10 +79,13 @@
 #define YIELD_WDT() vTaskDelay(1)
 
 #include <sqlite3.h>
+#include <Adafruit_MCP23X17.h>
 sqlite3 *db = nullptr;
 
+extern Adafruit_MCP23X17 mcp;
 extern RTC_DS3231 rtc;
 extern float paymentAmount;
+extern BatteryMonitor batteryMonitor;
 
 String getCurrentDateTimeString() {
   DateTime now = rtc.now();

@@ -1,7 +1,7 @@
 #ifndef KEYPAD_MANAGER_H
 #define KEYPAD_MANAGER_H
 
-#include <Keypad.h>
+#include <Adafruit_MCP23X17.h>
 #include "configuration/config.h"
 #include "Adafruit_Thermal.h"
 #include "../database/readings_database.h"
@@ -56,10 +56,55 @@ char keys[KEYPAD_ROWS][KEYPAD_COLS] = {
   {'*', '0', '#', 'D'}
 };
 
-byte rowPins[KEYPAD_ROWS] = {26, 27, 32, 33};  // R1, R2, R3, R4
-byte colPins[KEYPAD_COLS] = {25, 5, 34, 35};  // C1, C2, C3, C4
+// MCP23017 pins for keypad
+// Rows: GPA0-GPA3, Columns: GPA4-GPA7
 
-// Keypad keypad = Keypad(makeKeymap(keys), rowPins, colPins, KEYPAD_ROWS, KEYPAD_COLS);  // Commented out to avoid GPIO conflicts
+// ===== KEYPAD SCANNING FUNCTION =====
+char getKey() {
+  // Set columns as outputs HIGH, rows as inputs with pullup
+  for (int c = 0; c < KEYPAD_COLS; c++) {
+    mcp.pinMode(KEYPAD_COL_PINS[c], OUTPUT);
+    mcp.digitalWrite(KEYPAD_COL_PINS[c], HIGH);
+  }
+  for (int r = 0; r < KEYPAD_ROWS; r++) {
+    mcp.pinMode(KEYPAD_ROW_PINS[r], INPUT_PULLUP);
+  }
+
+  // Scan for press
+  for (int c = 0; c < KEYPAD_COLS; c++) {
+    mcp.digitalWrite(KEYPAD_COL_PINS[c], LOW);
+    delay(1);  // Small delay for stability
+    for (int r = 0; r < KEYPAD_ROWS; r++) {
+      if (mcp.digitalRead(KEYPAD_ROW_PINS[r]) == LOW) {
+        // Debounce
+        delay(10);
+        if (mcp.digitalRead(KEYPAD_ROW_PINS[r]) == LOW) {
+          // Wait for release
+          while (true) {
+            bool released = true;
+            for (int cc = 0; cc < KEYPAD_COLS; cc++) {
+              mcp.digitalWrite(KEYPAD_COL_PINS[cc], LOW);
+              for (int rr = 0; rr < KEYPAD_ROWS; rr++) {
+                if (mcp.digitalRead(KEYPAD_ROW_PINS[rr]) == LOW) {
+                  released = false;
+                  break;
+                }
+              }
+              mcp.digitalWrite(KEYPAD_COL_PINS[cc], HIGH);
+              if (!released) break;
+            }
+            if (released) break;
+            delay(10);
+          }
+          mcp.digitalWrite(KEYPAD_COL_PINS[c], HIGH);
+          return keys[r][c];
+        }
+      }
+    }
+    mcp.digitalWrite(KEYPAD_COL_PINS[c], HIGH);
+  }
+  return '\0';  // No key pressed
+}
 
 // ===== KEYPAD HANDLER WITH WORKFLOW =====
 void handleKeypadInput(char key) {

@@ -38,7 +38,7 @@ class ReadingController extends Controller
                 'reading.created_at',
                 'reading.updated_at',
                 DB::raw('b.id as bill_id'),
-                DB::raw('b.bill_no as bill_no'),
+                DB::raw('b.reference_number as reference_number'),
                 DB::raw('b.bill_date as bill_date'),
                 DB::raw('b.due_date as due_date'),
                 DB::raw('b.total_due as total_due'),
