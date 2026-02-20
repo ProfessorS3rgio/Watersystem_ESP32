@@ -16,6 +16,7 @@
 #define TFT_RST   4
 #define TFT_DC    2
 #define TFT_BLK   21
+#define TFT_BACKLIGHT_ACTIVE_HIGH 1  // 1: BLK HIGH = ON, 0: BLK LOW = ON
 #define TFT_MOSI  13
 #define TFT_SCLK  14
 #define TFT_MISO  12   // SD card only (safe to define)
@@ -27,8 +28,8 @@
 #define SD_CLK    18
 
 // ===== THERMAL PRINTER PINS (UART2) =====
-#define PRINTER_RX  16   // ESP32 RX <- Printer TX
-#define PRINTER_TX  17   // ESP32 TX -> Printer RX
+#define PRINTER_RX  17   // ESP32 RX <- Printer TX
+#define PRINTER_TX  16   // ESP32 TX -> Printer RX
 #define PRINTER_BAUD 9600
 
 // ===== RTC MODULE PINS (I2C) =====
@@ -37,6 +38,10 @@
 
 // ===== MCP23017 I/O EXPANDER (I2C) =====
 #define MCP23017_ADDR 0x20  // A0-A2 grounded
+#define MCP23017_INT 32     // Interrupt pin connected to ESP32 GPIO 32 
+
+// ===== POWER SAVING =====
+#define POWER_SAVE_TIMEOUT 5000  // 5 seconds in milliseconds
 
 // ===== BATTERY MONITOR =====
 #define BATTERY_PIN 25  // ADC pin for battery voltage measurement

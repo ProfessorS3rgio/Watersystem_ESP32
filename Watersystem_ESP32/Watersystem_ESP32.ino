@@ -7,6 +7,7 @@ SPIClass SPI_SD(VSPI);
 #include <time.h>
 #include <Wire.h>
 #include <RTClib.h>
+#include <esp_sleep.h>
 
 // TFT_eSPI configuration (must be before #include <TFT_eSPI.h>)
 #define ILI9341_DRIVER
@@ -42,6 +43,7 @@ SPIClass SPI_SD(VSPI);
 #include "printer/bill_printer.h"
 #include "printer/receipt_printer.h"
 #include "screens/boot_screen.h"
+#include "configuration/power_save_manager.h"
 
 
 
@@ -69,6 +71,17 @@ bool isValidKeypadKey(char key) {
     if (k == key) return true;
   }
   return false;
+}
+
+bool isPowerControlKey(char key) {
+  return key == 'D';
+}
+
+bool isIdleWorkflowState() {
+  return currentState == STATE_WELCOME
+      || currentState == STATE_MENU
+      || currentState == STATE_ABOUT
+      || currentState == STATE_VIEW_RATE;
 }
 
 void setup() {
@@ -100,9 +113,9 @@ void setup() {
   // Set charging detection pin as input
   mcp.pinMode(9, INPUT);  // GPB1 for charging state
   
-  // Initialize TFT Backlight
-  pinMode(TFT_BLK, OUTPUT);
-  digitalWrite(TFT_BLK, HIGH);  // Turn on backlight
+  // Initialize TFT Backlight with PWM
+  ledcAttach(TFT_BLK, 5000, 8);  // pin, frequency, resolution
+  ledcWrite(TFT_BLK, 255);       // full brightness
   
   // Initialize SPI (SCK, MISO, MOSI)
   SPI.begin(TFT_SCLK, TFT_MISO, TFT_MOSI);
@@ -158,9 +171,13 @@ void setup() {
   // Show welcome screen on TFT
   currentState = STATE_WELCOME;
   showWelcomeScreen();
+
+  powerSaveBegin(&printer, TFT_BLK, POWER_SAVE_TIMEOUT, 25, 255);
 }
 
 void loop() {
+  powerSaveSetEnabled(isIdleWorkflowState());
+
   // ===== DEBUG: SERIAL PRINT CHARGING STATE =====
   static unsigned long lastPrint = 0;
   if (millis() - lastPrint > 1000) {  // Print every 1 second
@@ -187,7 +204,13 @@ void loop() {
   // ===== KEYPAD INPUT =====
   char key = getKey();
   if (key != '\0') {
+    if (!powerSaveConsumeWakeKey(key)) {
+      return;
+    }
     handleKeypadInput(key);
+    if (isPowerControlKey(key)) {
+      powerSaveNotifyActivity("keypad-abcd");
+    }
   }
   
   // ===== SERIAL INPUT =====
@@ -201,7 +224,13 @@ void loop() {
       if (isValidKeypadKey(key)) {
         Serial.print(F("Simulating keypad press: "));
         Serial.println(key);
+        if (!powerSaveConsumeWakeKey(key)) {
+          return;
+        }
         handleKeypadInput(key);
+        if (isPowerControlKey(key)) {
+          powerSaveNotifyActivity("serial-keypad-abcd");
+        }
         return;
       }
     }
@@ -434,6 +463,7 @@ void loop() {
       Serial.println(F("Commands: P, D, S, L, DD, CT, B, BT, DB, DB_ALL, DROPDB, DROPR, DROPB, DROPBT, DROPC, RESET, RESET_BILL_TRANSACTION, START, TIME, SET_TIME <YYYY-MM-DD HH:MM:SS>"));
     }
   }
+  
 }
 
 
