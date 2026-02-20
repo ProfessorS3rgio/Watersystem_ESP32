@@ -59,16 +59,16 @@
 
 > **Note:** Keypad connected to MCP23017 GPIO pins. Board labels are used (e.g., A0 = GPA0).
 
-| Keypad Pin | MCP23017 Board Pin | MCP23017 GPIO | Notes                      |
-|------------|---------------------|---------------|----------------------------|
-| R1         | A0                  | GPA0          | Row 1                      |
-| R2         | A1                  | GPA1          | Row 2                      |
-| R3         | A2                  | GPA2          | Row 3                      |
-| R4         | A3                  | GPA3          | Row 4                      |
-| C1         | A4                  | GPA4          | Column 1                   |
-| C2         | A5                  | GPA5          | Column 2                   |
-| C3         | A6                  | GPA6          | Column 3                   |
-| C4         | A7                  | GPA7          | Column 4                   |
+| Keypad Pin | MCP23017 Board Pin | MCP23017 GPIO | Wire Color    | Notes                      |
+|------------|---------------------|---------------|----------------|----------------------------|
+| R1         | A0                  | GPA0          | stripe blue   | Row 1                      |
+| R2         | A1                  | GPA1          | stripe green  | Row 2                      |
+| R3         | A2                  | GPA2          | solid blue    | Row 3                      |
+| R4         | A3                  | GPA3          | solid green   | Row 4                      |
+| C1         | A4                  | GPA4          | stripe yellow | Column 1                   |
+| C2         | A5                  | GPA5          | stripe brown  | Column 2                   |
+| C3         | A6                  | GPA6          | solid brown   | Column 3                   |
+| C4         | A7                  | GPA7          | solid orange  | Column 4                   |
 
 > **Keypad Layout:**
 > ```
