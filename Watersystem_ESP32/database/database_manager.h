@@ -98,13 +98,30 @@ sqlite3_exec(db, "PRAGMA mmap_size = 0;", NULL, NULL, NULL);
 }
 
 void initializeDefaultDevice() {
-  // Insert or replace default device record
+  // Check if device record exists
   String macAddress = getDeviceUID();
-  String nowStr = getCurrentDateTimeString();
-  char insert_sql[512];
-  sprintf(insert_sql, "INSERT OR REPLACE INTO device_info (brgy_id, device_mac, device_uid, firmware_version, device_name, collector, print_count, customer_count, last_sync, created_at, updated_at) VALUES (2, '%s', '%s', 'v1.0.0', 'ESP32 Water System', 'Aurelio Macasling', 0, 0, '0', '%s', '%s');", macAddress.c_str(), macAddress.c_str(), nowStr.c_str(), nowStr.c_str());
-  sqlite3_exec(db, insert_sql, NULL, NULL, NULL);
-  Serial.println(F("Initialized default device record"));
+  char check_sql[128];
+  sprintf(check_sql, "SELECT COUNT(*) FROM device_info WHERE device_mac = '%s';", macAddress.c_str());
+  sqlite3_stmt *stmt;
+  int rc = sqlite3_prepare_v2(db, check_sql, -1, &stmt, NULL);
+  int count = 0;
+  if (rc == SQLITE_OK) {
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+      count = sqlite3_column_int(stmt, 0);
+    }
+  }
+  sqlite3_finalize(stmt);
+
+  if (count == 0) {
+    // Insert default device record only if not exists
+    String nowStr = getCurrentDateTimeString();
+    char insert_sql[512];
+    sprintf(insert_sql, "INSERT INTO device_info (brgy_id, device_mac, device_uid, firmware_version, device_name, collector, print_count, customer_count, last_sync, created_at, updated_at) VALUES (2, '%s', '%s', 'v1.0.0', 'ESP32 Water System', 'Aurelio Macasling', 0, 0, '0', '%s', '%s');", macAddress.c_str(), macAddress.c_str(), nowStr.c_str(), nowStr.c_str());
+    sqlite3_exec(db, insert_sql, NULL, NULL, NULL);
+    Serial.println(F("Initialized default device record"));
+  } else {
+    Serial.println(F("Device record already exists, skipping initialization"));
+  }
 }
 
 #endif  // DATABASE_MANAGER_H

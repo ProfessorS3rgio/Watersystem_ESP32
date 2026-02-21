@@ -115,7 +115,7 @@ void printBill() {
   printer.println(F(""));
   YIELD_WDT();
   printer.justify('L');
-  printer.print(F("Rate/m3  : PHP "));
+  printer.print(F("Rate/m3      : PHP "));
   printer.println(currentBill.rate, 2);
   printer.print(F("Water Charge : PHP "));
   printer.println(currentBill.subtotal, 2);
@@ -149,7 +149,7 @@ void printBill() {
   printer.println(F(""));
   printer.justify('L');
   printer.boldOn();
-  printer.print(F("Due Date     : "));
+  printer.print(F("Due Date      : "));
   String dueDate = calculateDueDate(currentBill.billDate, getBillDueDaysSetting());
   printer.println(dueDate);
   printer.print(F("Disconnection : "));

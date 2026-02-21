@@ -254,6 +254,19 @@ void handleKeypadInput(char key) {
   else if (currentState == STATE_ACCOUNT_FOUND) {
     // Customer info displayed
     if (key == 'D') {  // Proceed to reading
+      if (currentCustomer != nullptr && hasReadingThisMonth(currentCustomer->customer_id)) {
+        bool billRetrieved = getBillForCustomer(currentCustomer->account_no);
+        if (billRetrieved && currentBill.status.equalsIgnoreCase("paid")) {
+          displayWarningScreen(F("ALREADY PAID"),
+                               String("Void bill/payment first"),
+                               String("before continuing."),
+                               F("Press C to cancel"));
+          delay(1800);
+          displayCustomerInfo();
+          return;
+        }
+      }
+
       currentState = STATE_ENTER_READING;
       inputBuffer = "";
       displayEnterReadingScreen();
@@ -411,6 +424,9 @@ void handleKeypadInput(char key) {
           startParallelPrintingJob(printReceipt);
           waitForPrintCompletion();
 
+          // Track print count for device info
+          incrementPrintCount();
+
           tft.fillScreen(COLOR_BG);
           tft.setTextColor(TFT_GREEN);
           tft.setCursor(30, 50);
@@ -481,6 +497,9 @@ void handleKeypadInput(char key) {
       // Print receipt with loading screen (even if DB save failed, still allow printing)
       startParallelPrintingJob(printReceipt);
       waitForPrintCompletion();
+
+      // Track print count for device info
+      incrementPrintCount();
 
       tft.fillScreen(COLOR_BG);
       tft.setTextColor(saved ? TFT_GREEN : TFT_YELLOW);

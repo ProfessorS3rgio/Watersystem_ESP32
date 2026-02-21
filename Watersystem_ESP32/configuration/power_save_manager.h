@@ -29,7 +29,7 @@ static PowerSaveManager g_powerSave = {
   0,
   25,
   255,
-  80,  // powerSaveCpuMhz
+  40,  // powerSaveCpuMhz
   240, // fullCpuMhz
   true,
   false,

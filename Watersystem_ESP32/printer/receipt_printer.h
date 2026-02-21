@@ -102,7 +102,7 @@ static void printOfficeCopyBarcodeSection(const ReceiptData& receipt) {
     printer.println(change, 2);
     printer.boldOn();
   }
-  printer.println(F("Payment Method: Cash"));
+  printer.println(F("Payment Method : Cash"));
   printer.print(F("Collector: "));
   printer.println(receipt.collector);
   printer.boldOff();
@@ -198,7 +198,7 @@ void printReceipt() {
   printer.boldOff();
   printer.println(F(""));
   printer.justify('L');
-  printer.print(F("Rate per cubic       : PHP "));
+  printer.print(F("Rate per cubic    : PHP "));
   printer.println(receipt.rate, 2);
   printer.print(F("Water Charge      : PHP "));
   printer.println(receipt.subtotal, 2);
@@ -229,7 +229,7 @@ void printReceipt() {
     printer.println(change, 2);
     printer.boldOn();
   }
-  printer.println(F("Payment Method: Cash"));
+  printer.println(F("Payment Method : Cash"));
   printer.boldOff();
   printer.println(F(""));
   // Footer

@@ -24,6 +24,7 @@ extern RTC_DS3231 rtc;
 #include "../screens/view_rate_screen.h"
 #include "../screens/bill_display_screen.h"
 #include "../screens/void_payment_screen.h"
+#include "../screens/warning_screen.h"
 #include <SD.h>
 
 // ===== EXTERNAL FROM CUSTOMERS DATABASE =====
@@ -88,17 +89,11 @@ void processAccountNumberEntry() {
       Serial.println(correctPreviousReading);
     }
   } else {
-    // Account not found - show error and stay in entry mode
-    tft.fillScreen(COLOR_BG);
-    tft.setTextColor(TFT_RED);
-    tft.setTextSize(1);
-    tft.setCursor(25, 50);
-    tft.println(F("Account NOT FOUND"));
-    tft.setCursor(30, 70);
-    tft.println(F("Try again..."));
-    
-    Serial.println(F("Account not found!"));
-    inputBuffer = "";
+    // Account not found - show warning and stay in entry mode
+    displayWarningScreen(F("ACCOUNT NOT FOUND"),
+                         String("Please check the account"),
+                         String("number and try again."),
+                         F("Press C to cancel"));
     delay(2000);
     displayEnterAccountScreen();
   }

@@ -107,7 +107,7 @@ void displayCustomerInfo() {
   // Footer hints (aligned like payment summary)
   tft.setFreeFont(&FreeSans9pt7b);
   tft.setTextColor(COLOR_LABEL);
-  tft.setCursor(65, 220);
+  tft.setCursor(20, 220);
   if (hasReading) {
     tft.println(F("Press D to Continue   C to Cancel"));
   } else {

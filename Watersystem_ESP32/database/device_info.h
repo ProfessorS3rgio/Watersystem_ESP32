@@ -33,19 +33,29 @@ static uint32_t g_printCount = 0;
 
 // Helper functions for DB operations
 static void setDeviceInfoValue(const char* key, const String& value) {
-  if (!db) return;
+  if (!db) {
+    Serial.println(F("DB not open"));
+    return;
+  }
   char sql[256];
   String mac = getDeviceUID();
   String nowStr = getCurrentDateTimeString();
   if (strcmp(key, "print_count") == 0) {
-    sprintf(sql, "UPDATE device_info SET print_count = %s, updated_at = '%s' WHERE device_mac = '%s';", value.c_str(), nowStr.c_str(), mac.c_str());
+    sprintf(sql, "UPDATE device_info SET print_count = %d, updated_at = '%s' WHERE device_mac = '%s';", value.toInt(), nowStr.c_str(), mac.c_str());
   } else if (strcmp(key, "last_sync_epoch") == 0) {
     sprintf(sql, "UPDATE device_info SET last_sync = '%s', updated_at = '%s' WHERE device_mac = '%s';", value.c_str(), nowStr.c_str(), mac.c_str());
   } else {
     // For other keys, do nothing or handle if needed
     return;
   }
-  sqlite3_exec(db, sql, NULL, NULL, NULL);
+  Serial.print(F("Executing SQL: "));
+  Serial.println(sql);
+  int rc = sqlite3_exec(db, sql, NULL, NULL, NULL);
+  if (rc != SQLITE_OK) {
+    Serial.printf("SQL error: %s\n", sqlite3_errmsg(db));
+  } else {
+    Serial.println(F("SQL executed successfully"));
+  }
 }
 
 static String getDeviceInfoValue(const char* key) {
@@ -88,9 +98,7 @@ static void loadDeviceInfoFromDB() {
   if (g_lastSyncEpoch == 0) {
     setDeviceInfoValue("last_sync_epoch", "0");
   }
-  if (g_printCount == 0) {
-    setDeviceInfoValue("print_count", "0");
-  }
+  // Do not set print_count to 0 here, as it should persist
 }
 
 static void initDeviceInfo() {
@@ -98,7 +106,11 @@ static void initDeviceInfo() {
 }
 
 static void incrementPrintCount() {
+  Serial.print(F("Incrementing print count from "));
+  Serial.print(g_printCount);
   g_printCount++;
+  Serial.print(F(" to "));
+  Serial.println(g_printCount);
   setDeviceInfoValue("print_count", String(g_printCount));
 }
 

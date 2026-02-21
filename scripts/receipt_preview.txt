@@ -5,7 +5,7 @@ TIN: 464-252-005-000
 --------------------------------
 CEIPT
 Bill No : 000123
-Date    : 2026-01-18 11:23:47
+Date    : 2026-02-21 17:44:37
 --------------------------------
 Customer      : Juan Dela Cruz
 --------------------------------
@@ -24,34 +24,38 @@ DONA JOSEFA M. BULU-AN CAPARAN
 Water & Sanitation Assoc.
 Bulu-an, IPIL, Zambo. Sibugay
 TIN: 464-252-005-000
-TATEMENT OF ACCOUNT
---------------------------------
-REF531764
-Date/Time    :
-  2026-01-18 11:23:47
-Classification: Residential
-Period Covered:
-  Jan 2026 - Feb 2026
-Due Date     : 2026-02-01
-Disconnect On: 2026-02-10
+
+-------------------------------
+STATEMENT OF ACCOUNT
+a--------------------------------
+-------------------------------
+REF629226
+Date/Time    : 02/21/26 05:44PM
 --------------------------------
 Customer : Juan Dela Cruz
 Account  : M001
+Classification: Residential
 Address  : Makilas, IPIL
 --------------------------------
-Collector: Ana Cruz
+Collector: Pedro Santos
 Penalty  : PHP 0.00
-Due Date : 2026-02-01
 --------------------------------
+eriod Covered
+an 2026 - Feb 2026
+
 METER READINGS
- Prev   Present   Usage
-     120       128   8 m3
+a   Prev     Present     Usage   
+  120        128         8     
 --------------------------------
 Rate/m3  : PHP 15.00
+Seniors Citizen : PHP -20.00
 ================================
 E*** TOTAL AMOUNT DUE ***
 PHP 120.00
 ================================
+ue Date     : 01/02/2026
+Disconnection Date: 10/02/2026
+--------------------------------
 REMAINDERS:
 - Please pay by the due date to avoid disconnection.
 - Bring this bill when paying.
@@ -64,7 +68,7 @@ Thank you!
 < ------------------------------ 
 
 
-REF531764
+REF629226
 Save Water, Save Life!
 
 
