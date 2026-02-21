@@ -27,6 +27,11 @@ static String buildOfficeBarcodeData(const ReceiptData& receipt) {
   return accountDigits + String(paid);
 }
 
+static String limitPrintChars(const String& value, size_t maxChars) {
+  if (value.length() <= maxChars) return value;
+  return value.substring(0, maxChars);
+}
+
 static void printOfficeCopyBarcodeSection(const ReceiptData& receipt) {
   // Office copy stub: cut line, barcode, and key payment fields.
   printer.println(F("8< -----------------------------"));
@@ -138,7 +143,7 @@ void printReceipt() {
 
   printer.justify('L');
   // Receipt No and Date/Time
-  printer.print(F("Receipt No  : "));
+  printer.print(F("Ref No      : "));
   printer.println(receipt.receiptNumber);
   printer.print(F("Date & Time : "));
   printer.println(formatDateTime12Hour(receipt.paymentDateTime));
@@ -152,7 +157,7 @@ void printReceipt() {
   printer.print(F("Class    : "));
   printer.println(receipt.customerType);
   printer.print(F("Address  : "));
-  printer.println(receipt.address);
+  printer.println(limitPrintChars(receipt.address, 21));
   printer.print(F("Barangay : "));
   printer.println(F("Makilas"));
   printer.println(F("--------------------------------"));

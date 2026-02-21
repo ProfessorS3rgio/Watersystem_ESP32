@@ -17,6 +17,13 @@ String centerString(String s, int width);
 String formatDateTime12Hour(String dateTimeStr);
 String calculateDueDate(String billDate, int daysToAdd);
 
+static String fitAddressForPrint(const String& address, size_t maxChars = 21) {
+  if (address.length() <= maxChars) {
+    return address;
+  }
+  return address.substring(0, maxChars);
+}
+
 void printBill() {
   printer.wake();
   printer.setDefault();
@@ -47,7 +54,7 @@ void printBill() {
   // Ref No and Date/Time
   printer.print(F("Ref No      : "));
   printer.println(currentBill.refNumber);
-  printer.print(F("Date & Time  : "));
+  printer.print(F("Date & Time : "));
   printer.println(formatDateTime12Hour(currentBill.readingDateTime));
   printer.println(F("--------------------------------"));
   YIELD_WDT();
@@ -60,7 +67,7 @@ void printBill() {
   printer.print(F("Class    : "));
   printer.println(currentBill.customerType);
   printer.print(F("Address  : "));
-  printer.println(currentBill.address);
+  printer.println(fitAddressForPrint(currentBill.address));
   printer.print(F("Barangay : "));
   printer.println(F("Makilas"));
   printer.println(F("--------------------------------"));

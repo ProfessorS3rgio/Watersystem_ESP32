@@ -374,10 +374,65 @@ void handleKeypadInput(char key) {
   }
   else if (currentState == STATE_PAYMENT_SUMMARY) {
     // Payment summary showing bill details
-    if (key == 'D') {  // Pay
-      currentState = STATE_ENTER_PAYMENT;
-      inputBuffer = "";
-      displayEnterPaymentScreen();
+    if (key == 'D') {  // Pay or Print
+      if (currentBill.status.equalsIgnoreCase("paid")) {
+        // Already paid, re-print receipt
+        // Load the latest transaction for this bill
+        BillTransaction latestTxn;
+        if (getLatestTransactionForBill(currentBill.refNumber, latestTxn)) {
+          // Populate receipt data from current bill + transaction
+          currentReceipt.receiptNumber = String("OR-") + currentBill.refNumber;
+          currentReceipt.paymentDateTime = latestTxn.transaction_date;
+          currentReceipt.billRefNumber = currentBill.refNumber;
+
+          currentReceipt.customerName = currentBill.customerName;
+          currentReceipt.accountNo = currentBill.accountNo;
+          currentReceipt.customerType = currentBill.customerType;
+          currentReceipt.address = currentBill.address;
+          currentReceipt.collector = currentBill.collector;
+          if (currentReceipt.collector.length() == 0) {
+            currentReceipt.collector = COLLECTOR_NAME_VALUE;
+          }
+
+          currentReceipt.prevReading = currentBill.prevReading;
+          currentReceipt.currReading = currentBill.currReading;
+          currentReceipt.usage = currentBill.usage;
+
+          currentReceipt.rate = currentBill.rate;
+          currentReceipt.subtotal = currentBill.subtotal;
+          currentReceipt.deductions = currentBill.deductions;
+          currentReceipt.penalty = currentBill.penalty;
+          currentReceipt.total = currentBill.total;
+
+          currentReceipt.amountPaid = latestTxn.cash_received;
+          currentReceipt.change = latestTxn.change;
+
+          // Print receipt
+          startParallelPrintingJob(printReceipt);
+          waitForPrintCompletion();
+
+          tft.fillScreen(COLOR_BG);
+          tft.setTextColor(TFT_GREEN);
+          tft.setCursor(30, 50);
+          tft.println(F("Receipt Re-printed"));
+          delay(1500);
+          resetWorkflow();
+        } else {
+          tft.fillScreen(COLOR_BG);
+          tft.setTextColor(ST77XX_RED);
+          tft.setCursor(30, 50);
+          tft.println(F("No transaction found"));
+          tft.setCursor(30, 70);
+          tft.println(F("Cannot re-print"));
+          delay(2000);
+          resetWorkflow();
+        }
+      } else {
+        // Not paid, proceed to payment
+        currentState = STATE_ENTER_PAYMENT;
+        inputBuffer = "";
+        displayEnterPaymentScreen();
+      }
     }
     else if (key == 'C') {  // Cancel
       resetWorkflow();

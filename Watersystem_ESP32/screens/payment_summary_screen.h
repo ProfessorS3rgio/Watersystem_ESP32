@@ -164,7 +164,11 @@ void displayPaymentSummary() {
   tft.setFreeFont(&FreeSans9pt7b);
   tft.setTextColor(COLOR_HEADER);
   tft.setCursor(10, afterRowsY + 22);
-  tft.println(F("Overall Due:"));
+  if (currentBill.status.equalsIgnoreCase("paid")) {
+    tft.println(F("Amount Paid:"));
+  } else {
+    tft.println(F("Overall Due:"));
+  }
 
   tft.setFreeFont(&FreeSansBold9pt7b);
   tft.setTextColor(COLOR_AMOUNT);
@@ -175,7 +179,11 @@ void displayPaymentSummary() {
   tft.setFreeFont(&FreeSans9pt7b);
   tft.setTextColor(COLOR_LABEL);
   tft.setCursor(70, 220);
-  tft.println(F("Press D to Pay   C to Cancel"));
+  if (currentBill.status.equalsIgnoreCase("paid")) {
+    tft.println(F("Press D to Print   C to Cancel"));
+  } else {
+    tft.println(F("Press D to Pay   C to Cancel"));
+  }
 }
 
 #endif // PAYMENT_SUMMARY_SCREEN_H

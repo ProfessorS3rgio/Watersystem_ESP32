@@ -155,6 +155,7 @@ struct BillData {
   String deductionName;
   String readingDateTime;
   String refNumber;
+  String status;
 };
 
 // ===== BILL STRUCTURE FOR STORAGE =====
@@ -696,7 +697,7 @@ bool getBillForCustomer(String accountNo) {
   // Query for the latest bill for this customer
   const char* sql =
       "SELECT "
-      "  b.reference_number, b.bill_date, b.rate_per_m3, b.charges, b.penalty, b.total_due, "
+      "  b.reference_number, b.bill_date, b.rate_per_m3, b.charges, b.penalty, b.total_due, b.status, "
       "  r.previous_reading, r.current_reading, r.usage_m3, "
       "  ct.type_name, ct.min_charge, ct.min_m3, "
       "  d.name, d.type, d.value, "
@@ -734,17 +735,18 @@ bool getBillForCustomer(String accountNo) {
     currentBill.subtotal = sqlite3_column_double(stmt, 3);
     currentBill.penalty = sqlite3_column_double(stmt, 4);
     currentBill.total = sqlite3_column_double(stmt, 5);
-    currentBill.prevReading = sqlite3_column_int(stmt, 6);
-    currentBill.currReading = sqlite3_column_int(stmt, 7);
-    currentBill.usage = sqlite3_column_int(stmt, 8);
-    currentBill.customerType = (const char*)sqlite3_column_text(stmt, 9);
-    currentBill.minCharge = sqlite3_column_double(stmt, 10);
-    currentBill.minM3 = sqlite3_column_int(stmt, 11);
-    currentBill.deductionName = (const char*)sqlite3_column_text(stmt, 12);
+    currentBill.status = (const char*)sqlite3_column_text(stmt, 6);
+    currentBill.prevReading = sqlite3_column_int(stmt, 7);
+    currentBill.currReading = sqlite3_column_int(stmt, 8);
+    currentBill.usage = sqlite3_column_int(stmt, 9);
+    currentBill.customerType = (const char*)sqlite3_column_text(stmt, 10);
+    currentBill.minCharge = sqlite3_column_double(stmt, 11);
+    currentBill.minM3 = sqlite3_column_int(stmt, 12);
+    currentBill.deductionName = (const char*)sqlite3_column_text(stmt, 13);
     // Stored total_due already reflects discounts; compute for display.
     float computedDeduction = (currentBill.subtotal + currentBill.penalty) - currentBill.total;
     currentBill.deductions = (computedDeduction > 0.0f) ? computedDeduction : 0.0f;
-    currentBill.readingDateTime = (const char*)sqlite3_column_text(stmt, 15);
+    currentBill.readingDateTime = (const char*)sqlite3_column_text(stmt, 16);
 
     sqlite3_finalize(stmt);
     return true;
