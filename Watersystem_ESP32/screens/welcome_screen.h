@@ -10,13 +10,17 @@ extern TFT_eSPI tft;
 extern BatteryMonitor batteryMonitor;
 
 void updateWelcomeBatteryStatus(int batteryPct) {
-  tft.fillRect(95, 136, 130, 22, TFT_BLACK);
+  tft.fillRect(80, 136, 170, 22, TFT_BLACK);
   tft.setFreeFont(&FreeSans9pt7b);
   tft.setTextColor(COLOR_LABEL);
-  tft.setCursor(100, 150);
-  tft.printf("Battery: %d%%", batteryPct);
+  tft.setCursor(85, 150);
+  if (batteryMonitor.isCharging()) {
+    tft.printf("Charging: %d%%", batteryPct);
+  } else {
+    tft.printf("Battery: %d%%", batteryPct);
+  }
 
-  drawBattery(276, 15, batteryMonitor);  // x, y, battery monitor
+  drawBattery(258, 15, batteryMonitor);  // x, y, battery monitor
 }
 
 void showWelcomeScreen() {

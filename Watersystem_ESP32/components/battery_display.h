@@ -38,12 +38,28 @@ void drawBattery(int x, int y, BatteryMonitor& batteryMonitor) {
   tft.setCursor(x + 5, y + 3);
   tft.printf("%d%%", level);
 
-  // Charging indicator (lightning bolt)
+  // Charging indicator (modern lightning bolt) on the right side
   if (isCharging) {
-    int boltX = x + w - 12;
-    int boltY = y + 2;
-    tft.fillTriangle(boltX + 2, boltY, boltX + 8, boltY, boltX + 4, boltY + 5, TFT_WHITE);
-    tft.fillTriangle(boltX + 3, boltY + 5, boltX + 7, boltY + 5, boltX + 1, boltY + 10, TFT_WHITE);
+    int boltX = x + w + tipW + 2;
+    int boltY = y + 1;
+
+    uint16_t boltColor = ST77XX_YELLOW;  // ⚡ Yellow bolt
+
+    // Top angled part
+    tft.fillTriangle(
+      boltX + 6, boltY,
+      boltX + 12, boltY,
+      boltX + 7, boltY + 6,
+      boltColor
+    );
+
+    // Bottom angled part
+    tft.fillTriangle(
+      boltX + 5, boltY + 6,
+      boltX + 10, boltY + 6,
+      boltX + 3, boltY + 13,
+      boltColor
+    );
   }
 }
 
