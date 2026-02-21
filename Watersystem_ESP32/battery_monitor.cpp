@@ -105,19 +105,29 @@ int BatteryMonitor::getPercentage()
         _notChargingCount++;
     }
 
-    const bool allowDischargeDrop = (_notChargingCount >= 3);
     int filteredPercentage = rawPercentage;
 
-    // While charging (or during brief charging-state bounce), never allow drops.
-    if (filteredPercentage < _lastPercentage && !allowDischargeDrop)
+    if (charging)
     {
-        filteredPercentage = _lastPercentage;
+        // While charging, do not allow percentage to drop due to ADC noise.
+        if (filteredPercentage < _lastPercentage)
+        {
+            filteredPercentage = _lastPercentage;
+        }
     }
-
-    // Once confirmed not charging, allow only a 1% drop per update.
-    if (filteredPercentage < _lastPercentage - 1)
+    else
     {
-        filteredPercentage = _lastPercentage - 1;
+        // While not charging, percentage must be monotonic non-increasing.
+        if (filteredPercentage > _lastPercentage)
+        {
+            filteredPercentage = _lastPercentage;
+        }
+
+        // Limit discharge to at most 1% per update to avoid sudden dips.
+        if (filteredPercentage < _lastPercentage - 1)
+        {
+            filteredPercentage = _lastPercentage - 1;
+        }
     }
 
     if (filteredPercentage < 0)

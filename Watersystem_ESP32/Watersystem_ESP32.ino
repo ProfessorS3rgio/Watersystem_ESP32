@@ -178,32 +178,18 @@ void setup() {
 void loop() {
   powerSaveSetEnabled(isIdleWorkflowState());
 
-  // ===== DEBUG: SERIAL PRINT CHARGING STATE =====
-  static unsigned long lastPrint = 0;
-  if (millis() - lastPrint > 1000) {  // Print every 1 second
+  // ===== BATTERY MONITORING =====
+  static unsigned long lastMeasure = 0;
+  if (millis() - lastMeasure > 1000) {  // Measure every 1 second
     batteryMonitor.measure();  // Force a new ADC sample each cycle (no cached reading)
 
-    const int adcMidpoint_mV = batteryMonitor.getAdc_mV();
-    const int battery_mV = batteryMonitor.getVoltage_mV();
     const int battery_pct = batteryMonitor.getPercentage();
-
-    Serial.print(F("Charging state: "));
-    Serial.println(batteryMonitor.isCharging() ? "CHARGING" : "NOT CHARGING");
-    Serial.print(F("ADC Midpoint: "));
-    Serial.print(adcMidpoint_mV);
-    Serial.println(F(" mV"));
-    Serial.print(F("Battery Voltage: "));
-    Serial.print(battery_mV);
-    Serial.println(F(" mV"));
-    Serial.print(F("Battery Percentage: "));
-    Serial.print(battery_pct);
-    Serial.println(F(" %"));
 
     if (currentState == STATE_WELCOME) {
       updateWelcomeBatteryStatus(battery_pct);
     }
 
-    lastPrint = millis();
+    lastMeasure = millis();
   }
   
   // ===== KEYPAD INPUT =====

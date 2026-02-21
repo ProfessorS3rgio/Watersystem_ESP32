@@ -5,6 +5,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <Adafruit_Thermal.h>
+#include <esp32-hal-cpu.h>
 
 struct PowerSaveManager {
   Adafruit_Thermal* printer;
@@ -12,6 +13,8 @@ struct PowerSaveManager {
   uint32_t timeoutMs;
   uint8_t dimBrightness;
   uint8_t fullBrightness;
+  uint8_t powerSaveCpuMhz;
+  uint8_t fullCpuMhz;
   volatile bool enabled;
   volatile bool inPowerSave;
   volatile bool waitingForWakeKey;
@@ -26,6 +29,8 @@ static PowerSaveManager g_powerSave = {
   0,
   25,
   255,
+  80,  // powerSaveCpuMhz
+  240, // fullCpuMhz
   true,
   false,
   false,
@@ -96,6 +101,8 @@ bool powerSaveConsumeWakeKey(char key) {
       Serial.println(F("[PowerSave] Waking printer"));
       g_powerSave.printer->wake();
     }
+    Serial.println(F("[PowerSave] Restoring CPU frequency"));
+    setCpuFrequencyMhz(g_powerSave.fullCpuMhz);
     Serial.println(F("[PowerSave] Turning backlight ON (BLK)"));
     powerSaveApplyBacklight(true, g_powerSave.fullBrightness);
     g_powerSave.inPowerSave = false;
@@ -158,6 +165,8 @@ void powerSaveTask(void* parameter) {
       Serial.print(F("[PowerSave] Elapsed ms: "));
       Serial.println(elapsed);
 
+      Serial.println(F("[PowerSave] Reducing CPU frequency"));
+      setCpuFrequencyMhz(g_powerSave.powerSaveCpuMhz);
       Serial.println(F("[PowerSave] Dimming screen"));
       Serial.println(F("[PowerSave] Turning backlight OFF (BLK)"));
       powerSaveApplyBacklight(false, g_powerSave.dimBrightness);
@@ -190,6 +199,7 @@ void powerSaveBegin(Adafruit_Thermal* printer,
   g_powerSave.initialized = true;
 
   powerSaveApplyBacklight(true, g_powerSave.fullBrightness);
+  setCpuFrequencyMhz(g_powerSave.fullCpuMhz);
 
   if (g_powerSave.taskHandle == nullptr) {
     xTaskCreatePinnedToCore(

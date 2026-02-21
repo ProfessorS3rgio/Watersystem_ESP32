@@ -3,4 +3,3 @@ arduino-cli compile --fqbn esp32:esp32:esp32 Watersystem_ESP32.ino
 
 arduino-cli upload -p COM4 --fqbn esp32:esp32:esp32 Watersystem_ESP32.ino
 
- arduino-cli compile --upload -p COM4 --fqbn esp32:esp32:esp32 Watersystem_ESP32.ino
