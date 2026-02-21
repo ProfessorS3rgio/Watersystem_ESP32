@@ -5,6 +5,9 @@
 
 #pragma once
 
+#ifndef BATTERY_MONITOR_H
+#define BATTERY_MONITOR_H
+
 
 // ***************************************************************************
 
@@ -94,3 +97,5 @@ private:
     bool _hasLastPercentage;
     int _notChargingCount;
 };
+
+#endif // BATTERY_MONITOR_H

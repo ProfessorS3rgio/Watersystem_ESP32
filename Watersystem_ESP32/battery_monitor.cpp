@@ -5,6 +5,7 @@
 
 #include <esp32-hal-adc.h>
 #include <Adafruit_MCP23X17.h>
+#include <math.h>
 
 #include "components/battery_monitor.h"
 
@@ -140,26 +141,19 @@ int BatteryMonitor::mapVoltageToSocCurve(int voltage_mV) const
         int soc;
     };
 
-    // Typical 1-cell Li-ion resting-voltage SOC points.
+    // Realistic 1-cell Li-ion resting-voltage SOC points.
     // Note: under load, effective SOC appears lower; while charging, a bit higher.
     static const Point curve[] = {
         {4200, 100},
-        {4150, 95},
-        {4100, 90},
-        {4050, 84},
-        {4000, 76},
-        {3950, 67},
-        {3900, 58},
-        {3850, 49},
-        {3800, 39},
-        {3750, 30},
-        {3700, 21},
-        {3650, 14},
-        {3600, 9},
-        {3550, 6},
-        {3500, 4},
-        {3450, 2},
-        {3400, 0}
+        {4000, 85},
+        {3850, 65},
+        {3750, 55},
+        {3700, 45},
+        {3600, 35},
+        {3500, 20},
+        {3400, 10},
+        {3300, 5},
+        {3200, 0}
     };
 
     const int n = sizeof(curve) / sizeof(curve[0]);
@@ -181,9 +175,9 @@ int BatteryMonitor::mapVoltageToSocCurve(int voltage_mV) const
         {
             const int highSoc = curve[i].soc;
             const int lowSoc = curve[i + 1].soc;
-            const long num = (long)(voltage_mV - lowV) * (highSoc - lowSoc);
-            const long den = (highV - lowV);
-            return lowSoc + (int)(num / den);
+            const float slope = (float)(highSoc - lowSoc) / (float)(highV - lowV);
+            const float soc = (float)lowSoc + slope * (float)(voltage_mV - lowV);
+            return (int)lroundf(soc);
         }
     }
 

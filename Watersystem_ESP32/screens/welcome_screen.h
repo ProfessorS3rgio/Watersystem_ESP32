@@ -7,6 +7,17 @@
 
 // ===== EXTERNAL OBJECTS =====
 extern TFT_eSPI tft;
+extern BatteryMonitor batteryMonitor;
+
+void updateWelcomeBatteryStatus(int batteryPct) {
+  tft.fillRect(95, 136, 130, 22, TFT_BLACK);
+  tft.setFreeFont(&FreeSans9pt7b);
+  tft.setTextColor(COLOR_LABEL);
+  tft.setCursor(100, 150);
+  tft.printf("Battery: %d%%", batteryPct);
+
+  drawBattery(276, 15, batteryMonitor);  // x, y, battery monitor
+}
 
 void showWelcomeScreen() {
   tft.fillScreen(TFT_BLACK);  // Ensure black background
@@ -38,8 +49,8 @@ void showWelcomeScreen() {
   tft.setCursor(100, 130);  // Centered
   tft.println(F("System Ready"));
   
-  // ===== BATTERY INDICATOR =====
-  drawBattery(276, 15, 100);  // x, y, battery level (0-100)
+  // ===== BATTERY STATUS =====
+  updateWelcomeBatteryStatus(batteryMonitor.getPercentage());
   
   // ===== ADDITIONAL DESIGN ELEMENTS =====
   

@@ -62,7 +62,7 @@ RTC_DS3231 rtc;
 Adafruit_MCP23X17 mcp;
 
 // ===== BATTERY MONITOR =====
-BatteryMonitor batteryMonitor(BATTERY_PIN, 1486, 0, 10, 2000, 4200, CHARGING_PIN_MCP);
+BatteryMonitor batteryMonitor(BATTERY_PIN, 1629, 0, 10, 3400, 4200, CHARGING_PIN_MCP);
 
 // ===== KEYPAD SIMULATION HELPER =====
 bool isValidKeypadKey(char key) {
@@ -198,6 +198,11 @@ void loop() {
     Serial.print(F("Battery Percentage: "));
     Serial.print(battery_pct);
     Serial.println(F(" %"));
+
+    if (currentState == STATE_WELCOME) {
+      updateWelcomeBatteryStatus(battery_pct);
+    }
+
     lastPrint = millis();
   }
   

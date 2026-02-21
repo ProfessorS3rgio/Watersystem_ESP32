@@ -41,7 +41,7 @@
 #define MCP23017_INT 32     // Interrupt pin connected to ESP32 GPIO 32 
 
 // ===== POWER SAVING =====
-#define POWER_SAVE_TIMEOUT 5000  // 5 seconds in milliseconds
+#define POWER_SAVE_TIMEOUT 35000  // 35 seconds in milliseconds
 
 // ===== BATTERY MONITOR =====
 #define BATTERY_PIN 25  // ADC pin for battery voltage measurement
