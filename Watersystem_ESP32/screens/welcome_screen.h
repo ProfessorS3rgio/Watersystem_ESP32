@@ -8,65 +8,90 @@
 // ===== EXTERNAL OBJECTS =====
 extern TFT_eSPI tft;
 extern BatteryMonitor batteryMonitor;
+extern RTC_DS3231 rtc;  // real-time clock
 
 void updateWelcomeBatteryStatus(int batteryPct) {
-  tft.fillRect(80, 136, 170, 22, TFT_BLACK);
-  tft.setFreeFont(&FreeSans9pt7b);
-  tft.setTextColor(COLOR_LABEL);
-  tft.setCursor(85, 150);
-  if (batteryMonitor.isCharging()) {
-    tft.printf("Charging: %d%%", batteryPct);
-  } else {
-    tft.printf("Battery: %d%%", batteryPct);
-  }
 
-  drawBattery(258, 15, batteryMonitor);  // x, y, battery monitor
-}
+  // ===== CLEAR HEADER AREA (TIME + BATTERY ICON) =====
+  tft.fillRect(0, 5, 320, 25, TFT_BLACK);
 
-void showWelcomeScreen() {
-  tft.fillScreen(TFT_BLACK);  // Ensure black background
-  
-  // ===== TOP BORDER =====
-  tft.fillRect(0, 0, 320, 5, TFT_BLUE);
-  
-  // ===== DISPLAY LOGO FROM SD CARD =====
-  // Draw logo from BMP file on the left side
-  int logoX = 20;  // Left side
-  int logoY = 25;
-  drawBMP("/WATER_DB/ASSETS/dmbc_logo.bmp", logoX, logoY);
-  
-  // ===== SERVICE DESCRIPTION (Next to logo) =====
+  // ===== CLEAR CENTER DATE/TIME AREA =====
+  tft.fillRect(80, 120, 200, 50, TFT_BLACK);
+
+  // ===== GET RTC TIME =====
+  DateTime now = rtc.now();
+
+  char dateBuf[20];
+  char timeBuf[20];
+
+  // Format Date: MM/DD/YYYY
+  sprintf(dateBuf, "%02d/%02d/%04d",
+          now.month(),
+          now.day(),
+          now.year());
+
+  // Format Time: 12-hour format
+  int hour12 = now.hour() % 12;
+  if (hour12 == 0) hour12 = 12;
+
+  sprintf(timeBuf, "%d:%02d%s",
+          hour12,
+          now.minute(),
+          now.hour() >= 12 ? "PM" : "AM");
+
+  // ===== DISPLAY DATE (CENTERED LOOK) =====
   tft.setFreeFont(&FreeSansBold9pt7b);
   tft.setTextColor(COLOR_TEXT);
+  tft.setCursor(110, 135);
+  tft.println(dateBuf);
+
+  // ===== DISPLAY TIME BELOW DATE (use yellow color) =====
+  tft.setFreeFont(&FreeSansBold9pt7b);
+  tft.setTextColor(TFT_YELLOW);
+  tft.setCursor(125, 160);
+  tft.println(timeBuf);
+
+  // ===== KEEP BATTERY ICON ON TOP RIGHT =====
+  drawBattery(258, 20, batteryMonitor);
+}
+
+
+void showWelcomeScreen() {
+  tft.fillScreen(TFT_BLACK);
+
+  // ===== TOP BORDER =====
+  tft.fillRect(0, 0, 320, 5, TFT_BLUE);
+
+  // ===== DISPLAY LOGO FROM SD CARD =====
+  int logoX = 20;
+  int logoY = 25;
+  drawBMP("/WATER_DB/ASSETS/dmbc_logo.bmp", logoX, logoY);
+
+  // ===== SERVICE DESCRIPTION =====
+  tft.setFreeFont(&FreeSansBold9pt7b);
+  tft.setTextColor(COLOR_TEXT);
+
   tft.setCursor(140, 55);
   tft.println(F("Water &"));
+
   tft.setCursor(140, 70);
   tft.println(F("Sanitation"));
+
   tft.setCursor(140, 85);
   tft.println(F("Association"));
-  
-  // ===== DECORATIVE ELEMENTS =====
-  
-  // ===== STATUS INDICATOR =====
-  tft.setFreeFont(&FreeSans9pt7b);
-  tft.setTextColor(COLOR_LABEL);
-  tft.setCursor(100, 130);  // Centered
-  tft.println(F("System Ready"));
-  
-  // ===== BATTERY STATUS =====
+
+
+  // ===== BATTERY + TIME =====
   updateWelcomeBatteryStatus(batteryMonitor.getPercentage());
-  
-  // ===== ADDITIONAL DESIGN ELEMENTS =====
-  
+
   // ===== INSTRUCTIONS =====
   tft.setFreeFont(&FreeSans9pt7b);
   tft.setTextColor(TFT_WHITE);
-  tft.setCursor(30, 200);  // Centered in the box
+  tft.setCursor(30, 200);
   tft.println(F("A - Menu   B - Bill   D - Payment"));
-  
+
   // ===== BOTTOM BORDER =====
   tft.fillRect(0, 230, 320, 5, TFT_BLUE);
-  
 }
 
 #endif // WELCOME_SCREEN_H

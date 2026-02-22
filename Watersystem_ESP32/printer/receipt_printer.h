@@ -2,7 +2,7 @@
 #ifndef RECEIPT_PRINTER_H
 #define RECEIPT_PRINTER_H
 
-#include <Adafruit_Thermal.h>
+#include "printer/printer_serial.h"
 #include "../database/bill_transactions_database.h"
 #include "bill_printer.h"  // centerString(), formatDateTime12Hour(), getPeriodCovered(), customFeed(), logo
 
@@ -39,7 +39,8 @@ static void printOfficeCopyBarcodeSection(const ReceiptData& receipt) {
   String barcodeData = buildOfficeBarcodeData(receipt);
 
   if (barcodeData.length() > 0) {
-    printer.println(F(""));
+    // blank line before barcode
+    printer.println();
     printer.justify('C');
 
     // Hide HRI text (the digits printed under the barcode)
@@ -74,8 +75,8 @@ static void printOfficeCopyBarcodeSection(const ReceiptData& receipt) {
       printer.write((uint8_t)0x00);
     #endif
 
-    printer.println(F(""));
-    printer.println(F(""));
+    printer.println();
+    printer.println();
     printer.justify('L');
   }
 
@@ -89,7 +90,7 @@ static void printOfficeCopyBarcodeSection(const ReceiptData& receipt) {
 
   printer.print(F("Date & Time : "));
   printer.println(formatDateTime12Hour(receipt.paymentDateTime));
-  printer.println(F(""));
+  printer.println();
   printer.justify('L');
   printer.boldOn();
   printer.print(F("Amount Received: PHP "));
@@ -106,7 +107,7 @@ static void printOfficeCopyBarcodeSection(const ReceiptData& receipt) {
   printer.print(F("Collector: "));
   printer.println(receipt.collector);
   printer.boldOff();
-  printer.println(F(""));
+  printer.println();
 }
 
 void printReceipt() {
@@ -130,7 +131,7 @@ void printReceipt() {
   printer.printBitmap(LOGO_WIDTH, LOGO_HEIGHT, logo);
 
 
-  printer.println(F("")); 
+  printer.println();
   printer.justify('C');
   printer.setSize('M');
   printer.boldOn();
@@ -138,7 +139,7 @@ void printReceipt() {
   printer.setSize('S');
   printer.boldOff();
   printer.justify('L');
-  printer.println(F(""));
+  printer.println();
 //   printer.println(F("--------------------------------"));
 
   printer.justify('L');
@@ -174,7 +175,7 @@ void printReceipt() {
   printer.println(F("Billing Period"));
   printer.boldOff();
   printer.println(getPeriodCovered());
-  printer.println(F(""));
+  printer.println();
   printer.println(F("--------------------------------"));
 
   // Meter readings
@@ -196,7 +197,7 @@ void printReceipt() {
   printer.boldOn();
   printer.println(F("BILLING"));
   printer.boldOff();
-  printer.println(F(""));
+  printer.println();
   printer.justify('L');
   printer.print(F("Rate per cubic    : PHP "));
   printer.println(receipt.rate, 2);
@@ -231,16 +232,16 @@ void printReceipt() {
   }
   printer.println(F("Payment Method : Cash"));
   printer.boldOff();
-  printer.println(F(""));
+  printer.println();
   // Footer
   printer.justify('C');
-  printer.println(F(""));
+  printer.println();
   printer.println(F("Thank you for your payment!"));
   printer.println(F("This serves as an official receipt."));
   printer.println(F("Save Water, Save Life!"));
 
   // Office stub copy
-  printer.println(F(""));
+  printer.println();
   printOfficeCopyBarcodeSection(receipt);
 
   printer.justify('L');

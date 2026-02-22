@@ -2,7 +2,11 @@
 #include <SPI.h>
 SPIClass SPI_SD(VSPI);
 #include <SD.h>
-#include "Adafruit_Thermal.h"
+#include "printer/printer_serial.h"
+
+// supply the UART pins to the wrapper (mirrors sample code names)
+#define RXD2 PRINTER_RX
+#define TXD2 PRINTER_TX
 #include <Adafruit_MCP23X17.h>
 #include <time.h>
 #include <Wire.h>
@@ -53,7 +57,7 @@ TFT_eSPI tft = TFT_eSPI();
 
 // ===== THERMAL PRINTER =====
 HardwareSerial printerSerial(2);  // Use UART2 on ESP32
-Adafruit_Thermal printer(&printerSerial);
+ThermalPrinter printer(printerSerial);  // thin wrapper around raw UART
 
 // ===== RTC MODULE =====
 RTC_DS3231 rtc;

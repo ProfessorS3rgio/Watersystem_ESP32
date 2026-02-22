@@ -1,14 +1,14 @@
 #ifndef BILL_PRINTER_H
 #define BILL_PRINTER_H
 
-#include <Adafruit_Thermal.h>
+#include "printer/printer_serial.h"
 #include "../database/bill_database.h"  // For BillData currentBill
 #include "../database/device_info.h"   // For getDeviceInfoValue
 #include "../configuration/config.h"    // For YIELD_WDT
 #include "../configuration/logo.h"      // For logo bitmap
 
 // External printer object (defined in main .ino)
-extern Adafruit_Thermal printer;
+extern ThermalPrinter printer;
 
 void printBill();
 String getPeriodCovered();
@@ -37,15 +37,16 @@ void printBill() {
   printer.printBitmap(LOGO_WIDTH, LOGO_HEIGHT, logo);
   YIELD_WDT();  // 🚨 REQUIRED
 
- printer.println(F(""));
+  // blank line after logo
+  printer.println();
   printer.justify('C');
-  printer.setSize('M');
+  // use normal size to prevent wrapping on narrow paper
+  printer.setSize('S');
   printer.boldOn();
   printer.println(F("STATEMENT OF ACCOUNT"));
   printer.boldOff();
-  printer.setSize('S');
   printer.justify('L');
-  printer.println(F(""));
+  printer.println();
 
 
   YIELD_WDT();
@@ -88,7 +89,7 @@ void printBill() {
   printer.println(F("Period Covered"));
   printer.boldOff();
   printer.println(getPeriodCovered());
-  printer.println(F(""));
+  printer.println();
   YIELD_WDT();
 
   // Meter readings
@@ -112,10 +113,9 @@ void printBill() {
   printer.boldOn();
   printer.println(F("BILLING"));
   printer.boldOff();
-  printer.println(F(""));
+  printer.println();
   YIELD_WDT();
-  printer.justify('L');
-  printer.print(F("Rate/m3      : PHP "));
+  printer.justify('L');  printer.print(F("Rate/m3      : PHP "));
   printer.println(currentBill.rate, 2);
   printer.print(F("Water Charge : PHP "));
   printer.println(currentBill.subtotal, 2);
@@ -128,15 +128,16 @@ void printBill() {
     printer.print(F("Penalty  : PHP "));
     printer.println(currentBill.penalty, 2);
   }
-  printer.println(F(""));
+  printer.println();
   printer.println(F("================================"));
   YIELD_WDT();
 
   // Total
   printer.justify('C');
-  printer.setSize('M');
+  // smaller title to fit print width
+  printer.setSize('S');
   printer.boldOn();
-  printer.println(F("*** TOTAL AMOUNT DUE ***"));
+  printer.println(F("*** TOTAL AMOUNT ***"));
   printer.setSize('L');
   printer.print(F("PHP "));
   printer.println(total, 2);
@@ -146,7 +147,7 @@ void printBill() {
   YIELD_WDT();
 
   // Due and Disconnect dates
-  printer.println(F(""));
+  printer.println();
   printer.justify('L');
   printer.boldOn();
   printer.print(F("Due Date      : "));
@@ -160,7 +161,7 @@ void printBill() {
   YIELD_WDT();
 
   // Reminders
-  printer.println(F(""));
+  printer.println();
   printer.println(F("REMAINDERS:"));
   printer.println(F("- Please pay by the due date to avoid disconnection."));
   printer.println(F("- Bring this bill when paying."));
@@ -170,7 +171,7 @@ void printBill() {
 
   // Footer
   printer.justify('C');
-  printer.println(F(""));
+  printer.println();
   printer.println(F("Please pay on or before due date"));
   printer.println(F("to avoid penalties."));
   printer.println(F(""));

@@ -4,11 +4,11 @@
 #include <Arduino.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
-#include <Adafruit_Thermal.h>
+#include "printer/printer_serial.h"
 #include <esp32-hal-cpu.h>
 
 struct PowerSaveManager {
-  Adafruit_Thermal* printer;
+  ThermalPrinter* printer;
   uint8_t backlightPin;
   uint32_t timeoutMs;
   uint8_t dimBrightness;
@@ -182,7 +182,7 @@ void powerSaveTask(void* parameter) {
   }
 }
 
-void powerSaveBegin(Adafruit_Thermal* printer,
+void powerSaveBegin(ThermalPrinter* printer,
                     uint8_t backlightPin,
                     uint32_t timeoutMs,
                     uint8_t dimBrightness = 25,

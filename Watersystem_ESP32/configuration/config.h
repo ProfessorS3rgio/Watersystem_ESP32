@@ -4,6 +4,10 @@
 // ===== SERIAL BAUD =====
 #define SERIAL_BAUD 115200
 
+// forward declarations for types used in externs
+#include <RTClib.h>        // provides RTC_DS3231 and DateTime
+class BatteryMonitor;
+
 // ===== SERIAL LOGGING =====
 // 0 = minimal serial prints (recommended for Web Serial sync UI)
 // 1 = verbose serial prints (debugging)

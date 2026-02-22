@@ -2,14 +2,14 @@
 #define BOOT_SCREEN_H
 
 #include <TFT_eSPI.h>
-#include "Adafruit_Thermal.h"
+#include "printer/printer_serial.h"
 #include "../managers/sdcard_manager.h"
 #include "../configuration/config.h"
 
 // Extern declarations for global objects
 extern TFT_eSPI tft;
 extern HardwareSerial printerSerial;
-extern Adafruit_Thermal printer;
+extern ThermalPrinter printer;
 
 // ===== BOOT SCREEN HELPERS =====
 static bool checkPrinterCommunication(uint16_t timeoutMs = 250) {
