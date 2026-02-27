@@ -40,11 +40,12 @@ void printBill() {
   // blank line after logo
   printer.println();
   printer.justify('C');
-  // use normal size to prevent wrapping on narrow paper
+  // try medium height for the headline
   printer.setSize('S');
   printer.boldOn();
   printer.println(F("STATEMENT OF ACCOUNT"));
   printer.boldOff();
+  printer.setSize('S');   // restore normal for following lines
   printer.justify('L');
   printer.println();
 
@@ -134,10 +135,10 @@ void printBill() {
 
   // Total
   printer.justify('C');
-  // smaller title to fit print width
-  printer.setSize('S');
+  // use medium height for emphasis
+  printer.setSize('M');
   printer.boldOn();
-  printer.println(F("*** TOTAL AMOUNT ***"));
+  printer.println(F("*TOTAL AMOUNT*"));
   printer.setSize('L');
   printer.print(F("PHP "));
   printer.println(total, 2);

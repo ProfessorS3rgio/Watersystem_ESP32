@@ -131,11 +131,79 @@ public:
         delay(10);
     }
 
+// QR code printing helper (same command sequence used by sample sketch)
+void printQRCode(const String &data) {
+    if (data.length() == 0) return;
+    extern HardwareSerial printerSerial; // defined in main .ino
+
+    // set model
+    printerSerial.write(0x1D);
+    printerSerial.write('(');
+    printerSerial.write('k');
+    printerSerial.write(0x04);
+    printerSerial.write(0x00);
+    printerSerial.write(0x31);
+    printerSerial.write(0x41);
+    printerSerial.write(0x32);
+    printerSerial.write(0x00);
+
+    // set size
+    printerSerial.write(0x1D);
+    printerSerial.write('(');
+    printerSerial.write('k');
+    printerSerial.write(0x03);
+    printerSerial.write(0x00);
+    printerSerial.write(0x31);
+    printerSerial.write(0x43);
+    printerSerial.write(0x06);
+
+    // set error correction
+    printerSerial.write(0x1D);
+    printerSerial.write('(');
+    printerSerial.write('k');
+    printerSerial.write(0x03);
+    printerSerial.write(0x00);
+    printerSerial.write(0x31);
+    printerSerial.write(0x45);
+    printerSerial.write(0x31);
+
+    // store data
+    int len = data.length() + 3;
+    uint8_t pL = len & 0xFF;
+    uint8_t pH = (len >> 8) & 0xFF;
+    printerSerial.write(0x1D);
+    printerSerial.write('(');
+    printerSerial.write('k');
+    printerSerial.write(pL);
+    printerSerial.write(pH);
+    printerSerial.write(0x31);
+    printerSerial.write(0x50);
+    printerSerial.write(0x30);
+    printerSerial.print(data);
+
+    // print QR code
+    printerSerial.write(0x1D);
+    printerSerial.write('(');
+    printerSerial.write('k');
+    printerSerial.write(0x03);
+    printerSerial.write(0x00);
+    printerSerial.write(0x31);
+    printerSerial.write(0x51);
+    printerSerial.write(0x30);
+
+    // feed two blank lines
+    printerSerial.write(0x1B);
+    printerSerial.write('d');
+    printerSerial.write((uint8_t)2);
+}
+
 private:
     HardwareSerial& _serial;
 };
 
 // global printer instance will be defined in the main .ino
 extern ThermalPrinter printer;
+// expose serial variable so helpers (e.g. printQRCode) can access it
+extern HardwareSerial printerSerial;
 
 #endif // PRINTER_SERIAL_H

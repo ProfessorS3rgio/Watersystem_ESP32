@@ -54,7 +54,6 @@
 | A0           | GND      | Address bit 0 (address 0x20)|
 | A1           | GND      | Address bit 1              |
 | A2           | GND      | Address bit 2              |
-| INTA         | GPIO 32  | Interrupt output (active low) |
 
 ## 4x4 Matrix Keypad (via MCP23017)
 

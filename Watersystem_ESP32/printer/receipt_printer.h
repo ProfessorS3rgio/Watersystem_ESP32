@@ -11,16 +11,15 @@ static String digitsOnly(const String& s) {
   out.reserve(s.length());
   for (size_t i = 0; i < s.length(); i++) {
     char c = s[i];
+    
     if (c >= '0' && c <= '9') out += c;
   }
   return out;
 }
 
+// old barcode helper left for reference but no longer used
 static String buildOfficeBarcodeData(const ReceiptData& receipt) {
   // Digits-only format for office scanning:
-  // barcode = <accountDigits><amountPaidDigits>
-  // Example: account=M-1000, paid=8000 => 10008000
-  // Example: account=M-001,  paid=8000 => 0018000
   String accountDigits = digitsOnly(receipt.accountNo);
   long paid = lroundf(receipt.amountPaid);
   if (paid < 0) paid = 0;
@@ -36,45 +35,20 @@ static void printOfficeCopyBarcodeSection(const ReceiptData& receipt) {
   // Office copy stub: cut line, barcode, and key payment fields.
   printer.println(F("8< -----------------------------"));
 
-  String barcodeData = buildOfficeBarcodeData(receipt);
+  // build QR code payload with account (including any prefix letters), amount and datetime
+  String qrData = "ACCOUNT:" + receipt.accountNo
+                + "|AMOUNT:" + String(receipt.amountPaid, 2)
+                + "|DATE:" + receipt.paymentDateTime;
 
-  if (barcodeData.length() > 0) {
-    // blank line before barcode
+  if (qrData.length() > 0) {
+    // blank line before QR code
     printer.println();
     printer.justify('C');
 
-    // Hide HRI text (the digits printed under the barcode)
-    printer.write(0x1D);
-    printer.write('H');
-    printer.write((uint8_t)0x00);
-    // Prefer library barcode helper when CODE93 is available.
-    #if defined(CODE93)
-      printer.printBarcode(barcodeData.c_str(), CODE93);
-    #else
-      // Fallback: CODE39 via ESC/POS (still digits-only data)
-      // HRI hidden
-      printer.write(0x1D);
-      printer.write('H');
-      printer.write((uint8_t)0x00);
-      // Height
-      printer.write(0x1D);
-      printer.write('h');
-      printer.write((uint8_t)80);
-      // Module width
-      printer.write(0x1D);
-      printer.write('w');
-      printer.write((uint8_t)2);
+    // print QR code using printer object
+    printer.printQRCode(qrData);
 
-      // Print CODE39: GS k m data NUL
-      printer.write(0x1D);
-      printer.write('k');
-      printer.write((uint8_t)0x04); // m=4 => CODE39
-      for (size_t i = 0; i < barcodeData.length(); i++) {
-        printer.write((uint8_t)barcodeData[i]);
-      }
-      printer.write((uint8_t)0x00);
-    #endif
-
+    // two blank lines after
     printer.println();
     printer.println();
     printer.justify('L');
