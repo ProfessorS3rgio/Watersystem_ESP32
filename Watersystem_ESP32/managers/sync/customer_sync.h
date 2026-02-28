@@ -6,6 +6,11 @@
 #include <ArduinoJson.h>
 #include <vector>
 
+// compile-time flag to reduce serial output during bulk syncs
+#ifndef SYNC_DEBUG
+#define SYNC_DEBUG 0
+#endif
+
 // Struct to hold customer data temporarily
 struct CustomerData {
   String accountNo;
@@ -202,19 +207,78 @@ bool handleUpsertCustomersJsonChunk(String payload) {
   return true;
 }
 
+// simple base64 decoder used for syncing customer chunks
+static String base64_decode(const String& in) {
+  static const char* b64_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  int len = in.length();
+  String out;
+  out.reserve((len * 3) / 4);
+  int val = 0, valb = -8;
+
+  for (int i = 0; i < len; i++) {
+    char c = in[i];
+    if (c == '\r' || c == '\n' || isspace(c)) continue;
+    if (c == '=') break;
+    const char* p = strchr(b64_chars, c);
+    if (!p) continue;
+    val = (val << 6) + (p - b64_chars);
+    valb += 6;
+    if (valb >= 0) {
+      out += char((val >> valb) & 0xFF);
+      valb -= 8;
+    }
+  }
+  return out;
+}
+
 // Handle UPSERT_NEW_CUSTOMER_JSON_CHUNK command
 bool handleUpsertNewCustomerJsonChunk(String payload) {
   int p1 = payload.indexOf('|');
   int p2 = (p1 >= 0) ? payload.indexOf('|', p1 + 1) : -1;
   if (p1 < 0 || p2 < 0) {
-    Serial.println(F("ERR|BAD_CHUNK_FORMAT"));
+    Serial.print(F("ERR|BAD_CHUNK_FORMAT payload='"));
+    {
+      int previewLen = (payload.length() < 100) ? payload.length() : 100;
+      Serial.print(payload.substring(0, previewLen));
+    }
+    Serial.println(F("'"));
+    Serial.print(F("payload_len="));
+    Serial.println(payload.length());
     return true;
   }
 
   int chunkIndex = payload.substring(0, p1).toInt();
   int totalChunks = payload.substring(p1 + 1, p2).toInt();
   String jsonChunk = payload.substring(p2 + 1);
-  jsonChunk.replace("\\|", "|");
+
+  // decode from base64 (matches new web protocol)
+  jsonChunk = base64_decode(jsonChunk);
+
+  // diagnostic logging to help debug empty/short payloads
+  Serial.print(F("Received chunk "));
+  Serial.print(chunkIndex);
+  Serial.print(F("/"));
+  Serial.print(totalChunks);
+  Serial.print(F(" length="));
+  Serial.println(jsonChunk.length());
+#if SYNC_DEBUG
+  Serial.print(F("Payload preview: '"));
+  {
+    int lp = (jsonChunk.length() < 50) ? jsonChunk.length() : 50;
+    Serial.print(jsonChunk.substring(0, lp));
+  }
+  Serial.println(F("'"));
+#endif
+  if (jsonChunk.length() < 10) {
+    Serial.print(F("Chunk data preview: '"));
+    Serial.print(jsonChunk);
+    Serial.println(F("'"));
+  }
+
+  if (jsonChunk.length() == 0) {
+    Serial.println(F("ERR|EMPTY_JSON_CHUNK"));
+    return true;
+  }
 
   // Parse the JSON chunk (it's an array of customers)
   DynamicJsonDocument doc(65536); // 64KB for up to 150 customers
@@ -233,6 +297,9 @@ bool handleUpsertNewCustomerJsonChunk(String payload) {
 
   Serial.print(F("Processing new customer chunk "));
   Serial.println(chunkIndex);
+#if SYNC_DEBUG
+  // print each customer in debug mode
+#endif
 
   // Set synchronous to NORMAL for speed during sync (durability is still good)
   sqlite3_exec(db, "PRAGMA synchronous = NORMAL;", NULL, NULL, NULL);
@@ -298,8 +365,10 @@ bool handleUpsertNewCustomerJsonChunk(String payload) {
       allSuccess = false;
       break;
     } else {
+#if SYNC_DEBUG
       Serial.print(F("Inserted new customer: "));
       Serial.println(accountNo);
+#endif
     }
   }
 
@@ -315,8 +384,10 @@ bool handleUpsertNewCustomerJsonChunk(String payload) {
       Serial.println(F("ERR|UPSERT_FAILED"));
       return true;
     } else {
+#if SYNC_DEBUG
       Serial.print(F("Processed new customer chunk "));
       Serial.println(chunkIndex);
+#endif
     }
     Serial.print(F("ACK|CHUNK|"));
     Serial.println(chunkIndex);
@@ -346,14 +417,35 @@ bool handleUpsertUpdatedCustomerJsonChunk(String payload) {
   int p1 = payload.indexOf('|');
   int p2 = (p1 >= 0) ? payload.indexOf('|', p1 + 1) : -1;
   if (p1 < 0 || p2 < 0) {
-    Serial.println(F("ERR|BAD_CHUNK_FORMAT"));
+    Serial.print(F("ERR|BAD_CHUNK_FORMAT|payload='"));
+    Serial.print(payload);
+    Serial.println(F("'"));
+    Serial.print(F("payload_len="));
+    Serial.println(payload.length());
     return true;
   }
 
   int chunkIndex = payload.substring(0, p1).toInt();
   int totalChunks = payload.substring(p1 + 1, p2).toInt();
   String jsonChunk = payload.substring(p2 + 1);
-  jsonChunk.replace("\\|", "|");
+
+  // decode base64
+  jsonChunk = base64_decode(jsonChunk);
+  Serial.print(F("Received updated chunk "));
+  Serial.print(chunkIndex);
+  Serial.print(F("/"));
+  Serial.print(totalChunks);
+  Serial.print(F(" length="));
+  Serial.println(jsonChunk.length());
+  if (jsonChunk.length() < 10) {
+    Serial.print(F("Chunk data preview: '"));
+    Serial.print(jsonChunk);
+    Serial.println(F("'"));
+  }
+  if (jsonChunk.length() == 0) {
+    Serial.println(F("ERR|EMPTY_JSON_CHUNK"));
+    return true;
+  }
 
   // Parse the JSON chunk (it's an array of customers)
   DynamicJsonDocument doc(65536); // 64KB for up to 150 customers

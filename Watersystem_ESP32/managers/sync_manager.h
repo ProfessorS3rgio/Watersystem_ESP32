@@ -27,6 +27,14 @@
 
 // Function to handle all sync protocol commands
 bool handleSyncCommands(String raw) {
+  // Debug: show incoming line and length so we can troubleshoot malformed
+  // commands (e.g. BAD_CHUNK_FORMAT).  This will appear in the serial log on
+  // the host.
+  Serial.print(F("RX_SYNC [len="));
+  Serial.print(raw.length());
+  Serial.print(F("] : "));
+  Serial.println(raw);
+
   // ---- Sync protocol (do NOT uppercase; payload may be mixed-case) ----
 
   if (raw == "EXPORT_DEVICE_INFO") {

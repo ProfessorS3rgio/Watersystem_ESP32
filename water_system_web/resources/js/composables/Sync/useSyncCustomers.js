@@ -14,42 +14,54 @@ export function useSyncCustomers() {
   }
 
   const sendCustomerChunks = async (type, customers) => {
-    // Send customers in chunks sequentially, waiting for ACK each time.
-    // Register the ACK waiter BEFORE sending to avoid ACK arriving
-    // while the promise hasn't been hooked (race condition).
-    // Implement retries in case ACKs are lost or the web serial write fails.
-    const chunkSize = 45
-    const totalChunks = Math.ceil(customers.length / chunkSize)
+    // Sequentially send chunks; automatically reduce chunk size if line becomes
+    // too large for the device.  This keeps us under any hidden String limits
+    // while still attempting to maximise throughput.
+    let chunkSize = 60  // starting guess
+    const maxLineLen = 32000
     const maxRetries = 3
-    for (let i = 0; i < customers.length; i += chunkSize) {
-      const chunk = customers.slice(i, i + chunkSize)
-      const customersJson = JSON.stringify(chunk).replace(/\|/g, '\\|')
-      const chunkIndex = Math.floor(i / chunkSize)
+
+    let chunkIndex = 0
+    for (let i = 0; i < customers.length; /* advanced inside */) {
+      const end = Math.min(i + chunkSize, customers.length)
+      const chunk = customers.slice(i, end)
+      const totalChunks = Math.ceil(customers.length / chunkSize)
+
+      const rawJson = JSON.stringify(chunk)
+      const customersJson = btoa(rawJson)
       const line = `UPSERT_${type}_CUSTOMER_JSON_CHUNK|${chunkIndex}|${totalChunks}|${customersJson}`
+
+      // If the generated line is too big, halve the chunk size and retry
+      if (line.length > maxLineLen) {
+        chunkSize = Math.max(1, Math.floor(chunkSize / 2))
+        console.warn(`chunk too large (${line.length}), lowering size to ${chunkSize}`)
+        continue // try again with smaller chunk
+      }
+
+      // debug: log length so we can spot overly large transmissions
+      console.debug(`sending chunk ${chunkIndex}/${totalChunks} len=${line.length}`)
 
       let attempt = 0
       while (attempt < maxRetries) {
         attempt++
         try {
-          // Create the ACK promise first so the line handler can resolve it
           const ackPromise = waitForChunkAck(chunkIndex, totalChunks)
           await sendLine(line)
-          // Wait for ACK (or timeout inside waitForChunkAck)
           await ackPromise
-          // Success
           break
         } catch (error) {
           console.error(`Chunk ${chunkIndex} for ${type} attempt ${attempt} failed:`, error)
           if (attempt >= maxRetries) {
             throw new Error(`Failed to send chunk ${chunkIndex} for ${type} after ${maxRetries} attempts`)
           }
-          // Backoff before retry
           await new Promise(resolve => setTimeout(resolve, 500 * attempt))
         }
       }
 
-      // Small pause to let device finalize processing before next chunk
-      await new Promise(resolve => setTimeout(resolve, 200))
+      // Move forward
+      i = end
+      chunkIndex++
+      await new Promise(resolve => setTimeout(resolve, 50))
     }
   }
 

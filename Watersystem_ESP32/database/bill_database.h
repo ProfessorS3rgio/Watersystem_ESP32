@@ -341,6 +341,38 @@ int findBillByAccount(String accountNo) {
   return billIndex;
 }
 
+// ===== CHARGE COMPUTATION HELPERS =====
+// Applies common billing rules.  The "Officers" class uses a special
+// scheme where once usage exceeds the minimum threshold the bill is
+// composed of the fixed minimum charge plus the normal per‑m3 rate for
+// *all* cubic meters.  (The old logic effectively ignored the minimum
+// when usage was above the threshold, which produced incorrect results
+// on the meter device.)
+static float computeCharges(CustomerType* type, unsigned long usage) {
+  if (!type) return 0.0f;
+  // officers get the minimum fee plus rate for every m3 when they go over
+  // Case-insensitive comparison so "officers", "Officers", "OFFICERS"
+  // etc. all map to the special rule.  Trim any accidental whitespace too.
+  String tn = type->type_name;
+  tn.trim();
+  tn.toLowerCase();
+  if (tn == "officers") {
+    if (usage <= type->min_m3) {
+      return type->min_charge;
+    }
+    // note: do not subtract min_m3 – the requirement is to add the fixed
+    // minimum 100‑peso charge and then apply the cubic rate to the entire
+    // usage amount.
+    return type->min_charge + (usage * type->rate_per_m3);
+  }
+
+  // default behaviour for all other customer types
+  if (usage <= type->min_m3) {
+    return type->min_charge;
+  }
+  return usage * type->rate_per_m3;
+}
+
 // ===== CALCULATE BILL AMOUNT =====
 float calculateBillAmount(unsigned long customerTypeId, unsigned long deductionId) {
   int typeIndex = findCustomerTypeById(customerTypeId);
@@ -348,6 +380,10 @@ float calculateBillAmount(unsigned long customerTypeId, unsigned long deductionI
   CustomerType* type = getCustomerTypeAt(typeIndex);
   if (!type) return 0.0;
 
+  // The original implementation only returned the minimum charge and
+  // ignored usage completely.  It is unclear where this helper is used
+  // in the firmware, but to stay consistent we keep the old behaviour
+  // for now (usage information isn’t available here).
   float baseAmount = type->min_charge; // Minimum charge
 
   // Apply deductions
@@ -546,13 +582,8 @@ bool generateBillForCustomer(String accountNo, unsigned long currentReading) {
     Serial.println(readingId);
   }
 
-  // Calculate charges based on usage
-  float charges = 0.0;
-  if (usage <= customerType->min_m3) {
-    charges = customerType->min_charge;
-  } else {
-    charges = usage * customerType->rate_per_m3;
-  }
+  // Calculate charges based on usage (includes special Officers logic)
+  float charges = computeCharges(customerType, usage);
 
   // Apply deductions
   float deductionAmount = calculateDeductions(charges, customer->deduction_id);

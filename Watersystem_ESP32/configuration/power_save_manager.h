@@ -97,10 +97,12 @@ bool powerSaveConsumeWakeKey(char key) {
   if (key == 'D') {
     Serial.print(F("[PowerSave] Wake key accepted: "));
     Serial.println(key);
-    if (g_powerSave.printer != nullptr) {
-      Serial.println(F("[PowerSave] Waking printer"));
-      g_powerSave.printer->wake();
-    }
+    // waking printer disabled; keep it powered during power save
+    // if (g_powerSave.printer != nullptr) {
+    //   Serial.println(F("[PowerSave] Waking printer"));
+    //   g_powerSave.printer->wake();
+    // }
+
     Serial.println(F("[PowerSave] Restoring CPU frequency"));
     setCpuFrequencyMhz(g_powerSave.fullCpuMhz);
     Serial.println(F("[PowerSave] Turning backlight ON (BLK)"));
@@ -171,10 +173,12 @@ void powerSaveTask(void* parameter) {
       Serial.println(F("[PowerSave] Turning backlight OFF (BLK)"));
       powerSaveApplyBacklight(false, g_powerSave.dimBrightness);
 
-      Serial.println(F("[PowerSave] Putting printer to sleep"));
-      if (g_powerSave.printer != nullptr) {
-        g_powerSave.printer->sleep();
-      }
+      // printer sleep disabled - hardware may be needed while idle
+      // Serial.println(F("Putting printer to sleep"));
+      // if (g_powerSave.printer != nullptr) {
+      //   g_powerSave.printer->sleep();
+      // }
+
       Serial.println(F("[PowerSave] Press D to unlock"));
     }
 
