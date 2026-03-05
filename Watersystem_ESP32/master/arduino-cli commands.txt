@@ -5,3 +5,18 @@ arduino-cli upload -p COM4 --fqbn esp32:esp32:esp32 Watersystem_ESP32.ino
 
 
 arduino-cli compile --upload -p COM4 --fqbn esp32:esp32:esp32 .
+
+
+arduino-cli compile --fqbn esp32:esp32:esp32 --build-property partition_scheme=huge_app --build-property flash_size=8M --build-path C:\Users\ProfessorS3rgio\Documents\Arduino\Watersystem\Watersystem_ESP32\master\build c:\Users\ProfessorS3rgio\Documents\Arduino\Watersystem\Watersystem_ESP32\master
+
+arduino-cli upload -p COM8 -b esp32:esp32:esp32 --input-dir C:\Users\ProfessorS3rgio\Documents\Arduino\Watersystem\Watersystem_ESP32\master\build
+
+
+arduino-cli compile --fqbn esp32:esp32:esp32:PartitionScheme=huge_app,FlashSize=8M .
+
+arduino-cli compile --fqbn esp32:esp32:esp32:PartitionScheme=huge_app,FlashSize=8M .
+
+arduino-cli compile -p COM8 --fqbn esp32:esp32:esp32:PartitionScheme=huge_app,FlashSize=4M .
+
+arduino-cli upload -p COM8 --fqbn esp32:esp32:esp32:PartitionScheme=huge_app,FlashSize=4M .
+

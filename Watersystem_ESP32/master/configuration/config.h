@@ -26,7 +26,7 @@ class BatteryMonitor;
 #define TFT_MISO  12   // SD card only (safe to define)
 
 // ===== SD CARD PINS (SPI - Separate Bus) =====
-#define SD_CS     22     // SD Card Chip Select
+#define SD_CS     5     // SD Card Chip Select
 #define SD_MOSI   23
 #define SD_MISO   19
 #define SD_CLK    18
@@ -37,8 +37,8 @@ class BatteryMonitor;
 #define PRINTER_BAUD 9600
 
 // ===== RTC MODULE PINS (I2C) =====
-#define RTC_SDA 26
-#define RTC_SCL 27
+#define RTC_SDA 21
+#define RTC_SCL 22
 
 // ===== MCP23017 I/O EXPANDER (I2C) =====
 #define MCP23017_ADDR 0x20  // A0-A2 grounded

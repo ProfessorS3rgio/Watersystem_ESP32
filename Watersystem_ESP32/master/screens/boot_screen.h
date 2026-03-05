@@ -10,6 +10,7 @@
 extern TFT_eSPI tft;
 extern HardwareSerial printerSerial;
 extern ThermalPrinter printer;
+extern RTC_DS3231 rtc;   // allow RTC checks
 
 // ===== BOOT SCREEN HELPERS =====
 static bool checkPrinterCommunication(uint16_t timeoutMs = 250) {
@@ -61,6 +62,19 @@ static void showBootScreen() {
   }
   tft.setTextColor(TFT_GREEN);
 
+  // show RTC presence
+  y += 12;
+  tft.setCursor(2, y);
+  tft.print(F("[RTC] "));
+  if (rtc.begin()) {
+    tft.setTextColor(TFT_GREEN);
+    tft.println(F("found"));
+  } else {
+    tft.setTextColor(TFT_RED);
+    tft.println(F("missing"));
+  }
+  tft.setTextColor(TFT_GREEN);
+
   y += 12;
   tft.setCursor(2, y);
   tft.println(F("[CHK] Printer..."));
@@ -70,6 +84,22 @@ static void showBootScreen() {
   printer.begin();
   printer.wake();
   printer.setDefault();
+
+  // check MCP23017 on-screen as well
+  y += 12;
+  tft.setCursor(2, y);
+  tft.print(F("[MCP] "));
+  if (mcp.begin_I2C(MCP23017_ADDR)) {
+    tft.setTextColor(TFT_GREEN);
+    tft.println(F("OK"));
+    // restore the pinMode we set earlier since begin_I2C resets pins
+    mcp.pinMode(9, INPUT);
+  } else {
+    tft.setTextColor(TFT_RED);
+    tft.println(F("FAIL"));
+  }
+  tft.setTextColor(TFT_GREEN);
+
 
   y += 12;
   tft.setCursor(2, y);

@@ -59,6 +59,10 @@ TFT_eSPI tft = TFT_eSPI();
 HardwareSerial printerSerial(2);  // Use UART2 on ESP32
 ThermalPrinter printer(printerSerial);  // thin wrapper around raw UART
 
+// ===== BLE (using NimBLE for smaller footprint) =====
+#include <NimBLEDevice.h>
+// no global instance required; we'll initialize in setup
+
 // ===== RTC MODULE =====
 RTC_DS3231 rtc;
 
@@ -92,6 +96,10 @@ void setup() {
   Serial.begin(SERIAL_BAUD);
   Serial.setRxBufferSize(262144); // 256KB for large JSON payloads
   Serial.setTimeout(30000); // 30 seconds timeout for long transmissions
+
+  // initialize NimBLE (BLE only) for memory footprint testing
+  NimBLEDevice::init("WaterSystem");
+  Serial.println(F("NimBLE initialized"));
   
   // Initialize I2C for RTC
   Wire.begin(RTC_SDA, RTC_SCL);
@@ -107,12 +115,14 @@ void setup() {
     }
   }
   
-  // Initialize MCP23017
+  // Initialize MCP23017 (used for keypad, etc.)
   if (!mcp.begin_I2C(MCP23017_ADDR)) {
-    Serial.println("Error initializing MCP23017");
-    while (1);
+    Serial.println(F("Error initializing MCP23017 - continuing without it"));
+    // don't block; system can still run in reduced mode
+  } else {
+    Serial.println(F("MCP23017 initialized"));
   }
-  Serial.println(F("MCP23017 initialized"));
+
   
   // Set charging detection pin as input
   mcp.pinMode(9, INPUT);  // GPB1 for charging state
@@ -136,6 +146,7 @@ void setup() {
   digitalWrite(SD_CS, HIGH);
 
   // Boot screen: console-style checks (SD + settings + printer)
+  // show immediately after TFT is ready so we can see early errors
   showBootScreen();
 
   // Initialize SQLite Database
