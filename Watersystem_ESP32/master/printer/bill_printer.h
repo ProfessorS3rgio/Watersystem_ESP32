@@ -1,11 +1,23 @@
 #ifndef BILL_PRINTER_H
 #define BILL_PRINTER_H
 
+#include <BLEDevice.h>
+#include <BLEUtils.h>
+#include <BLEClient.h>
 #include "printer/printer_serial.h"
 #include "../database/bill_database.h"  // For BillData currentBill
 #include "../database/device_info.h"   // For getDeviceInfoValue
 #include "../configuration/config.h"    // For YIELD_WDT
 #include "../configuration/logo.h"      // For logo bitmap
+
+// BLE client objects defined in main sketch (master)
+extern BLEClient* pBleClient;
+extern BLERemoteCharacteristic* pBleCharacteristic;
+
+// helper to transmit a command string over BLE (master app)
+extern bool bleSend(const String &cmd);
+
+
 
 // External printer object (defined in main .ino)
 extern ThermalPrinter printer;
@@ -25,6 +37,32 @@ static String fitAddressForPrint(const String& address, size_t maxChars = 21) {
 }
 
 void printBill() {
+  // if we have an active BLE connection to a slave, forward the print job and skip
+  if (pBleCharacteristic && pBleClient && pBleClient->isConnected()) {
+    // construct payload matching slave parser (pipe-delimited)
+    String msg = String("PRINT_BILL|") + currentBill.refNumber + "|" + currentBill.readingDateTime \
+                 + "|" + currentBill.customerName + "|" + currentBill.accountNo \
+                 + "|" + currentBill.customerType + "|" + currentBill.address \
+                 + "|" + currentBill.collector + "|" + String(currentBill.prevReading) \
+                 + "|" + String(currentBill.currReading) + "|" + String(currentBill.rate, 2) \
+                 + "|" + String(currentBill.subtotal, 2);
+    if (currentBill.deductions > 0) {
+      msg += "|" + String(currentBill.deductions, 2);
+    }
+    if (currentBill.penalty > 0) {
+      msg += "|" + String(currentBill.penalty, 2);
+    }
+    msg += "|" + String(currentBill.total, 2);
+    // include bill date if available
+    if (currentBill.billDate.length() > 0) {
+      msg += "|" + currentBill.billDate;
+    }
+    msg += "\n";
+    bleSend(msg);
+    Serial.println(F("Bill forwarded to BLE slave for printing"));
+    return; // local printing skipped
+  }
+
   printer.wake();
   printer.setDefault();
   YIELD_WDT();

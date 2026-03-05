@@ -20,3 +20,4 @@ arduino-cli compile -p COM8 --fqbn esp32:esp32:esp32:PartitionScheme=huge_app,Fl
 
 arduino-cli upload -p COM8 --fqbn esp32:esp32:esp32:PartitionScheme=huge_app,FlashSize=4M .
 
+arduino-cli compile --upload -p COM8 --fqbn esp32:esp32:esp32:PartitionScheme=huge_app,FlashSize=4M .

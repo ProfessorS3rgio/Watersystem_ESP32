@@ -59,9 +59,36 @@ TFT_eSPI tft = TFT_eSPI();
 HardwareSerial printerSerial(2);  // Use UART2 on ESP32
 ThermalPrinter printer(printerSerial);  // thin wrapper around raw UART
 
-// ===== BLE (using NimBLE for smaller footprint) =====
-#include <NimBLEDevice.h>
-// no global instance required; we'll initialize in setup
+// ===== BLE (classic Arduino library) =====
+#include <BLEDevice.h>
+#include <BLEUtils.h>
+#include <BLEScan.h>
+#include <BLEClient.h>
+
+// --- BLE client (master) globals ----------------------------------------
+BLEClient* pBleClient = nullptr;
+BLERemoteCharacteristic* pBleCharacteristic = nullptr;
+BLEAdvertisedDevice* foundDevice = nullptr;
+
+// UUIDs must match the server (slave) code
+static BLEUUID serviceUUID("4fafc201-1fb5-459e-8fcc-c5c9c331914b");
+static BLEUUID charUUID   ("beb5483e-36e1-4688-b7f5-ea07361b26a8");
+
+// forward declaration of helper
+bool bleSend(const String &cmd);
+
+// advertising callback used during scanning
+class MyAdvertisedDeviceCallbacks: public BLEAdvertisedDeviceCallbacks {
+  void onResult(BLEAdvertisedDevice advertisedDevice) override {
+    // you can also check advertisedDevice.getName() == "ESP32_Slave" if desired
+    if (advertisedDevice.haveServiceUUID() && advertisedDevice.getServiceUUID().equals(serviceUUID)) {
+      foundDevice = new BLEAdvertisedDevice(advertisedDevice);
+      BLEDevice::getScan()->stop();
+    }
+  }
+};
+
+// no global instance required; we'll initialize and scan in setup
 
 // ===== RTC MODULE =====
 RTC_DS3231 rtc;
@@ -92,14 +119,60 @@ bool isIdleWorkflowState() {
       || currentState == STATE_VIEW_RATE;
 }
 
+// ---------- BLE helper functions (master) -----------------------------
+
+bool bleSend(const String &cmd) {
+  if (pBleClient && pBleClient->isConnected() && pBleCharacteristic) {
+    String payload = cmd + "\n";
+    const char *data = payload.c_str();
+    size_t len = payload.length();
+    const size_t CHUNK_SZ = 20;
+    size_t offset = 0;
+    while (offset < len) {
+      size_t chunk = min(CHUNK_SZ, len - offset);
+      pBleCharacteristic->writeValue((uint8_t*)(data + offset), chunk);
+      offset += chunk;
+      delay(10);
+    }
+    Serial.println("Sent: " + cmd);
+    return true;
+  }
+  return false;
+}
+
+
 void setup() {
   Serial.begin(SERIAL_BAUD);
   Serial.setRxBufferSize(262144); // 256KB for large JSON payloads
   Serial.setTimeout(30000); // 30 seconds timeout for long transmissions
 
-  // initialize NimBLE (BLE only) for memory footprint testing
-  NimBLEDevice::init("WaterSystem");
-  Serial.println(F("NimBLE initialized"));
+  // initialize classic BLE
+  BLEDevice::init("WaterSystem");
+  Serial.println(F("BLE initialized (classic)") );
+
+  // perform a short scan to locate the slave
+  BLEScan* pBLEScan = BLEDevice::getScan();
+  pBLEScan->setAdvertisedDeviceCallbacks(new MyAdvertisedDeviceCallbacks());
+  pBLEScan->setActiveScan(true);
+  Serial.println(F("Scanning for BLE slave device..."));
+  pBLEScan->start(5, false); // 5-second scan
+
+  if (foundDevice) {
+    Serial.print(F("Found slave: "));
+    Serial.println(foundDevice->getAddress().toString().c_str());
+    pBleClient = BLEDevice::createClient();
+    Serial.println(F("Connecting to slave..."));
+    pBleClient->connect(foundDevice);
+    pBleCharacteristic = pBleClient->getService(serviceUUID)->getCharacteristic(charUUID);
+    if (pBleCharacteristic) {
+      Serial.println(F("Obtained remote characteristic"));
+    } else {
+      Serial.println(F("Failed to obtain characteristic"));
+    }
+    Serial.println(F("BLE connection established"));
+  } else {
+    Serial.println(F("Slave not found"));
+  }
   
   // Initialize I2C for RTC
   Wire.begin(RTC_SDA, RTC_SCL);
