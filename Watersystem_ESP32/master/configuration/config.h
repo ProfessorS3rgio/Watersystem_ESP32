@@ -17,7 +17,7 @@ class BatteryMonitor;
 
 // ===== TFT DISPLAY PINS (ILI9341) =====
 #define TFT_CS    15
-#define TFT_RST   4
+#define TFT_RST   -1
 #define TFT_DC    2
 #define TFT_BLK   21
 #define TFT_BACKLIGHT_ACTIVE_HIGH 1  // 1: BLK HIGH = ON, 0: BLK LOW = ON
@@ -37,7 +37,7 @@ class BatteryMonitor;
 #define PRINTER_BAUD 9600
 
 // ===== RTC MODULE PINS (I2C) =====
-#define RTC_SDA 21
+#define RTC_SDA 27
 #define RTC_SCL 22
 
 // ===== MCP23017 I/O EXPANDER (I2C) =====
@@ -98,9 +98,6 @@ extern BatteryMonitor batteryMonitor;
 
 String getCurrentDateTimeString() {
   DateTime now = rtc.now();
-  char buf[20];
-  sprintf(buf, "%04d-%02d-%02d %02d:%02d:%02d", now.year(), now.month(), now.day(), now.hour(), now.minute(), now.second());
-  return String(buf);
 }
 
 #endif  // CONFIG_H

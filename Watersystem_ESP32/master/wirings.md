@@ -7,7 +7,7 @@
 | VDD     | 3.3V        | Power (Solid Orange)           |
 | GND     | GND         | Ground (Solid Black)           |
 | CS      | GPIO 15     | Chip Select (Solid green)      |
-| RST     | GPIO 4      | Reset (stripe green)           |
+| RST     | -1          | Reset not connected            |
 | DC      | GPIO 2      | Data/Command (stripe blue)     |
 | MOSI    | GPIO 13     | MOSI (SPI) (stripe Orange)     |
 | SCK     | GPIO 14     | CLK (SPI) (Solid blue)         |
@@ -19,7 +19,6 @@
 |-------------|----------|--------------------------|
 | TX          | GPIO 16  | ESP32 RX ← Printer TX (solid blue) |
 | RX          | GPIO 17  | ESP32 TX → Printer RX (solid green) |
-| DTR         | GPIO 5   | ESP32 DTR → Printer DTR (stripe blue) |
 | GND         | GND      | Common ground (solid brown) |
 | VCC         | 5V-9V    | Printer power supply (solid orange) |
 
@@ -27,7 +26,7 @@
 
 | SD Card Pin | ESP32    | Notes                      |
 |-------------|----------|----------------------------|
-| CS          | GPIO 22  | Chip Select (dedicated) (stripe blue) |
+| CS          | GPIO 5   | Chip Select                |
 | MOSI        | GPIO 23  | SD SPI (solid green)       |
 | CLK         | GPIO 18  | SD SPI (solid blue)        |
 | MISO        | GPIO 19  | SD SPI (stripe green)      |
@@ -38,8 +37,8 @@
 |---------|----------|----------------------------|
 | VCC     | 3.3V     | Power                      |
 | GND     | GND      | Ground                     |
-| SDA     | GPIO 26  | I2C Data                   |
-| SCL     | GPIO 27  | I2C Clock                  |
+| SDA     | GPIO 27  | I2C Data                   |
+| SCL     | GPIO 22  | I2C Clock                  |
 | NC      | -        | Not Connected             |
 
 ## MCP23017 I/O Expander (I2C)
@@ -48,8 +47,8 @@
 |--------------|----------|----------------------------|
 | VCC          | 3.3V     | Power                      |
 | GND          | GND      | Ground                     |
-| SDA          | GPIO 26  | I2C Data (shared with RTC) |
-| SCL          | GPIO 27  | I2C Clock (shared with RTC)|
+| SDA          | GPIO 27  | I2C Data (shared with RTC) |
+| SCL          | GPIO 22  | I2C Clock (shared with RTC)|
 | RESET        | 3.3V     | Reset (active low, tie high)|
 | A0           | GND      | Address bit 0 (address 0x20)|
 | A1           | GND      | Address bit 1              |
@@ -84,8 +83,7 @@
 | GPIO | Function              | Peripheral       |
 |------|-----------------------|------------------|
 | 2    | TFT DC                | ILI9341 Display  |
-| 4    | TFT RST               | ILI9341 Display  |
-| 5    | Printer DTR            | Thermal Printer  |
+| 5    | SD Card CS            | SD Card Module   |
 | 13   | TFT MOSI              | ILI9341 Display  |
 | 14   | TFT SCLK              | ILI9341 Display  |
 | 15   | TFT CS                | ILI9341 Display  |
@@ -94,12 +92,45 @@
 | 18   | SD SPI CLK            | SD Card Module   |
 | 19   | SD SPI MISO           | SD Card Module   |
 | 21   | TFT Backlight         | ILI9341 Display  |
-| 22   | SD Card CS            | SD Card Module   |
+| 22   | -                     | -                 |
 | 23   | SD SPI MOSI           | SD Card Module   |
 | 25   | -                     | -                 |
-| 26   | I2C SDA              | RTC Module, MCP23017 |
-| 27   | I2C SCL              | RTC Module, MCP23017 |
+| 26   | -                     | -                 |
+| 27   | I2C SDA              | RTC Module, MCP23017 |
 | 32   | MCP23017 INTA        | Interrupt from MCP23017 |
 | 33   | -                     | -                 |
 | 34   | -                     | -                 |
 | 35   | -                     | -                 |
+
+## ESP32 CYD Reference
+
+### MicroSD card SPI
+
+| Signal | GPIO |
+|--------|------|
+| MISO   | GPIO 19 |
+| MOSI   | GPIO 23 |
+| SCK    | GPIO 18 |
+| CS     | GPIO 5  |
+
+### TFT display SPI
+
+| Signal | GPIO |
+|--------|------|
+| MISO (`TFT_MISO`) | GPIO 12 |
+| MOSI (`TFT_MOSI`) | GPIO 13 |
+| SCLK (`TFT_SCLK`) | GPIO 14 |
+| CS (`TFT_CS`)     | GPIO 15 |
+| DC (`TFT_DC`)     | GPIO 2  |
+| RST (`TFT_RST`)   | -1      |
+| Backlight         | GPIO 21 |
+
+### Shared I2C bus
+
+| Signal | GPIO |
+|--------|------|
+| SDA    | GPIO 27 |
+| SCL    | GPIO 22 |
+
+> GPIO 21 is reserved for the TFT backlight on the ESP32 CYD, so it should not be used for I2C.
+> GPIO 35 is input-only and should not be used for I2C SDA/SCL.

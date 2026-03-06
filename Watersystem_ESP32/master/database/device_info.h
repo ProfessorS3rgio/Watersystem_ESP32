@@ -37,21 +37,41 @@ static void setDeviceInfoValue(const char* key, const String& value) {
     Serial.println(F("DB not open"));
     return;
   }
-  char sql[256];
+
+  const char* sql = nullptr;
+  bool bindAsInt = false;
   String mac = getDeviceUID();
   String nowStr = getCurrentDateTimeString();
+
   if (strcmp(key, "print_count") == 0) {
-    sprintf(sql, "UPDATE device_info SET print_count = %d, updated_at = '%s' WHERE device_mac = '%s';", value.toInt(), nowStr.c_str(), mac.c_str());
+    sql = "UPDATE device_info SET print_count = ?, updated_at = ? WHERE device_mac = ?;";
+    bindAsInt = true;
   } else if (strcmp(key, "last_sync_epoch") == 0) {
-    sprintf(sql, "UPDATE device_info SET last_sync = '%s', updated_at = '%s' WHERE device_mac = '%s';", value.c_str(), nowStr.c_str(), mac.c_str());
+    sql = "UPDATE device_info SET last_sync = ?, updated_at = ? WHERE device_mac = ?;";
   } else {
     // For other keys, do nothing or handle if needed
     return;
   }
-  Serial.print(F("Executing SQL: "));
-  Serial.println(sql);
-  int rc = sqlite3_exec(db, sql, NULL, NULL, NULL);
+
+  sqlite3_stmt* stmt = nullptr;
+  int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
   if (rc != SQLITE_OK) {
+    Serial.printf("Failed to prepare device_info update: %s\n", sqlite3_errmsg(db));
+    return;
+  }
+
+  if (bindAsInt) {
+    sqlite3_bind_int(stmt, 1, value.toInt());
+  } else {
+    sqlite3_bind_text(stmt, 1, value.c_str(), -1, SQLITE_TRANSIENT);
+  }
+  sqlite3_bind_text(stmt, 2, nowStr.c_str(), -1, SQLITE_TRANSIENT);
+  sqlite3_bind_text(stmt, 3, mac.c_str(), -1, SQLITE_TRANSIENT);
+
+  rc = sqlite3_step(stmt);
+  sqlite3_finalize(stmt);
+
+  if (rc != SQLITE_DONE) {
     Serial.printf("SQL error: %s\n", sqlite3_errmsg(db));
   } else {
     Serial.println(F("SQL executed successfully"));
@@ -74,7 +94,7 @@ static String getDeviceInfoValue(const char* key) {
   else if (strcmp(key, "last_sync_epoch") == 0) column = "last_sync";
   else return "";
   
-  sprintf(sql, "SELECT %s FROM device_info WHERE device_mac = '%s';", column, getDeviceUID().c_str());
+  snprintf(sql, sizeof(sql), "SELECT %s FROM device_info WHERE device_mac = '%s';", column, getDeviceUID().c_str());
   sqlite3_stmt* stmt;
   int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
   if (rc != SQLITE_OK) return "";

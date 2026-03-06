@@ -25,19 +25,19 @@ void updateWelcomeBatteryStatus(int batteryPct) {
   char timeBuf[20];
 
   // Format Date: MM/DD/YYYY
-  sprintf(dateBuf, "%02d/%02d/%04d",
-          now.month(),
-          now.day(),
-          now.year());
+  snprintf(dateBuf, sizeof(dateBuf), "%02d/%02d/%04d",
+           now.month(),
+           now.day(),
+           now.year());
 
   // Format Time: 12-hour format
   int hour12 = now.hour() % 12;
   if (hour12 == 0) hour12 = 12;
 
-  sprintf(timeBuf, "%d:%02d%s",
-          hour12,
-          now.minute(),
-          now.hour() >= 12 ? "PM" : "AM");
+  snprintf(timeBuf, sizeof(timeBuf), "%d:%02d%s",
+           hour12,
+           now.minute(),
+           now.hour() >= 12 ? "PM" : "AM");
 
   // ===== DISPLAY DATE (CENTERED LOOK) =====
   tft.setFreeFont(&FreeSansBold9pt7b);

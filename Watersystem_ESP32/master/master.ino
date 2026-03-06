@@ -17,7 +17,7 @@ SPIClass SPI_SD(VSPI);
 #define ILI9341_DRIVER
 #define TFT_CS    15
 #define TFT_DC    2
-#define TFT_RST   4
+#define TFT_RST   -1
 #define TFT_BL    21
 #define TFT_MOSI  13
 #define TFT_SCLK  14
