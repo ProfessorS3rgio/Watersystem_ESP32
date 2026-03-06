@@ -10,6 +10,7 @@
 #include "components/battery_monitor.h"
 
 extern Adafruit_MCP23X17 mcp;
+extern bool g_mcpReady;
 
 
 // ***************************************************************************
@@ -196,7 +197,7 @@ int BatteryMonitor::mapVoltageToSocCurve(int voltage_mV) const
 
 bool BatteryMonitor::isCharging()
 {
-    if (_chargingPin_mcp == -1) {
+    if (_chargingPin_mcp == -1 || !g_mcpReady) {
         return false;  // Not configured
     }
     // Active high: high = charging

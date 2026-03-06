@@ -196,7 +196,7 @@ int BatteryMonitor::mapVoltageToSocCurve(int voltage_mV) const
 
 bool BatteryMonitor::isCharging()
 {
-    if (_chargingPin_mcp == -1) {
+    if (_chargingPin_mcp == -1 || !g_mcpReady) {
         return false;  // Not configured
     }
     // Active high: high = charging

@@ -45,9 +45,11 @@ SPIClass SPI_SD(VSPI);
 #include "components/battery_display.h"
 #include "components/bmp_display.h"
 #include "printer/bill_printer.h"
+#include "printer/ble_printer_test.h"
 #include "printer/receipt_printer.h"
 #include "screens/boot_screen.h"
 #include "configuration/power_save_manager.h"
+#include "bluetooth/ble_slave_manager.h"
 
 
 
@@ -59,42 +61,12 @@ TFT_eSPI tft = TFT_eSPI();
 HardwareSerial printerSerial(2);  // Use UART2 on ESP32
 ThermalPrinter printer(printerSerial);  // thin wrapper around raw UART
 
-// ===== BLE (classic Arduino library) =====
-#include <BLEDevice.h>
-#include <BLEUtils.h>
-#include <BLEScan.h>
-#include <BLEClient.h>
-
-// --- BLE client (master) globals ----------------------------------------
-BLEClient* pBleClient = nullptr;
-BLERemoteCharacteristic* pBleCharacteristic = nullptr;
-BLEAdvertisedDevice* foundDevice = nullptr;
-
-// UUIDs must match the server (slave) code
-static BLEUUID serviceUUID("4fafc201-1fb5-459e-8fcc-c5c9c331914b");
-static BLEUUID charUUID   ("beb5483e-36e1-4688-b7f5-ea07361b26a8");
-
-// forward declaration of helper
-bool bleSend(const String &cmd);
-
-// advertising callback used during scanning
-class MyAdvertisedDeviceCallbacks: public BLEAdvertisedDeviceCallbacks {
-  void onResult(BLEAdvertisedDevice advertisedDevice) override {
-    // you can also check advertisedDevice.getName() == "ESP32_Slave" if desired
-    if (advertisedDevice.haveServiceUUID() && advertisedDevice.getServiceUUID().equals(serviceUUID)) {
-      foundDevice = new BLEAdvertisedDevice(advertisedDevice);
-      BLEDevice::getScan()->stop();
-    }
-  }
-};
-
-// no global instance required; we'll initialize and scan in setup
-
 // ===== RTC MODULE =====
 RTC_DS3231 rtc;
 
 // ===== MCP23017 I/O EXPANDER =====
 Adafruit_MCP23X17 mcp;
+bool g_mcpReady = false;
 
 // ===== BATTERY MONITOR =====
 BatteryMonitor batteryMonitor(BATTERY_PIN, 1629, 0, 10, 3400, 4200, CHARGING_PIN_MCP);
@@ -119,60 +91,44 @@ bool isIdleWorkflowState() {
       || currentState == STATE_VIEW_RATE;
 }
 
-// ---------- BLE helper functions (master) -----------------------------
+String readSerialCommand() {
+  static String serialBuffer;
+  static unsigned long lastByteMs = 0;
 
-bool bleSend(const String &cmd) {
-  if (pBleClient && pBleClient->isConnected() && pBleCharacteristic) {
-    String payload = cmd + "\n";
-    const char *data = payload.c_str();
-    size_t len = payload.length();
-    const size_t CHUNK_SZ = 20;
-    size_t offset = 0;
-    while (offset < len) {
-      size_t chunk = min(CHUNK_SZ, len - offset);
-      pBleCharacteristic->writeValue((uint8_t*)(data + offset), chunk);
-      offset += chunk;
-      delay(10);
+  while (Serial.available()) {
+    char ch = static_cast<char>(Serial.read());
+    lastByteMs = millis();
+
+    if (ch == '\r' || ch == '\n') {
+      if (serialBuffer.length() == 0) {
+        continue;
+      }
+
+      String cmd = serialBuffer;
+      serialBuffer = "";
+      cmd.trim();
+      return cmd;
     }
-    Serial.println("Sent: " + cmd);
-    return true;
-  }
-  return false;
-}
 
+    serialBuffer += ch;
+  }
+
+  if (serialBuffer.length() > 0 && (millis() - lastByteMs) > 120) {
+    String cmd = serialBuffer;
+    serialBuffer = "";
+    cmd.trim();
+    return cmd;
+  }
+
+  return "";
+}
 
 void setup() {
   Serial.begin(SERIAL_BAUD);
   Serial.setRxBufferSize(262144); // 256KB for large JSON payloads
   Serial.setTimeout(30000); // 30 seconds timeout for long transmissions
 
-  // initialize classic BLE
-  BLEDevice::init("WaterSystem");
-  Serial.println(F("BLE initialized (classic)") );
-
-  // perform a short scan to locate the slave
-  BLEScan* pBLEScan = BLEDevice::getScan();
-  pBLEScan->setAdvertisedDeviceCallbacks(new MyAdvertisedDeviceCallbacks());
-  pBLEScan->setActiveScan(true);
-  Serial.println(F("Scanning for BLE slave device..."));
-  pBLEScan->start(5, false); // 5-second scan
-
-  if (foundDevice) {
-    Serial.print(F("Found slave: "));
-    Serial.println(foundDevice->getAddress().toString().c_str());
-    pBleClient = BLEDevice::createClient();
-    Serial.println(F("Connecting to slave..."));
-    pBleClient->connect(foundDevice);
-    pBleCharacteristic = pBleClient->getService(serviceUUID)->getCharacteristic(charUUID);
-    if (pBleCharacteristic) {
-      Serial.println(F("Obtained remote characteristic"));
-    } else {
-      Serial.println(F("Failed to obtain characteristic"));
-    }
-    Serial.println(F("BLE connection established"));
-  } else {
-    Serial.println(F("Slave not found"));
-  }
+  bleSlaveManagerBegin();
   
   // Initialize I2C for RTC
   Wire.begin(RTC_SDA, RTC_SCL);
@@ -189,16 +145,14 @@ void setup() {
   }
   
   // Initialize MCP23017 (used for keypad, etc.)
-  if (!mcp.begin_I2C(MCP23017_ADDR)) {
+  g_mcpReady = mcp.begin_I2C(MCP23017_ADDR);
+  if (!g_mcpReady) {
     Serial.println(F("Error initializing MCP23017 - continuing without it"));
     // don't block; system can still run in reduced mode
   } else {
     Serial.println(F("MCP23017 initialized"));
+    mcp.pinMode(CHARGING_PIN_MCP, INPUT);  // GPB1 for charging state
   }
-
-  
-  // Set charging detection pin as input
-  mcp.pinMode(9, INPUT);  // GPB1 for charging state
   
   // Initialize TFT Backlight with PWM
   ledcAttach(TFT_BLK, 5000, 8);  // pin, frequency, resolution
@@ -244,7 +198,7 @@ void setup() {
   initCustomerTypesDatabase();
 
   // Initialize Settings Database
-  initSettingsDatabase();
+  // initSettingsDatabase();
 
   // Initialize Bills Database
   initBillsDatabase();
@@ -293,9 +247,10 @@ void loop() {
   }
   
   // ===== SERIAL INPUT =====
-  if (Serial.available()) {
-    String raw = Serial.readStringUntil('\n');
-    raw.trim();
+  String raw = readSerialCommand();
+  if (raw.length() > 0) {
+    powerSaveWakeFromSerial();
+    powerSaveNotifyActivity("serial-command");
 
     // Simulate keypad press if single character
     if (raw.length() == 1) {
@@ -475,10 +430,14 @@ void loop() {
     cmd.toUpperCase();
     
     if (cmd == "P" || cmd == "PRINT") {
-      Serial.println(F("Printing sample bill..."));
+      Serial.println(F("Printing sample bill through BLE slave..."));
+      prepareSampleBillForBlePrintTest();
       displayBillOnTFT();
-      printBill();
-      Serial.println(F("Print complete."));
+      if (printSampleBillViaBleSlave()) {
+        Serial.println(F("Print complete."));
+      } else {
+        Serial.println(F("Print skipped. BLE slave is not ready."));
+      }
     } 
     else if (cmd == "D" || cmd == "DISPLAY") {
       Serial.println(F("Displaying sample bill on TFT..."));

@@ -11,7 +11,7 @@ String getCurrentDateTimeString();
 
 #include "printer/bill_printer.h"
 #include "printer/receipt_printer.h"
-
+ 
 // database structures and globals (stubs for compilation)
 #include "database/bill_database.h"          // gives BillData currentBill
 #include "database/bill_transactions_database.h" // gives ReceiptData currentReceipt
@@ -37,6 +37,7 @@ void parseReceiptPayload(const String &payload);
 void handleCommand(const String &cmd);
 
 BLECharacteristic* pCharacteristic;
+volatile bool g_bleClientConnected = false;
 
 // buffer for incoming BLE data
 static String bleBuffer = "";
@@ -70,6 +71,10 @@ void sendNotification(const String &msg) {
         pCharacteristic->setValue(msg.c_str());
         pCharacteristic->notify();
     }
+}
+
+void sendNotificationLine(const String &msg) {
+    sendNotification(msg + "\n");
 }
 
 // --------------------------------------------------
@@ -138,6 +143,23 @@ void parseReceiptPayload(const String &payload) {
 }
 
 void handleCommand(const String &cmd) {
+    if (cmd.equalsIgnoreCase("PING")) {
+        sendNotificationLine("PONG");
+        Serial.println("PONG sent to master");
+        return;
+    }
+
+    if (cmd.equalsIgnoreCase("HELLO") || cmd.startsWith("HELLO|")) {
+        sendNotificationLine("CONNECTED");
+        Serial.print("Handshake completed with: ");
+        if (cmd.length() > 6) {
+            Serial.println(cmd.substring(6));
+        } else {
+            Serial.println("unknown master");
+        }
+        return;
+    }
+
     // try JSON first
     StaticJsonDocument<300> doc;
     DeserializationError err = deserializeJson(doc, cmd);
@@ -182,10 +204,16 @@ void setup() {
     
     class ServerCallbacks : public BLEServerCallbacks {
       void onConnect(BLEServer* pServer) {
+                                        (void)pServer;
+                    g_bleClientConnected = true;
           Serial.println("Master connected");
       }
       void onDisconnect(BLEServer* pServer) {
+                    (void)pServer;
+                    g_bleClientConnected = false;
           Serial.println("Master disconnected");
+                    BLEDevice::startAdvertising();
+                    Serial.println("Advertising restarted");
       }
     };
     

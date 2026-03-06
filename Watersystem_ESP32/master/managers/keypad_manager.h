@@ -9,6 +9,7 @@
 #include "../database/barangay_database.h"
 #include "../database/bill_transactions_database.h"
 #include "../database/test_data_generator.h"
+#include "../printer/ble_printer_test.h"
 #include "../printer/receipt_printer.h"
 #include "../screens/warning_screen.h"
 #include <SD.h>
@@ -59,8 +60,25 @@ char keys[KEYPAD_ROWS][KEYPAD_COLS] = {
 // MCP23017 pins for keypad
 // Rows: GPA0-GPA3, Columns: GPA4-GPA7
 
+constexpr bool KEYPAD_SCANNING_ENABLED = false;
+
 // ===== KEYPAD SCANNING FUNCTION =====
 char getKey() {
+  if (!KEYPAD_SCANNING_ENABLED) {
+    static bool keypadDisabledLogged = false;
+    if (!keypadDisabledLogged) {
+      Serial.println(F("[Keypad] Scanning temporarily disabled"));
+      keypadDisabledLogged = true;
+    }
+    return '\0';
+  }
+
+  if (!g_mcpReady) {
+    return '\0';
+  }
+
+  const uint32_t releaseTimeoutMs = 300;
+
   // Set columns as outputs HIGH, rows as inputs with pullup
   for (int c = 0; c < KEYPAD_COLS; c++) {
     mcp.pinMode(KEYPAD_COL_PINS[c], OUTPUT);
@@ -80,6 +98,7 @@ char getKey() {
         delay(10);
         if (mcp.digitalRead(KEYPAD_ROW_PINS[r]) == LOW) {
           // Wait for release
+          unsigned long pressedAt = millis();
           while (true) {
             bool released = true;
             for (int cc = 0; cc < KEYPAD_COLS; cc++) {
@@ -94,6 +113,17 @@ char getKey() {
               if (!released) break;
             }
             if (released) break;
+            if (millis() - pressedAt > releaseTimeoutMs) {
+              static unsigned long lastWarnMs = 0;
+              if (millis() - lastWarnMs > 5000) {
+                Serial.println(F("[Keypad] Release timeout - possible stuck/noisy key"));
+                lastWarnMs = millis();
+              }
+              for (int resetCol = 0; resetCol < KEYPAD_COLS; resetCol++) {
+                mcp.digitalWrite(KEYPAD_COL_PINS[resetCol], HIGH);
+              }
+              return '\0';
+            }
             delay(10);
           }
           mcp.digitalWrite(KEYPAD_COL_PINS[c], HIGH);
@@ -189,13 +219,24 @@ void handleKeypadInput(char key) {
       // Printer Test
       tft.fillScreen(COLOR_BG);
       tft.setTextColor(COLOR_HEADER);
-      tft.setCursor(25, 50);
-      tft.println(F("Printing test..."));
-      printer.wake();
-      printer.println(F("=== PRINTER TEST ==="));
-      printer.println(F("Water Billing System"));
-      printer.println(F("Test Print OK"));
-      printer.feed(3);
+      tft.setCursor(8, 40);
+      tft.println(F("Sending sample bill"));
+      tft.setCursor(18, 55);
+      tft.println(F("to BLE slave..."));
+
+      if (printSampleBillViaBleSlave()) {
+        tft.setTextColor(TFT_GREEN);
+        tft.setCursor(22, 80);
+        tft.println(F("Slave print sent"));
+      } else {
+        tft.setTextColor(TFT_RED);
+        tft.setCursor(15, 80);
+        tft.println(F("BLE slave offline"));
+        tft.setTextColor(COLOR_TEXT);
+        tft.setCursor(8, 96);
+        tft.println(F("Wait for connection"));
+      }
+
       delay(2000);
       displayMenuScreen();
     }

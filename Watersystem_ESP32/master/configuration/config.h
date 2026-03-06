@@ -92,12 +92,38 @@ const byte KEYPAD_COL_PINS[KEYPAD_COLS] = {4, 5, 6, 7};  // GPA4-GPA7
 sqlite3 *db = nullptr;
 
 extern Adafruit_MCP23X17 mcp;
+extern bool g_mcpReady;
 extern RTC_DS3231 rtc;
 extern float paymentAmount;
 extern BatteryMonitor batteryMonitor;
 
+static bool isPlausibleDateTime(const DateTime& dt) {
+  return dt.year() >= 2000 && dt.year() <= 2099
+      && dt.month() >= 1 && dt.month() <= 12
+      && dt.day() >= 1 && dt.day() <= 31
+      && dt.hour() >= 0 && dt.hour() <= 23
+      && dt.minute() >= 0 && dt.minute() <= 59
+      && dt.second() >= 0 && dt.second() <= 59;
+}
+
 String getCurrentDateTimeString() {
   DateTime now = rtc.now();
+  char buf[24];
+
+  if (!isPlausibleDateTime(now)) {
+    static bool warnedInvalidRtc = false;
+    if (!warnedInvalidRtc) {
+      Serial.println(F("[RTC] Invalid date/time read; using safe fallback timestamp"));
+      warnedInvalidRtc = true;
+    }
+    snprintf(buf, sizeof(buf), "%s", "2000-01-01 00:00:00");
+    return String(buf);
+  }
+
+  snprintf(buf, sizeof(buf), "%04d-%02d-%02d %02d:%02d:%02d",
+           now.year(), now.month(), now.day(),
+           now.hour(), now.minute(), now.second());
+  return String(buf);
 }
 
 #endif  // CONFIG_H

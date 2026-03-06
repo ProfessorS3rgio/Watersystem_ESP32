@@ -90,11 +90,13 @@ static void showBootScreen() {
   tft.setCursor(2, y);
   tft.print(F("[MCP] "));
   if (mcp.begin_I2C(MCP23017_ADDR)) {
+    g_mcpReady = true;
     tft.setTextColor(TFT_GREEN);
     tft.println(F("OK"));
     // restore the pinMode we set earlier since begin_I2C resets pins
-    mcp.pinMode(9, INPUT);
+    mcp.pinMode(CHARGING_PIN_MCP, INPUT);
   } else {
+    g_mcpReady = false;
     tft.setTextColor(TFT_RED);
     tft.println(F("FAIL"));
   }
@@ -122,7 +124,7 @@ static void showBootScreen() {
     tft.fillRect(0, countdownY, 160, 10, COLOR_BG);
     tft.setTextColor(COLOR_LABEL);
     tft.setCursor(2, countdownY);
-    tft.print(F("Booting in "));
+    tft.print(F("Booting inwithin "));
     tft.print(i);
     tft.print(F("..."));
     delay(1000);

@@ -120,6 +120,23 @@ bool powerSaveConsumeWakeKey(char key) {
   return false;
 }
 
+bool powerSaveWakeFromSerial() {
+  if (!g_powerSave.waitingForWakeKey) {
+    return true;
+  }
+
+  Serial.println(F("[PowerSave] Serial command wake"));
+  Serial.println(F("[PowerSave] Restoring CPU frequency"));
+  setCpuFrequencyMhz(g_powerSave.fullCpuMhz);
+  Serial.println(F("[PowerSave] Turning backlight ON (BLK)"));
+  powerSaveApplyBacklight(true, g_powerSave.fullBrightness);
+  g_powerSave.inPowerSave = false;
+  g_powerSave.waitingForWakeKey = false;
+  g_powerSave.lastActivityMs = millis();
+  Serial.println(F("[PowerSave] Active mode restored"));
+  return true;
+}
+
 void powerSaveSetEnabled(bool enabled) {
   if (g_powerSave.enabled == enabled) {
     return;
