@@ -37,7 +37,14 @@ void parseReceiptPayload(const String &payload);
 void handleCommand(const String &cmd);
 
 BLECharacteristic* pCharacteristic;
+BLEServer* g_pServer = nullptr;
+BLEAdvertising* g_pAdvertising = nullptr;
 volatile bool g_bleClientConnected = false;
+volatile bool g_bleRefreshRequested = false;
+unsigned long g_bleRefreshAtMs = 0;
+
+void scheduleBleRefresh(uint32_t delayMs = 250);
+void refreshBleAdvertising();
 
 // buffer for incoming BLE data
 static String bleBuffer = "";
@@ -75,6 +82,31 @@ void sendNotification(const String &msg) {
 
 void sendNotificationLine(const String &msg) {
     sendNotification(msg + "\n");
+}
+
+void scheduleBleRefresh(uint32_t delayMs) {
+    g_bleRefreshRequested = true;
+    g_bleRefreshAtMs = millis() + delayMs;
+}
+
+void refreshBleAdvertising() {
+    if (g_pAdvertising == nullptr) {
+        g_pAdvertising = BLEDevice::getAdvertising();
+        if (g_pAdvertising != nullptr) {
+            g_pAdvertising->addServiceUUID(serviceUUID);
+        }
+    }
+
+    if (g_pAdvertising == nullptr) {
+        Serial.println("BLE advertising instance unavailable");
+        return;
+    }
+
+    Serial.println("Refreshing BLE advertising...");
+    g_pAdvertising->stop();
+    delay(50);
+    g_pAdvertising->start();
+    Serial.println("BLE advertising restarted");
 }
 
 // --------------------------------------------------
@@ -206,20 +238,21 @@ void setup() {
       void onConnect(BLEServer* pServer) {
                                         (void)pServer;
                     g_bleClientConnected = true;
+                                        g_bleRefreshRequested = false;
           Serial.println("Master connected");
       }
       void onDisconnect(BLEServer* pServer) {
                     (void)pServer;
                     g_bleClientConnected = false;
+                                        bleBuffer = "";
           Serial.println("Master disconnected");
-                    BLEDevice::startAdvertising();
-                    Serial.println("Advertising restarted");
+                                        scheduleBleRefresh();
       }
     };
     
-    BLEServer *pServer = BLEDevice::createServer();
-    pServer->setCallbacks(new ServerCallbacks());
-    BLEService *pService = pServer->createService(serviceUUID);
+        g_pServer = BLEDevice::createServer();
+        g_pServer->setCallbacks(new ServerCallbacks());
+        BLEService *pService = g_pServer->createService(serviceUUID);
     pCharacteristic = pService->createCharacteristic(
                         charUUID,
                         BLECharacteristic::PROPERTY_WRITE |
@@ -229,9 +262,9 @@ void setup() {
     pCharacteristic->setCallbacks(new CharacteristicCallbacks());
 
     pService->start();
-    BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
-    pAdvertising->addServiceUUID(serviceUUID);
-    pAdvertising->start();
+    g_pAdvertising = BLEDevice::getAdvertising();
+    g_pAdvertising->addServiceUUID(serviceUUID);
+    g_pAdvertising->start();
     Serial.println("Waiting for client to connect...");
 
     printer.begin();                 // init UART2 for printer
@@ -239,6 +272,11 @@ void setup() {
 }
 
 void loop() {
+    if (g_bleRefreshRequested && !g_bleClientConnected && static_cast<long>(millis() - g_bleRefreshAtMs) >= 0) {
+        g_bleRefreshRequested = false;
+        refreshBleAdvertising();
+    }
+
     // handle serial monitor restart command
     if (Serial.available()) {
         String line = Serial.readStringUntil('\n');

@@ -28,8 +28,10 @@ constexpr uint32_t BLE_RETRY_DELAY_MS = 5000;
 constexpr uint32_t BLE_STATUS_POLL_MS = 1000;
 constexpr uint32_t BLE_HEARTBEAT_INTERVAL_MS = 5000;
 constexpr uint32_t BLE_HEARTBEAT_TIMEOUT_MS = 15000;
+constexpr uint32_t BLE_CONNECT_TIMEOUT_MS = 10000;
+constexpr uint32_t BLE_HANDSHAKE_TIMEOUT_MS = 3000;
 constexpr size_t BLE_CHUNK_SIZE = 20;
-constexpr bool BLE_SCAN_STATUS_LOGGING_ENABLED = false;
+constexpr bool BLE_SCAN_STATUS_LOGGING_ENABLED = true;
 
 BLEUUID g_serviceUuid("4fafc201-1fb5-459e-8fcc-c5c9c331914b");
 BLEUUID g_characteristicUuid("beb5483e-36e1-4688-b7f5-ea07361b26a8");
@@ -246,11 +248,14 @@ bool bleConnectToSlave() {
 	}
 
 	Serial.println(F("[BLE] Connecting to slave..."));
-	if (!pBleClient->connect(g_foundDevice)) {
+	const BLEAddress slaveAddress = g_foundDevice->getAddress();
+	const uint8_t slaveAddressType = g_foundDevice->getAddressType();
+	if (!pBleClient->connect(slaveAddress, slaveAddressType, BLE_CONNECT_TIMEOUT_MS)) {
 		Serial.println(F("[BLE] Connect failed"));
 		bleDisposeFoundDevice();
 		return false;
 	}
+	Serial.println(F("[BLE] Link established; discovering remote service"));
 
 	BLERemoteService* remoteService = pBleClient->getService(g_serviceUuid);
 	if (remoteService == nullptr) {
@@ -267,6 +272,7 @@ bool bleConnectToSlave() {
 		bleDisposeFoundDevice();
 		return false;
 	}
+	Serial.println(F("[BLE] Remote characteristic ready"));
 
 	if (bleLock()) {
 		pBleCharacteristic = remoteCharacteristic;
@@ -287,10 +293,13 @@ bool bleConnectToSlave() {
 	g_bleSlave.reconnectRequested = false;
 	Serial.println(F("[BLE] Transport connected; waiting for slave handshake"));
 	bleSend(String(F("HELLO|")) + BLE_MASTER_DEVICE_NAME);
-	if (bleWaitForReady(3000)) {
+	if (bleWaitForReady(BLE_HANDSHAKE_TIMEOUT_MS)) {
 		Serial.println(F("[BLE] Slave link ready for printer forwarding"));
 	} else {
-		Serial.println(F("[BLE] Handshake pending; background heartbeat will continue"));
+		Serial.println(F("[BLE] Handshake timeout; forcing reconnect"));
+		bleRequestReconnect();
+		bleDisposeFoundDevice();
+		return false;
 	}
 	bleDisposeFoundDevice();
 	return true;

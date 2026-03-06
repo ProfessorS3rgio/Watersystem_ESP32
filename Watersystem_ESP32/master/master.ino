@@ -72,7 +72,7 @@ bool g_mcpReady = false;
 // ===== BATTERY MONITOR =====
 BatteryMonitor batteryMonitor(BATTERY_PIN, 1629, 0, 10, 3400, 4200, CHARGING_PIN_MCP);
 
-constexpr bool BLE_SLAVE_LINK_ENABLED = false;
+constexpr bool BLE_SLAVE_LINK_ENABLED = true;
 
 // ===== KEYPAD SIMULATION HELPER =====
 bool isValidKeypadKey(char key) {
