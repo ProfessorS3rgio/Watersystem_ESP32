@@ -111,6 +111,16 @@ String getCurrentDateTimeString() {
   char buf[24];
 
   if (!isPlausibleDateTime(now)) {
+    for (int attempt = 0; attempt < 2; ++attempt) {
+      delay(5);
+      now = rtc.now();
+      if (isPlausibleDateTime(now)) {
+        break;
+      }
+    }
+  }
+
+  if (!isPlausibleDateTime(now)) {
     static bool warnedInvalidRtc = false;
     if (!warnedInvalidRtc) {
       Serial.println(F("[RTC] Invalid date/time read; using safe fallback timestamp"));

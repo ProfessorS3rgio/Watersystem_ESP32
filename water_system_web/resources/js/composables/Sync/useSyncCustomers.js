@@ -13,19 +13,31 @@ export function useSyncCustomers() {
     await serialService.sendLine(text)
   }
 
+  const sanitizeCustomerForDevice = (customer) => ({
+    account_no: customer.account_no ?? '',
+    customer_name: customer.customer_name ?? '',
+    address: customer.address ?? '',
+    previous_reading: Number(customer.previous_reading ?? 0),
+    status: customer.status ?? 'active',
+    type_id: Number(customer.type_id ?? 1),
+    deduction_id: customer.deduction_id == null ? null : Number(customer.deduction_id),
+    brgy_id: Number(customer.brgy_id ?? 1),
+  })
+
   const sendCustomerChunks = async (type, customers) => {
     // Sequentially send chunks; automatically reduce chunk size if line becomes
     // too large for the device.  This keeps us under any hidden String limits
     // while still attempting to maximise throughput.
-    let chunkSize = 60  // starting guess
-    const maxLineLen = 32000
+    let chunkSize = 10
+    const maxLineLen = 12000
     const maxRetries = 3
+    const deviceCustomers = customers.map(sanitizeCustomerForDevice)
 
     let chunkIndex = 0
-    for (let i = 0; i < customers.length; /* advanced inside */) {
-      const end = Math.min(i + chunkSize, customers.length)
-      const chunk = customers.slice(i, end)
-      const totalChunks = Math.ceil(customers.length / chunkSize)
+    for (let i = 0; i < deviceCustomers.length; /* advanced inside */) {
+      const end = Math.min(i + chunkSize, deviceCustomers.length)
+      const chunk = deviceCustomers.slice(i, end)
+      const totalChunks = Math.ceil(deviceCustomers.length / chunkSize)
 
       const rawJson = JSON.stringify(chunk)
       const customersJson = btoa(rawJson)
@@ -39,7 +51,7 @@ export function useSyncCustomers() {
       }
 
       // debug: log length so we can spot overly large transmissions
-      console.debug(`sending chunk ${chunkIndex}/${totalChunks} len=${line.length}`)
+      console.debug(`sending ${type.toLowerCase()} customer chunk ${chunkIndex}/${totalChunks} len=${line.length} rows=${chunk.length}`)
 
       let attempt = 0
       while (attempt < maxRetries) {

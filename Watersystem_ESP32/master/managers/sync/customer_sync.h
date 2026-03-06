@@ -231,6 +231,35 @@ static String base64_decode(const String& in) {
   return out;
 }
 
+static String base64_decode_from_offset(const String& in, int startIndex) {
+  static const char* b64_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  const int len = in.length();
+  if (startIndex < 0 || startIndex >= len) {
+    return String();
+  }
+
+  String out;
+  out.reserve(((len - startIndex) * 3) / 4);
+  int val = 0;
+  int valb = -8;
+
+  for (int i = startIndex; i < len; i++) {
+    char c = in[i];
+    if (c == '\r' || c == '\n' || isspace(c)) continue;
+    if (c == '=') break;
+    const char* p = strchr(b64_chars, c);
+    if (!p) continue;
+    val = (val << 6) + (p - b64_chars);
+    valb += 6;
+    if (valb >= 0) {
+      out += char((val >> valb) & 0xFF);
+      valb -= 8;
+    }
+  }
+
+  return out;
+}
+
 // Handle UPSERT_NEW_CUSTOMER_JSON_CHUNK command
 bool handleUpsertNewCustomerJsonChunk(String payload) {
   int p1 = payload.indexOf('|');
@@ -249,16 +278,24 @@ bool handleUpsertNewCustomerJsonChunk(String payload) {
 
   int chunkIndex = payload.substring(0, p1).toInt();
   int totalChunks = payload.substring(p1 + 1, p2).toInt();
-  String jsonChunk = payload.substring(p2 + 1);
+  const int encodedStart = p2 + 1;
+  const int encodedLen = payload.length() - encodedStart;
 
-  // decode from base64 (matches new web protocol)
-  jsonChunk = base64_decode(jsonChunk);
+  if (encodedLen <= 0) {
+    Serial.println(F("ERR|EMPTY_BASE64_CHUNK"));
+    return true;
+  }
+
+  // decode from base64 (matches new web protocol) without copying the encoded payload first
+  String jsonChunk = base64_decode_from_offset(payload, encodedStart);
 
   // diagnostic logging to help debug empty/short payloads
   Serial.print(F("Received chunk "));
   Serial.print(chunkIndex);
   Serial.print(F("/"));
   Serial.print(totalChunks);
+  Serial.print(F(" encoded="));
+  Serial.print(encodedLen);
   Serial.print(F(" length="));
   Serial.println(jsonChunk.length());
 #if SYNC_DEBUG
@@ -427,14 +464,22 @@ bool handleUpsertUpdatedCustomerJsonChunk(String payload) {
 
   int chunkIndex = payload.substring(0, p1).toInt();
   int totalChunks = payload.substring(p1 + 1, p2).toInt();
-  String jsonChunk = payload.substring(p2 + 1);
+  const int encodedStart = p2 + 1;
+  const int encodedLen = payload.length() - encodedStart;
 
-  // decode base64
-  jsonChunk = base64_decode(jsonChunk);
+  if (encodedLen <= 0) {
+    Serial.println(F("ERR|EMPTY_BASE64_CHUNK"));
+    return true;
+  }
+
+  // decode base64 without copying the encoded payload first
+  String jsonChunk = base64_decode_from_offset(payload, encodedStart);
   Serial.print(F("Received updated chunk "));
   Serial.print(chunkIndex);
   Serial.print(F("/"));
   Serial.print(totalChunks);
+  Serial.print(F(" encoded="));
+  Serial.print(encodedLen);
   Serial.print(F(" length="));
   Serial.println(jsonChunk.length());
   if (jsonChunk.length() < 10) {

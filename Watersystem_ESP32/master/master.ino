@@ -11,6 +11,7 @@ SPIClass SPI_SD(VSPI);
 #include <time.h>
 #include <Wire.h>
 #include <RTClib.h>
+#include <esp_heap_caps.h>
 #include <esp_sleep.h>
 
 // TFT_eSPI configuration (must be before #include <TFT_eSPI.h>)
@@ -71,6 +72,8 @@ bool g_mcpReady = false;
 // ===== BATTERY MONITOR =====
 BatteryMonitor batteryMonitor(BATTERY_PIN, 1629, 0, 10, 3400, 4200, CHARGING_PIN_MCP);
 
+constexpr bool BLE_SLAVE_LINK_ENABLED = false;
+
 // ===== KEYPAD SIMULATION HELPER =====
 bool isValidKeypadKey(char key) {
   const char validKeys[] = {'1','2','3','A','4','5','6','B','7','8','9','C','*','0','#','D'};
@@ -128,7 +131,11 @@ void setup() {
   Serial.setRxBufferSize(262144); // 256KB for large JSON payloads
   Serial.setTimeout(30000); // 30 seconds timeout for long transmissions
 
-  bleSlaveManagerBegin();
+  if (BLE_SLAVE_LINK_ENABLED) {
+    bleSlaveManagerBegin();
+  } else {
+    Serial.println(F("[BLE] Slave link disabled for heap comparison"));
+  }
   
   // Initialize I2C for RTC
   Wire.begin(RTC_SDA, RTC_SCL);
@@ -198,7 +205,7 @@ void setup() {
   initCustomerTypesDatabase();
 
   // Initialize Settings Database
-  // initSettingsDatabase();
+  initSettingsDatabase();
 
   // Initialize Bills Database
   initBillsDatabase();
@@ -207,7 +214,7 @@ void setup() {
   Serial.println(F("Watersystem ESP32 ready."));
   Serial.println(F("Use keypad or serial commands:"));
   Serial.println(F("Press D or B on keypad to start entering account"));
-  Serial.println(F("Commands: 'P' = Print sample, 'S' = SD status, 'L' = List customers, 'DD' = List deductions, 'CT' = List customer types, 'R' = List readings, 'B' = List bills, 'BT' = List transactions, 'DB' = Display all databases (100 rows), 'DB_ALL' = Display all databases (full), 'DROPDB' = Drop and recreate database"));
+  Serial.println(F("Commands: 'P' = Print sample, 'S' = SD status, 'L' = List customers, 'DD' = List deductions, 'CT' = List customer types, 'R' = List readings, 'B' = List bills, 'BT' = List transactions, 'DB' = Display all databases (100 rows), 'DB_ALL' = Display all databases (full), 'DROPDB' = Drop and recreate database, 'HEAP' = Show memory stats"));
 #endif
   
   // Show welcome screen on TFT
@@ -483,6 +490,21 @@ void loop() {
       Serial.print(F("Current time: "));
       Serial.println(dt);
     }
+    else if (cmd == "HEAP" || cmd == "MEM") {
+      Serial.println(F("=== HEAP MEMORY STATUS ==="));
+      Serial.print(F("Free heap        : "));
+      Serial.println(ESP.getFreeHeap());
+      Serial.print(F("Min free heap    : "));
+      Serial.println(ESP.getMinFreeHeap());
+      Serial.print(F("Max alloc heap   : "));
+      Serial.println(ESP.getMaxAllocHeap());
+      Serial.print(F("Internal free    : "));
+      Serial.println(heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
+      Serial.print(F("Internal largest : "));
+      Serial.println(heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));
+      Serial.print(F("8-bit free heap  : "));
+      Serial.println(heap_caps_get_free_size(MALLOC_CAP_8BIT));
+    }
     else if (raw.startsWith("SET_TIME ")) {
       String payload = raw.substring(String("SET_TIME ").length());
       // Assume format YYYY-MM-DD HH:MM:SS
@@ -498,7 +520,7 @@ void loop() {
     else if (cmd.length() > 0) {
       Serial.print(F("Unknown: "));
       Serial.println(cmd);
-      Serial.println(F("Commands: P, D, S, L, DD, CT, B, BT, DB, DB_ALL, DROPDB, DROPR, DROPB, DROPBT, DROPC, RESET, RESET_BILL_TRANSACTION, START, TIME, SET_TIME <YYYY-MM-DD HH:MM:SS>"));
+      Serial.println(F("Commands: P, D, S, L, DD, CT, B, BT, DB, DB_ALL, DROPDB, DROPR, DROPB, DROPBT, DROPC, RESET, RESET_BILL_TRANSACTION, START, TIME, HEAP, SET_TIME <YYYY-MM-DD HH:MM:SS>"));
     }
   }
   

@@ -33,7 +33,12 @@ bool handleSyncCommands(String raw) {
   Serial.print(F("RX_SYNC [len="));
   Serial.print(raw.length());
   Serial.print(F("] : "));
-  Serial.println(raw);
+  if (raw.length() > 256) {
+    Serial.print(raw.substring(0, 256));
+    Serial.println(F("...[truncated]"));
+  } else {
+    Serial.println(raw);
+  }
 
   // ---- Sync protocol (do NOT uppercase; payload may be mixed-case) ----
 
@@ -46,13 +51,13 @@ bool handleSyncCommands(String raw) {
   }
 
   if (raw.startsWith("SET_TIME|")) {
-    String payload = raw.substring(String("SET_TIME|").length());
-    return handleSetTime(payload);
+    raw.remove(0, String("SET_TIME|").length());
+    return handleSetTime(raw);
   }
 
   if (raw.startsWith("SET_LAST_SYNC|")) {
-    String payload = raw.substring(String("SET_LAST_SYNC|").length());
-    return handleSetLastSync(payload);
+    raw.remove(0, String("SET_LAST_SYNC|").length());
+    return handleSetLastSync(raw);
   }
 
   if (raw == "EXPORT_READINGS") {
@@ -80,47 +85,47 @@ bool handleSyncCommands(String raw) {
   }
 
   if (raw.startsWith("UPSERT_CUSTOMERS_JSON|")) {
-    String payload = raw.substring(String("UPSERT_CUSTOMERS_JSON|").length());
-    return handleUpsertCustomersJson(payload);
+    raw.remove(0, String("UPSERT_CUSTOMERS_JSON|").length());
+    return handleUpsertCustomersJson(raw);
   }
 
   if (raw.startsWith("UPSERT_CUSTOMERS_JSON_CHUNK|")) {
-    String payload = raw.substring(String("UPSERT_CUSTOMERS_JSON_CHUNK|").length());
-    return handleUpsertCustomersJsonChunk(payload);
+    raw.remove(0, String("UPSERT_CUSTOMERS_JSON_CHUNK|").length());
+    return handleUpsertCustomersJsonChunk(raw);
   }
   if (raw.startsWith("UPSERT_NEW_CUSTOMER_JSON_CHUNK|")) {
-    String payload = raw.substring(String("UPSERT_NEW_CUSTOMER_JSON_CHUNK|").length());
-    return handleUpsertNewCustomerJsonChunk(payload);
+    raw.remove(0, String("UPSERT_NEW_CUSTOMER_JSON_CHUNK|").length());
+    return handleUpsertNewCustomerJsonChunk(raw);
   }
 
   if (raw.startsWith("UPSERT_UPDATED_CUSTOMER_JSON_CHUNK|")) {
-    String payload = raw.substring(String("UPSERT_UPDATED_CUSTOMER_JSON_CHUNK|").length());
-    return handleUpsertUpdatedCustomerJsonChunk(payload);
+    raw.remove(0, String("UPSERT_UPDATED_CUSTOMER_JSON_CHUNK|").length());
+    return handleUpsertUpdatedCustomerJsonChunk(raw);
   }
 
   if (raw.startsWith("UPSERT_DEDUCTION|")) {
-    String payload = raw.substring(String("UPSERT_DEDUCTION|").length());
-    return handleUpsertDeduction(payload);
+    raw.remove(0, String("UPSERT_DEDUCTION|").length());
+    return handleUpsertDeduction(raw);
   }
 
   if (raw.startsWith("UPSERT_BARANGAY|")) {
-    String payload = raw.substring(String("UPSERT_BARANGAY|").length());
-    return handleUpsertBarangay(payload);
+    raw.remove(0, String("UPSERT_BARANGAY|").length());
+    return handleUpsertBarangay(raw);
   }
 
   if (raw.startsWith("UPSERT_CUSTOMER_TYPE|")) {
-    String payload = raw.substring(String("UPSERT_CUSTOMER_TYPE|").length());
-    return handleUpsertCustomerType(payload);
+    raw.remove(0, String("UPSERT_CUSTOMER_TYPE|").length());
+    return handleUpsertCustomerType(raw);
   }
 
   if (raw.startsWith("UPSERT_SETTINGS|")) {
-    String payload = raw.substring(String("UPSERT_SETTINGS|").length());
-    return handleUpsertSettings(payload);
+    raw.remove(0, String("UPSERT_SETTINGS|").length());
+    return handleUpsertSettings(raw);
   }
 
   if (raw.startsWith("UPSERT_BILLS_JSON_CHUNK|")) {
-    String payload = raw.substring(String("UPSERT_BILLS_JSON_CHUNK|").length());
-    return handleUpsertBillsJsonChunk(payload);
+    raw.remove(0, String("UPSERT_BILLS_JSON_CHUNK|").length());
+    return handleUpsertBillsJsonChunk(raw);
   }
 
   if (raw == "RELOAD_SD") {

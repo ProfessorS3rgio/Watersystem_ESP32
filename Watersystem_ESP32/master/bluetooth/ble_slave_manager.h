@@ -29,6 +29,7 @@ constexpr uint32_t BLE_STATUS_POLL_MS = 1000;
 constexpr uint32_t BLE_HEARTBEAT_INTERVAL_MS = 5000;
 constexpr uint32_t BLE_HEARTBEAT_TIMEOUT_MS = 15000;
 constexpr size_t BLE_CHUNK_SIZE = 20;
+constexpr bool BLE_SCAN_STATUS_LOGGING_ENABLED = false;
 
 BLEUUID g_serviceUuid("4fafc201-1fb5-459e-8fcc-c5c9c331914b");
 BLEUUID g_characteristicUuid("beb5483e-36e1-4688-b7f5-ea07361b26a8");
@@ -65,6 +66,18 @@ BleSlaveManagerState g_bleSlave = {
 };
 
 String g_bleIncomingBuffer;
+
+void bleScanStatusLog(const __FlashStringHelper* message) {
+	if (BLE_SCAN_STATUS_LOGGING_ENABLED) {
+		Serial.println(message);
+	}
+}
+
+void bleScanStatusLog(const char* message) {
+	if (BLE_SCAN_STATUS_LOGGING_ENABLED) {
+		Serial.println(message);
+	}
+}
 
 bool bleLock(TickType_t timeout = pdMS_TO_TICKS(250)) {
 	return g_bleSlave.mutex != nullptr && xSemaphoreTake(g_bleSlave.mutex, timeout) == pdTRUE;
@@ -197,13 +210,13 @@ bool bleScanForSlave() {
 	scan->setInterval(160);
 	scan->setWindow(80);
 
-	Serial.println(F("[BLE] Scanning for slave..."));
+	bleScanStatusLog(F("[BLE] Scanning for slave..."));
 	scan->start(BLE_SCAN_SECONDS, false);
 	scan->stop();
 	scan->clearResults();
 
 	if (g_foundDevice == nullptr) {
-		Serial.println(F("[BLE] Slave not found"));
+		bleScanStatusLog(F("[BLE] Slave not found"));
 		return false;
 	}
 
