@@ -2,11 +2,6 @@
 #include <SPI.h>
 SPIClass SPI_SD(VSPI);
 #include <SD.h>
-#include "printer/printer_serial.h"
-
-// supply the UART pins to the wrapper (mirrors sample code names)
-#define RXD2 PRINTER_RX
-#define TXD2 PRINTER_TX
 #include <Adafruit_MCP23X17.h>
 #include <time.h>
 #include <Wire.h>
@@ -41,7 +36,6 @@ SPIClass SPI_SD(VSPI);
 #include "managers/tft_screen_manager.h"
 #include "managers/sdcard_manager.h"
 #include "managers/keypad_manager.h"
-#include "configuration/logo.h"
 #include "managers/sync_manager.h"
 #include "components/battery_display.h"
 #include "components/bmp_display.h"
@@ -58,12 +52,9 @@ SPIClass SPI_SD(VSPI);
 // ===== TFT DISPLAY =====
 TFT_eSPI tft = TFT_eSPI();
 
-// ===== THERMAL PRINTER =====
-HardwareSerial printerSerial(2);  // Use UART2 on ESP32
-ThermalPrinter printer(printerSerial);  // thin wrapper around raw UART
-
 // ===== RTC MODULE =====
 RTC_DS3231 rtc;
+bool g_rtcReady = false;
 
 // ===== MCP23017 I/O EXPANDER =====
 Adafruit_MCP23X17 mcp;
@@ -73,6 +64,8 @@ bool g_mcpReady = false;
 BatteryMonitor batteryMonitor(BATTERY_PIN, 1629, 0, 10, 3400, 4200, CHARGING_PIN_MCP);
 
 constexpr bool BLE_SLAVE_LINK_ENABLED = true;
+constexpr size_t SERIAL_RX_BUFFER_BYTES = 12288;
+constexpr uint32_t SERIAL_TIMEOUT_MS = 8000;
 
 // ===== KEYPAD SIMULATION HELPER =====
 bool isValidKeypadKey(char key) {
@@ -127,9 +120,22 @@ String readSerialCommand() {
 }
 
 void setup() {
+  Serial.setRxBufferSize(SERIAL_RX_BUFFER_BYTES); // Must be set before begin() or it has no effect on ESP32
   Serial.begin(SERIAL_BAUD);
-  Serial.setRxBufferSize(262144); // 256KB for large JSON payloads
-  Serial.setTimeout(30000); // 30 seconds timeout for long transmissions
+  Serial.setTimeout(SERIAL_TIMEOUT_MS); // 15 seconds timeout for long transmissions
+
+  auto logHeapCheckpoint = [](const __FlashStringHelper* label) {
+    Serial.print(F("[HEAP] "));
+    Serial.println(label);
+    Serial.print(F("  Free: "));
+    Serial.println(ESP.getFreeHeap());
+    Serial.print(F("  Min : "));
+    Serial.println(ESP.getMinFreeHeap());
+    Serial.print(F("  Max : "));
+    Serial.println(ESP.getMaxAllocHeap());
+  };
+
+  logHeapCheckpoint(F("setup start"));
 
   if (BLE_SLAVE_LINK_ENABLED) {
     Serial.println(F("[BLE] Slave link set to lazy init for printing"));
@@ -138,8 +144,10 @@ void setup() {
   }
   
   // Initialize I2C for RTC
+  logHeapCheckpoint(F("before RTC init"));
   Wire.begin(RTC_SDA, RTC_SCL);
-  if (! rtc.begin()) {
+  g_rtcReady = rtc.begin();
+  if (!g_rtcReady) {
     Serial.println(F("Couldn't find RTC"));
   } else {
     Serial.println(F("RTC initialized"));
@@ -150,8 +158,10 @@ void setup() {
       Serial.println(F("RTC time preserved"));
     }
   }
+  logHeapCheckpoint(F("after RTC init"));
   
   // Initialize MCP23017 (used for keypad, etc.)
+  logHeapCheckpoint(F("before MCP23017 init"));
   g_mcpReady = mcp.begin_I2C(MCP23017_ADDR);
   if (!g_mcpReady) {
     Serial.println(F("Error initializing MCP23017 - continuing without it"));
@@ -160,6 +170,7 @@ void setup() {
     Serial.println(F("MCP23017 initialized"));
     mcp.pinMode(CHARGING_PIN_MCP, INPUT);  // GPB1 for charging state
   }
+  logHeapCheckpoint(F("after MCP23017 init"));
   
   // Initialize TFT Backlight with PWM
   ledcAttach(TFT_BLK, 5000, 8);  // pin, frequency, resolution
@@ -179,36 +190,46 @@ void setup() {
   digitalWrite(TFT_CS, HIGH);
   digitalWrite(SD_CS, HIGH);
 
-  // Boot screen: console-style checks (SD + settings + printer)
+  // Boot screen: console-style checks (SD + settings + BLE print mode)
   // show immediately after TFT is ready so we can see early errors
   showBootScreen();
+  logHeapCheckpoint(F("after boot screen"));
 
   // Initialize SQLite Database
   initDatabase();
+  logHeapCheckpoint(F("after initDatabase"));
 
   // Initialize Readings database (time offset + readings log)
   initReadingsDatabase();
+  logHeapCheckpoint(F("after initReadingsDatabase"));
 
   // Initialize Device Info (about/last sync/print count)
   initDeviceInfo();
+  logHeapCheckpoint(F("after initDeviceInfo"));
 
   // Initialize Customers Database
   initCustomersDatabase();
+  logHeapCheckpoint(F("after initCustomersDatabase"));
 
   // Initialize Deductions Database
   initDeductionsDatabase();
+  logHeapCheckpoint(F("after initDeductionsDatabase"));
 
   // Initialize Barangays Database
   initBarangaysDatabase();
+  logHeapCheckpoint(F("after initBarangaysDatabase"));
 
   // Initialize Customer Types Database
   initCustomerTypesDatabase();
+  logHeapCheckpoint(F("after initCustomerTypesDatabase"));
 
   // Initialize Settings Database
   initSettingsDatabase();
+  logHeapCheckpoint(F("after initSettingsDatabase"));
 
   // Initialize Bills Database
   initBillsDatabase();
+  logHeapCheckpoint(F("after initBillsDatabase"));
 
 #if WS_SERIAL_VERBOSE
   Serial.println(F("Watersystem ESP32 ready."));
@@ -221,7 +242,7 @@ void setup() {
   currentState = STATE_WELCOME;
   showWelcomeScreen();
 
-  powerSaveBegin(&printer, TFT_BLK, POWER_SAVE_TIMEOUT, 25, 255);
+  powerSaveBegin(TFT_BLK, POWER_SAVE_TIMEOUT, 25, 255);
 }
 
 void loop() {

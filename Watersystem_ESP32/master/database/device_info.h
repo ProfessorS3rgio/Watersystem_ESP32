@@ -6,6 +6,8 @@
 #include "../managers/sdcard_manager.h"
 #include <sqlite3.h>
 
+static void trimDatabaseMemory();
+
 // Device info now stored in SQLite database table 'device_info'
 // Table: (brgy_id INTEGER, device_mac TEXT UNIQUE, device_uid TEXT, firmware_version TEXT, device_name TEXT, collector TEXT, print_count INTEGER, customer_count INTEGER, last_sync TEXT, created_at TEXT, updated_at TEXT)
 
@@ -123,6 +125,7 @@ static void loadDeviceInfoFromDB() {
 
 static void initDeviceInfo() {
   loadDeviceInfoFromDB();
+  trimDatabaseMemory();
 }
 
 static void incrementPrintCount() {

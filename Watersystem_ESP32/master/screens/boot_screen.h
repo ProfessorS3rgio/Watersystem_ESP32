@@ -2,39 +2,15 @@
 #define BOOT_SCREEN_H
 
 #include <TFT_eSPI.h>
-#include "printer/printer_serial.h"
 #include "../managers/sdcard_manager.h"
 #include "../configuration/config.h"
 
 // Extern declarations for global objects
 extern TFT_eSPI tft;
-extern HardwareSerial printerSerial;
-extern ThermalPrinter printer;
 extern RTC_DS3231 rtc;   // allow RTC checks
-
-// ===== BOOT SCREEN HELPERS =====
-static bool checkPrinterCommunication(uint16_t timeoutMs = 250) {
-  // Sends a standard ESC/POS status request (DLE EOT 1) and waits briefly for a reply.
-  // If the printer is powered and UART wiring is correct, many printers will respond.
-  while (printerSerial.available()) {
-    printerSerial.read();
-  }
-
-  printerSerial.write(0x10);
-  printerSerial.write(0x04);
-  printerSerial.write(0x01);
-  printerSerial.flush();
-
-  unsigned long deadline = millis() + timeoutMs;
-  while (millis() < deadline) {
-    if (printerSerial.available() > 0) {
-      (void)printerSerial.read();
-      return true;
-    }
-    delay(5);
-  }
-  return false;
-}
+extern bool g_rtcReady;
+extern bool g_mcpReady;
+extern Adafruit_MCP23X17 mcp;
 
 static void showBootScreen() {
   tft.fillScreen(COLOR_BG);
@@ -66,7 +42,7 @@ static void showBootScreen() {
   y += 12;
   tft.setCursor(2, y);
   tft.print(F("[RTC] "));
-  if (rtc.begin()) {
+  if (g_rtcReady) {
     tft.setTextColor(TFT_GREEN);
     tft.println(F("found"));
   } else {
@@ -75,44 +51,24 @@ static void showBootScreen() {
   }
   tft.setTextColor(TFT_GREEN);
 
-  y += 12;
-  tft.setCursor(2, y);
-  tft.println(F("[CHK] Printer..."));
-
-  // Initialize Printer
-  printerSerial.begin(PRINTER_BAUD, SERIAL_8N1, PRINTER_RX, PRINTER_TX);
-  printer.begin();
-  printer.wake();
-  printer.setDefault();
-
   // check MCP23017 on-screen as well
   y += 12;
   tft.setCursor(2, y);
   tft.print(F("[MCP] "));
-  if (mcp.begin_I2C(MCP23017_ADDR)) {
-    g_mcpReady = true;
+  if (g_mcpReady) {
     tft.setTextColor(TFT_GREEN);
     tft.println(F("OK"));
-    // restore the pinMode we set earlier since begin_I2C resets pins
-    mcp.pinMode(CHARGING_PIN_MCP, INPUT);
   } else {
-    g_mcpReady = false;
     tft.setTextColor(TFT_RED);
     tft.println(F("FAIL"));
   }
   tft.setTextColor(TFT_GREEN);
 
-
   y += 12;
   tft.setCursor(2, y);
-  tft.print(F("[PRN] UART: "));
-  if (checkPrinterCommunication()) {
-    tft.setTextColor(TFT_GREEN);
-    tft.println(F("OK"));
-  } else {
-    tft.setTextColor(TFT_RED);
-    tft.println(F("NO RESP"));
-  }
+  tft.print(F("[BLE] Print: "));
+  tft.setTextColor(TFT_GREEN);
+  tft.println(F("SLAVE"));
   tft.setTextColor(TFT_GREEN);
 
   y += 12;
@@ -124,7 +80,7 @@ static void showBootScreen() {
     tft.fillRect(0, countdownY, 160, 10, COLOR_BG);
     tft.setTextColor(COLOR_LABEL);
     tft.setCursor(2, countdownY);
-    tft.print(F("Booting inwithin "));
+    tft.print(F("Booting within "));
     tft.print(i);
     tft.print(F("..."));
     delay(1000);

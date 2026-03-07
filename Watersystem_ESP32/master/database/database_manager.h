@@ -9,6 +9,25 @@
 void createAllTables();
 void initializeDefaultDevice();
 
+static void applyDatabasePragmas() {
+  if (!db) return;
+
+  sqlite3_exec(db, "PRAGMA foreign_keys = ON;", NULL, NULL, NULL);
+  sqlite3_exec(db, "PRAGMA journal_mode = TRUNCATE;", NULL, NULL, NULL);
+  sqlite3_exec(db, "PRAGMA synchronous = NORMAL;", NULL, NULL, NULL);
+  sqlite3_exec(db, "PRAGMA temp_store = FILE;", NULL, NULL, NULL);
+  sqlite3_exec(db, "PRAGMA cache_size = -4;", NULL, NULL, NULL); // target ~4 KiB page cache
+  sqlite3_exec(db, "PRAGMA journal_size_limit = 65536;", NULL, NULL, NULL);
+  sqlite3_exec(db, "PRAGMA mmap_size = 0;", NULL, NULL, NULL);
+}
+
+static void trimDatabaseMemory() {
+  if (!db) return;
+
+  sqlite3_db_release_memory(db);
+  sqlite3_release_memory(32768);
+}
+
 void initDatabase() {
   if (!db) {
     // Ensure SD card is ready before opening database
@@ -22,8 +41,9 @@ void initDatabase() {
       Serial.printf("Can't open database: %s\n", sqlite3_errmsg(db));
       return;
     }
-    sqlite3_exec(db, "PRAGMA foreign_keys = ON;", NULL, NULL, NULL);
+    applyDatabasePragmas();
     createAllTables();
+    trimDatabaseMemory();
   }
 }
 
@@ -86,15 +106,12 @@ void createAllTables() {
   const char *sql_device_info = "CREATE TABLE IF NOT EXISTS device_info (brgy_id INTEGER, device_mac TEXT UNIQUE, device_uid TEXT, firmware_version TEXT, device_name TEXT, collector TEXT, print_count INTEGER DEFAULT 0, customer_count INTEGER DEFAULT 0, last_sync TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT);";
   sqlite3_exec(db, sql_device_info, NULL, NULL, NULL);
 
-  // Optimize SQLite for low memory ESP32
-sqlite3_exec(db, "PRAGMA journal_mode = WAL;", NULL, NULL, NULL);
-sqlite3_exec(db, "PRAGMA synchronous = NORMAL;", NULL, NULL, NULL);
-sqlite3_exec(db, "PRAGMA temp_store = MEMORY;", NULL, NULL, NULL);
-sqlite3_exec(db, "PRAGMA cache_size = -10;", NULL, NULL, NULL); // ~40KB
-sqlite3_exec(db, "PRAGMA mmap_size = 0;", NULL, NULL, NULL);
+  // Re-apply low-memory pragmas after schema setup.
+  applyDatabasePragmas();
 
   // Initialize default device if empty
   initializeDefaultDevice();
+  trimDatabaseMemory();
 }
 
 void initializeDefaultDevice() {

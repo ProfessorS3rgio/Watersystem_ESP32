@@ -30,7 +30,7 @@ void displayMenuScreen() {
   tft.setCursor(20, 125);
   tft.println(F("4. Restart"));
   tft.setCursor(20, 150);
-  tft.println(F("5. Printer Test"));
+  tft.println(F("5. BLE Print Test"));
   tft.setCursor(20, 175);
   tft.println(F("6. Gen Test Data"));
   
