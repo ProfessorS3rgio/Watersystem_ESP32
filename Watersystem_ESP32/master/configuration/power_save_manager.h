@@ -4,11 +4,10 @@
 #include <Arduino.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
-#include "printer/printer_serial.h"
 #include <esp32-hal-cpu.h>
 
 struct PowerSaveManager {
-  ThermalPrinter* printer;
+  // printer field removed; not used by BLE-only master
   uint8_t backlightPin;
   uint32_t timeoutMs;
   uint8_t dimBrightness;
@@ -24,19 +23,18 @@ struct PowerSaveManager {
 };
 
 static PowerSaveManager g_powerSave = {
-  nullptr,
-  0,
-  0,
-  25,
-  255,
-  40,  // powerSaveCpuMhz
-  240, // fullCpuMhz
-  true,
-  false,
-  false,
-  0,
-  nullptr,
-  false
+  0,    // backlightPin
+  0,    // timeoutMs (set later in powerSaveBegin)
+  25,   // dimBrightness
+  255,  // fullBrightness
+  40,   // powerSaveCpuMhz
+  240,  // fullCpuMhz
+  true, // enabled
+  false, // inPowerSave
+  false, // waitingForWakeKey
+  0,    // lastActivityMs
+  nullptr, // taskHandle
+  false // initialized
 };
 
 static void powerSaveApplyBacklight(bool on, uint8_t levelWhenOn = 255) {
@@ -203,12 +201,10 @@ void powerSaveTask(void* parameter) {
   }
 }
 
-void powerSaveBegin(ThermalPrinter* printer,
-                    uint8_t backlightPin,
+void powerSaveBegin(uint8_t backlightPin,
                     uint32_t timeoutMs,
                     uint8_t dimBrightness = 25,
                     uint8_t fullBrightness = 255) {
-  g_powerSave.printer = printer;
   g_powerSave.backlightPin = backlightPin;
   g_powerSave.timeoutMs = timeoutMs;
   g_powerSave.dimBrightness = dimBrightness;

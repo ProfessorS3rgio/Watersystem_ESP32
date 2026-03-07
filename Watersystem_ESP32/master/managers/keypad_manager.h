@@ -3,7 +3,6 @@
 
 #include <Adafruit_MCP23X17.h>
 #include "configuration/config.h"
-#include "printer/printer_serial.h"
 #include "../database/readings_database.h"
 #include "../database/customers_database.h"
 #include "../database/barangay_database.h"
@@ -46,8 +45,6 @@ extern bool isPaymentFlow;
 extern bool isVoidFlow;
 extern float paymentAmount;
 
-// External objects from main .ino
-extern ThermalPrinter printer;
 
 // Keypad setup
 char keys[KEYPAD_ROWS][KEYPAD_COLS] = {

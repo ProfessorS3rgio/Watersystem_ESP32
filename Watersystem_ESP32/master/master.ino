@@ -2,7 +2,6 @@
 #include <SPI.h>
 SPIClass SPI_SD(VSPI);
 #include <SD.h>
-#include "printer/printer_serial.h"
 
 // supply the UART pins to the wrapper (mirrors sample code names)
 #define RXD2 PRINTER_RX
@@ -41,7 +40,6 @@ SPIClass SPI_SD(VSPI);
 #include "managers/tft_screen_manager.h"
 #include "managers/sdcard_manager.h"
 #include "managers/keypad_manager.h"
-#include "configuration/logo.h"
 #include "managers/sync_manager.h"
 #include "components/battery_display.h"
 #include "components/bmp_display.h"
@@ -58,9 +56,6 @@ SPIClass SPI_SD(VSPI);
 // ===== TFT DISPLAY =====
 TFT_eSPI tft = TFT_eSPI();
 
-// ===== THERMAL PRINTER =====
-HardwareSerial printerSerial(2);  // Use UART2 on ESP32
-ThermalPrinter printer(printerSerial);  // thin wrapper around raw UART
 
 // ===== RTC MODULE =====
 RTC_DS3231 rtc;
@@ -221,7 +216,7 @@ void setup() {
   currentState = STATE_WELCOME;
   showWelcomeScreen();
 
-  powerSaveBegin(&printer, TFT_BLK, POWER_SAVE_TIMEOUT, 25, 255);
+  powerSaveBegin(TFT_BLK, POWER_SAVE_TIMEOUT, 25, 255);
 }
 
 void loop() {

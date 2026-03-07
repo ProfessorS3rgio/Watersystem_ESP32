@@ -2,37 +2,16 @@
 #define BOOT_SCREEN_H
 
 #include <TFT_eSPI.h>
-#include "printer/printer_serial.h"
 #include "../managers/sdcard_manager.h"
 #include "../configuration/config.h"
 
 // Extern declarations for global objects
 extern TFT_eSPI tft;
-extern HardwareSerial printerSerial;
-extern ThermalPrinter printer;
 extern RTC_DS3231 rtc;   // allow RTC checks
 
 // ===== BOOT SCREEN HELPERS =====
-static bool checkPrinterCommunication(uint16_t timeoutMs = 250) {
-  // Sends a standard ESC/POS status request (DLE EOT 1) and waits briefly for a reply.
-  // If the printer is powered and UART wiring is correct, many printers will respond.
-  while (printerSerial.available()) {
-    printerSerial.read();
-  }
-
-  printerSerial.write(0x10);
-  printerSerial.write(0x04);
-  printerSerial.write(0x01);
-  printerSerial.flush();
-
-  unsigned long deadline = millis() + timeoutMs;
-  while (millis() < deadline) {
-    if (printerSerial.available() > 0) {
-      (void)printerSerial.read();
-      return true;
-    }
-    delay(5);
-  }
+static bool checkPrinterCommunication(uint16_t /*timeoutMs*/ = 0) {
+  // no actual printer attached in master; always report false
   return false;
 }
 
@@ -79,11 +58,6 @@ static void showBootScreen() {
   tft.setCursor(2, y);
   tft.println(F("[CHK] Printer..."));
 
-  // Initialize Printer
-  printerSerial.begin(PRINTER_BAUD, SERIAL_8N1, PRINTER_RX, PRINTER_TX);
-  printer.begin();
-  printer.wake();
-  printer.setDefault();
 
   // check MCP23017 on-screen as well
   y += 12;
@@ -103,17 +77,6 @@ static void showBootScreen() {
   tft.setTextColor(TFT_GREEN);
 
 
-  y += 12;
-  tft.setCursor(2, y);
-  tft.print(F("[PRN] UART: "));
-  if (checkPrinterCommunication()) {
-    tft.setTextColor(TFT_GREEN);
-    tft.println(F("OK"));
-  } else {
-    tft.setTextColor(TFT_RED);
-    tft.println(F("NO RESP"));
-  }
-  tft.setTextColor(TFT_GREEN);
 
   y += 12;
   tft.setCursor(2, y);

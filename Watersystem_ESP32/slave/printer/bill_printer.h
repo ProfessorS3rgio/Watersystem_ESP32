@@ -5,7 +5,6 @@
 #include "../database/bill_database.h"  // For BillData currentBill
 #include "../database/device_info.h"   // For getDeviceInfoValue
 #include "../configuration/config.h"    // For YIELD_WDT
-#include "../configuration/logo.h"      // For logo bitmap
 
 // External printer object (defined in main .ino)
 extern ThermalPrinter printer;

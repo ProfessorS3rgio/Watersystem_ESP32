@@ -31,10 +31,6 @@ class BatteryMonitor;
 #define SD_MISO   19
 #define SD_CLK    18
 
-// ===== THERMAL PRINTER PINS (UART2) =====
-#define PRINTER_RX  17   // ESP32 RX <- Printer TX
-#define PRINTER_TX  16   // ESP32 TX -> Printer RX
-#define PRINTER_BAUD 9600
 
 // ===== RTC MODULE PINS (I2C) =====
 #define RTC_SDA 27
