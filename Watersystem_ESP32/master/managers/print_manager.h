@@ -24,6 +24,7 @@ void printerTask(void *parameter);
 void animationTask(void *parameter);
 
 static PrinterIconBarLoadingState g_printLoadingState;
+static const uint32_t WS_PRINTER_TASK_STACK_SIZE = 6144;
 
 // Time-based progress estimate (used when we don't have real progress updates).
 // Increased so the UI matches typical bill print duration better.
@@ -34,25 +35,50 @@ static volatile PrintJobFn g_printJobFn = nullptr;
 
 static void startParallelPrintingInternal(PrintJobFn job) {
   g_printJobFn = job;
+  printTaskHandle = NULL;
+  animationTaskHandle = NULL;
 
   Serial.println(F("Starting parallel print and animation tasks..."));
+  Serial.print(F("[Print Manager] Free heap before task create: "));
+  Serial.println(ESP.getFreeHeap());
   
   // Create printer task (high priority)
-  xTaskCreatePinnedToCore(
+  BaseType_t printTaskResult = xTaskCreatePinnedToCore(
     printerTask,
     "PrinterTask",
-    4096,
+    WS_PRINTER_TASK_STACK_SIZE,
     NULL,
     1,
     &printTaskHandle,
     1   // ✅ CORE 1 (critical)
   );
+
+  if (printTaskResult != pdPASS || printTaskHandle == NULL) {
+    Serial.println(F("[Print Manager] Printer task creation failed; running print inline"));
+
+    isPrinting = true;
+    printComplete = false;
+    printProgress = 0;
+
+    PrintJobFn inlineJob = g_printJobFn;
+    if (inlineJob) {
+      inlineJob();
+    } else {
+      printBill();
+    }
+    g_printJobFn = nullptr;
+
+    isPrinting = false;
+    printComplete = true;
+    printProgress = 100;
+    return;
+  }
   
   // Small delay to let printer start
   delay(100);
   
   // Create animation task (UI) pinned to core 0
-  xTaskCreatePinnedToCore(
+  BaseType_t animationTaskResult = xTaskCreatePinnedToCore(
     animationTask,
     "AnimationTask",
     4096,
@@ -61,6 +87,10 @@ static void startParallelPrintingInternal(PrintJobFn job) {
     &animationTaskHandle,
     0
   );
+
+  if (animationTaskResult != pdPASS || animationTaskHandle == NULL) {
+    Serial.println(F("[Print Manager] Animation task creation failed; continuing without loading UI"));
+  }
 }
 
 // ===== PRINTER TASK (Runs in background) =====

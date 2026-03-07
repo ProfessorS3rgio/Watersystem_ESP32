@@ -132,7 +132,7 @@ void setup() {
   Serial.setTimeout(30000); // 30 seconds timeout for long transmissions
 
   if (BLE_SLAVE_LINK_ENABLED) {
-    bleSlaveManagerBegin();
+    Serial.println(F("[BLE] Slave link set to lazy init for printing"));
   } else {
     Serial.println(F("[BLE] Slave link disabled for heap comparison"));
   }

@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <BLEDevice.h>
+#include <BLESecurity.h>
 #include <BLEServer.h>
 #include <BLEUtils.h>
 #include <BLE2902.h>
@@ -233,6 +234,8 @@ void setup() {
     Serial.println("ESP32 Slave BLE Server starting...");
 
     BLEDevice::init("ESP32_Slave");
+    BLESecurity::setAuthenticationMode(false, false, false);
+    BLEDevice::setPower(ESP_PWR_LVL_P9);
     
     class ServerCallbacks : public BLEServerCallbacks {
       void onConnect(BLEServer* pServer) {

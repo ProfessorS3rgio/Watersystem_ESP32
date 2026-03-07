@@ -5,6 +5,7 @@
 #include <BLEDevice.h>
 #include <BLEClient.h>
 #include <BLEScan.h>
+#include <BLESecurity.h>
 #include <BLEUtils.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
@@ -18,6 +19,8 @@ void bleRequestReconnect();
 bool bleIsConnected();
 bool bleIsReady();
 bool bleSend(const String &cmd);
+bool blePrepareForPrint(uint32_t timeoutMs = 8000);
+void bleShutdownAfterPrint();
 bool bleWaitForReady(uint32_t timeoutMs = 3000);
 String bleConnectionStatusText();
 
@@ -28,10 +31,11 @@ constexpr uint32_t BLE_RETRY_DELAY_MS = 5000;
 constexpr uint32_t BLE_STATUS_POLL_MS = 1000;
 constexpr uint32_t BLE_HEARTBEAT_INTERVAL_MS = 5000;
 constexpr uint32_t BLE_HEARTBEAT_TIMEOUT_MS = 15000;
-constexpr uint32_t BLE_CONNECT_TIMEOUT_MS = 10000;
+constexpr uint32_t BLE_CONNECT_TIMEOUT_MS = 30000;
 constexpr uint32_t BLE_HANDSHAKE_TIMEOUT_MS = 3000;
 constexpr size_t BLE_CHUNK_SIZE = 20;
 constexpr bool BLE_SCAN_STATUS_LOGGING_ENABLED = true;
+constexpr bool BLE_BACKGROUND_RECONNECT_ENABLED = false;
 
 BLEUUID g_serviceUuid("4fafc201-1fb5-459e-8fcc-c5c9c331914b");
 BLEUUID g_characteristicUuid("beb5483e-36e1-4688-b7f5-ea07361b26a8");
@@ -47,6 +51,7 @@ struct BleSlaveManagerState {
 	volatile bool notifyRegistered;
 	volatile bool handshakeComplete;
 	volatile bool awaitingPong;
+	volatile bool intentionalShutdown;
 	uint32_t lastAttemptMs;
 	uint32_t lastRxMs;
 	uint32_t lastPingMs;
@@ -58,6 +63,7 @@ BleSlaveManagerState g_bleSlave = {
 	false,
 	false,
 	true,
+	false,
 	false,
 	false,
 	false,
@@ -104,6 +110,7 @@ void bleClearConnectionState() {
 		g_bleSlave.notifyRegistered = false;
 		g_bleSlave.handshakeComplete = false;
 		g_bleSlave.awaitingPong = false;
+		g_bleSlave.intentionalShutdown = false;
 		g_bleSlave.lastRxMs = 0;
 		g_bleSlave.lastPingMs = 0;
 		bleUnlock();
@@ -188,14 +195,42 @@ class BleClientCallbacks final : public BLEClientCallbacks {
 
 	void onDisconnect(BLEClient* client) override {
 		(void)client;
+		const bool intentional = g_bleSlave.intentionalShutdown;
 		bleClearConnectionState();
-		g_bleSlave.reconnectRequested = true;
-		Serial.println(F("[BLE] Slave disconnected; reconnect scheduled"));
+		g_bleSlave.reconnectRequested = intentional ? false : true;
+		if (intentional) {
+			Serial.println(F("[BLE] Slave link closed after print"));
+		} else {
+			Serial.println(F("[BLE] Slave disconnected; reconnect scheduled"));
+		}
 	}
 };
 
 BleAdvertisedCallbacks g_bleAdvertisedCallbacks;
 BleClientCallbacks g_bleClientCallbacks;
+
+bool bleScanForSlave();
+bool bleConnectToSlave();
+bool bleEnsureInitialized();
+
+bool bleAttemptConnectionNow() {
+	if (g_bleSlave.connectionAttemptInProgress) {
+		return false;
+	}
+
+	g_bleSlave.connectionAttemptInProgress = true;
+	g_bleSlave.lastAttemptMs = millis();
+
+	bool connected = false;
+	if (bleEnsureInitialized()) {
+		if (bleScanForSlave()) {
+			connected = bleConnectToSlave();
+		}
+	}
+
+	g_bleSlave.connectionAttemptInProgress = false;
+	return connected;
+}
 
 bool bleScanForSlave() {
 	bleDisposeFoundDevice();
@@ -248,9 +283,7 @@ bool bleConnectToSlave() {
 	}
 
 	Serial.println(F("[BLE] Connecting to slave..."));
-	const BLEAddress slaveAddress = g_foundDevice->getAddress();
-	const uint8_t slaveAddressType = g_foundDevice->getAddressType();
-	if (!pBleClient->connect(slaveAddress, slaveAddressType, BLE_CONNECT_TIMEOUT_MS)) {
+	if (!pBleClient->connect(g_foundDevice)) {
 		Serial.println(F("[BLE] Connect failed"));
 		bleDisposeFoundDevice();
 		return false;
@@ -311,8 +344,10 @@ bool bleEnsureInitialized() {
 	}
 
 	BLEDevice::init(BLE_MASTER_DEVICE_NAME);
+	BLESecurity::setAuthenticationMode(false, false, false);
+	BLEDevice::setPower(ESP_PWR_LVL_P9);
 	g_bleSlave.stackInitialized = true;
-	Serial.println(F("[BLE] Client stack initialized"));
+	Serial.println(F("[BLE] Client stack initialized (no bond, default MTU)"));
 	return true;
 }
 
@@ -367,16 +402,7 @@ void bleSlaveTask(void* parameter) {
 			continue;
 		}
 
-		g_bleSlave.connectionAttemptInProgress = true;
-		g_bleSlave.lastAttemptMs = nowMs;
-
-		if (bleEnsureInitialized()) {
-			if (bleScanForSlave()) {
-				bleConnectToSlave();
-			}
-		}
-
-		g_bleSlave.connectionAttemptInProgress = false;
+		bleAttemptConnectionNow();
 		vTaskDelay(pdMS_TO_TICKS(BLE_RETRY_DELAY_MS));
 	}
 }
@@ -392,7 +418,7 @@ void bleSlaveManagerBegin() {
 	g_bleSlave.reconnectRequested = true;
 	g_bleSlave.lastAttemptMs = 0;
 
-	if (g_bleSlave.taskHandle == nullptr) {
+	if (BLE_BACKGROUND_RECONNECT_ENABLED && g_bleSlave.taskHandle == nullptr) {
 		xTaskCreatePinnedToCore(
 			bleSlaveTask,
 			"BleSlaveTask",
@@ -402,9 +428,10 @@ void bleSlaveManagerBegin() {
 			&g_bleSlave.taskHandle,
 			1
 		);
+		Serial.println(F("[BLE] Background reconnect task started"));
+	} else if (!BLE_BACKGROUND_RECONNECT_ENABLED) {
+		Serial.println(F("[BLE] Direct print-connect mode enabled"));
 	}
-
-	Serial.println(F("[BLE] Background reconnect task started"));
 }
 
 void bleRequestReconnect() {
@@ -486,6 +513,72 @@ bool bleSend(const String &cmd) {
 	}
 
 	return success;
+}
+
+bool blePrepareForPrint(uint32_t timeoutMs) {
+	bleSlaveManagerBegin();
+	g_bleSlave.reconnectRequested = true;
+	const uint32_t effectiveTimeoutMs = max(timeoutMs, BLE_CONNECT_TIMEOUT_MS + BLE_HANDSHAKE_TIMEOUT_MS + 2000);
+
+	if (bleIsReady()) {
+		return true;
+	}
+
+	const uint32_t startMs = millis();
+	while ((millis() - startMs) < effectiveTimeoutMs) {
+		if (bleIsReady()) {
+			return true;
+		}
+
+		if (!g_bleSlave.connectionAttemptInProgress
+				&& (!BLE_BACKGROUND_RECONNECT_ENABLED || (millis() - g_bleSlave.lastAttemptMs) >= BLE_RETRY_DELAY_MS)) {
+			bleAttemptConnectionNow();
+		}
+
+		delay(25);
+	}
+
+	return bleIsReady();
+}
+
+void bleShutdownAfterPrint() {
+	if (!g_bleSlave.stackInitialized) {
+		return;
+	}
+
+	Serial.println(F("[BLE] Releasing BLE stack after print"));
+	g_bleSlave.reconnectRequested = false;
+	g_bleSlave.connectionAttemptInProgress = false;
+	g_bleSlave.intentionalShutdown = true;
+
+	BLEScan* scan = BLEDevice::getScan();
+	if (scan != nullptr) {
+		scan->stop();
+		scan->clearResults();
+	}
+
+	delay(150);
+
+	if (pBleClient != nullptr && pBleClient->isConnected()) {
+		pBleClient->disconnect();
+		delay(150);
+	}
+
+	bleDisposeFoundDevice();
+	pBleCharacteristic = nullptr;
+
+	BLEDevice::deinit(false);
+	pBleClient = nullptr;
+	g_bleSlave.stackInitialized = false;
+	g_bleSlave.notifyRegistered = false;
+	g_bleSlave.handshakeComplete = false;
+	g_bleSlave.awaitingPong = false;
+	g_bleSlave.intentionalShutdown = false;
+	g_bleSlave.lastAttemptMs = 0;
+	g_bleSlave.lastRxMs = 0;
+	g_bleSlave.lastPingMs = 0;
+	g_bleIncomingBuffer = "";
+	Serial.println(F("[BLE] BLE stack released"));
 }
 
 bool bleWaitForReady(uint32_t timeoutMs) {

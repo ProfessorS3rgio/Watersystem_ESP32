@@ -33,7 +33,7 @@ static void prepareSampleBillForBlePrintTest() {
 }
 
 static bool printSampleBillViaBleSlave() {
-  if (!bleWaitForReady(5000)) {
+  if (!blePrepareForPrint(8000)) {
     Serial.println(F("[BLE] Slave printer not ready; sample print skipped"));
     return false;
   }

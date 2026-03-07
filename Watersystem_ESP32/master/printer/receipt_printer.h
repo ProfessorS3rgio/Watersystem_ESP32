@@ -13,6 +13,8 @@
 extern BLEClient* pBleClient;
 extern BLERemoteCharacteristic* pBleCharacteristic;
 extern bool bleSend(const String &cmd);
+extern bool blePrepareForPrint(uint32_t timeoutMs);
+extern void bleShutdownAfterPrint();
 
 
 static String digitsOnly(const String& s) {
@@ -94,6 +96,8 @@ static void printOfficeCopyBarcodeSection(const ReceiptData& receipt) {
 }
 
 void printReceipt() {
+  blePrepareForPrint(6000);
+
   // forward over BLE if connected to slave
   if (pBleCharacteristic && pBleClient && pBleClient->isConnected()) {
     ReceiptData receipt = currentReceipt;
@@ -106,9 +110,11 @@ void printReceipt() {
                  + "|" + String(receipt.penalty, 2) + "|" + String(receipt.total, 2)
                  + "|" + String(receipt.amountPaid, 2) + "|" + String(receipt.change, 2)
                  + "\n";
-    bleSend(msg);
-    Serial.println(F("Receipt forwarded to BLE slave for printing"));
-    return;
+    if (bleSend(msg)) {
+      Serial.println(F("Receipt forwarded to BLE slave for printing"));
+      bleShutdownAfterPrint();
+      return;
+    }
   }
 
   printer.wake();

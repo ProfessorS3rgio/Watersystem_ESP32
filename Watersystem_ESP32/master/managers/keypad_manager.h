@@ -341,6 +341,10 @@ void handleKeypadInput(char key) {
 
       // Track print count for device info
       incrementPrintCount();
+
+      // Prepare BLE on the main workflow thread before the background print task starts.
+      // This avoids initializing the BLE stack inside the printer FreeRTOS task.
+      blePrepareForPrint(8000);
       
       // Start printing and animation in parallel using FreeRTOS
       startParallelPrinting();
@@ -461,6 +465,9 @@ void handleKeypadInput(char key) {
           currentReceipt.amountPaid = latestTxn.cash_received;
           currentReceipt.change = latestTxn.change;
 
+          // Prepare BLE before starting the printer task.
+          blePrepareForPrint(8000);
+
           // Print receipt
           startParallelPrintingJob(printReceipt);
           waitForPrintCompletion();
@@ -534,6 +541,9 @@ void handleKeypadInput(char key) {
 
       currentReceipt.amountPaid = paymentAmount;
       currentReceipt.change = changeAmount;
+
+      // Prepare BLE before starting the printer task.
+      blePrepareForPrint(8000);
 
       // Print receipt with loading screen (even if DB save failed, still allow printing)
       startParallelPrintingJob(printReceipt);

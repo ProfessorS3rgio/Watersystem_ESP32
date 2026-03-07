@@ -134,67 +134,86 @@ public:
 // QR code printing helper (same command sequence used by sample sketch)
 void printQRCode(const String &data) {
     if (data.length() == 0) return;
-    extern HardwareSerial printerSerial; // defined in main .ino
+
+    // Some 58mm ESC/POS printers are timing-sensitive with GS ( k QR commands.
+    // Use the printer UART directly, add short pacing delays, and keep the module size modest.
+
+    justify('C');
+    _serial.write('\n');
+    _serial.flush();
+    delay(30);
 
     // set model
-    printerSerial.write(0x1D);
-    printerSerial.write('(');
-    printerSerial.write('k');
-    printerSerial.write(0x04);
-    printerSerial.write(0x00);
-    printerSerial.write(0x31);
-    printerSerial.write(0x41);
-    printerSerial.write(0x32);
-    printerSerial.write(0x00);
+    _serial.write(0x1D);
+    _serial.write('(');
+    _serial.write('k');
+    _serial.write(0x04);
+    _serial.write(0x00);
+    _serial.write(0x31);
+    _serial.write(0x41);
+    _serial.write(0x32);
+    _serial.write(0x00);
+    _serial.flush();
+    delay(30);
 
     // set size
-    printerSerial.write(0x1D);
-    printerSerial.write('(');
-    printerSerial.write('k');
-    printerSerial.write(0x03);
-    printerSerial.write(0x00);
-    printerSerial.write(0x31);
-    printerSerial.write(0x43);
-    printerSerial.write(0x06);
+    _serial.write(0x1D);
+    _serial.write('(');
+    _serial.write('k');
+    _serial.write(0x03);
+    _serial.write(0x00);
+    _serial.write(0x31);
+    _serial.write(0x43);
+    _serial.write(0x05);
+    _serial.flush();
+    delay(30);
 
     // set error correction
-    printerSerial.write(0x1D);
-    printerSerial.write('(');
-    printerSerial.write('k');
-    printerSerial.write(0x03);
-    printerSerial.write(0x00);
-    printerSerial.write(0x31);
-    printerSerial.write(0x45);
-    printerSerial.write(0x31);
+    _serial.write(0x1D);
+    _serial.write('(');
+    _serial.write('k');
+    _serial.write(0x03);
+    _serial.write(0x00);
+    _serial.write(0x31);
+    _serial.write(0x45);
+    _serial.write(0x31);
+    _serial.flush();
+    delay(30);
 
     // store data
     int len = data.length() + 3;
     uint8_t pL = len & 0xFF;
     uint8_t pH = (len >> 8) & 0xFF;
-    printerSerial.write(0x1D);
-    printerSerial.write('(');
-    printerSerial.write('k');
-    printerSerial.write(pL);
-    printerSerial.write(pH);
-    printerSerial.write(0x31);
-    printerSerial.write(0x50);
-    printerSerial.write(0x30);
-    printerSerial.print(data);
+    _serial.write(0x1D);
+    _serial.write('(');
+    _serial.write('k');
+    _serial.write(pL);
+    _serial.write(pH);
+    _serial.write(0x31);
+    _serial.write(0x50);
+    _serial.write(0x30);
+    _serial.print(data);
+    _serial.flush();
+    delay(80);
 
     // print QR code
-    printerSerial.write(0x1D);
-    printerSerial.write('(');
-    printerSerial.write('k');
-    printerSerial.write(0x03);
-    printerSerial.write(0x00);
-    printerSerial.write(0x31);
-    printerSerial.write(0x51);
-    printerSerial.write(0x30);
+    _serial.write(0x1D);
+    _serial.write('(');
+    _serial.write('k');
+    _serial.write(0x03);
+    _serial.write(0x00);
+    _serial.write(0x31);
+    _serial.write(0x51);
+    _serial.write(0x30);
+    _serial.flush();
+    delay(150);
 
     // feed two blank lines
-    printerSerial.write(0x1B);
-    printerSerial.write('d');
-    printerSerial.write((uint8_t)2);
+    _serial.write(0x1B);
+    _serial.write('d');
+    _serial.write((uint8_t)2);
+    _serial.flush();
+    justify('L');
 }
 
 private:
@@ -203,7 +222,5 @@ private:
 
 // global printer instance will be defined in the main .ino
 extern ThermalPrinter printer;
-// expose serial variable so helpers (e.g. printQRCode) can access it
-extern HardwareSerial printerSerial;
 
 #endif // PRINTER_SERIAL_H

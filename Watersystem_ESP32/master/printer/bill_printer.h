@@ -16,6 +16,8 @@ extern BLERemoteCharacteristic* pBleCharacteristic;
 
 // helper to transmit a command string over BLE (master app)
 extern bool bleSend(const String &cmd);
+extern bool blePrepareForPrint(uint32_t timeoutMs);
+extern void bleShutdownAfterPrint();
 
 
 
@@ -37,6 +39,8 @@ static String fitAddressForPrint(const String& address, size_t maxChars = 21) {
 }
 
 void printBill() {
+  blePrepareForPrint(6000);
+
   // if we have an active BLE connection to a slave, forward the print job and skip
   if (pBleCharacteristic && pBleClient && pBleClient->isConnected()) {
     // construct payload matching slave parser (pipe-delimited)
@@ -58,9 +62,11 @@ void printBill() {
       msg += "|" + currentBill.billDate;
     }
     msg += "\n";
-    bleSend(msg);
-    Serial.println(F("Bill forwarded to BLE slave for printing"));
-    return; // local printing skipped
+    if (bleSend(msg)) {
+      Serial.println(F("Bill forwarded to BLE slave for printing"));
+      bleShutdownAfterPrint();
+      return; // local printing skipped
+    }
   }
 
   printer.wake();
