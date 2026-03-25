@@ -3,12 +3,6 @@
 
 #include "config.h"
 
-// ===== LOGO BITMAP (for thermal printer) =====
-// #define LOGO_WIDTH 320
-// #define LOGO_HEIGHT 160
-
-// #define LOGO_WIDTH 520  //looks good enough
-// #define LOGO_HEIGHT 160
 
 #define LOGO_WIDTH 555
 #define LOGO_HEIGHT 160

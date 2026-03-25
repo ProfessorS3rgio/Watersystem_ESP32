@@ -1,6 +1,7 @@
 #ifndef PRINTER_SERIAL_H
 #define PRINTER_SERIAL_H
 
+#include <Arduino.h>
 #include <HardwareSerial.h>
 #include "../configuration/config.h"  // for PRINTER_RX/TX and PRINTER_BAUD
 
@@ -10,24 +11,83 @@
 
 class ThermalPrinter : public Print {
 public:
+    enum PaperStatus {
+        PAPER_UNKNOWN = -1,
+        PAPER_PRESENT = 0,
+        PAPER_OUT = 1
+    };
+
     ThermalPrinter(HardwareSerial& hw) : _serial(hw) {}
 
     // initialize the underlying UART (call once during setup)
     void begin(long baud = PRINTER_BAUD) {
         _serial.begin(baud, SERIAL_8N1, RXD2, TXD2);
+
+
     }
 
-    // wake and reset printer
+
+    // Query ESC/POS real-time paper sensor status (DLE EOT 4).
+    // Returns PAPER_UNKNOWN if no response is received.
+    PaperStatus queryPaperStatus(uint16_t timeoutMs = 120) {
+        while (_serial.available() > 0) {
+            _serial.read();
+        }
+
+        _serial.write(0x10); // DLE
+        _serial.write(0x04); // EOT
+        _serial.write(0x04); // paper sensor status
+        _serial.flush();
+
+        unsigned long start = millis();
+        while ((millis() - start) <= timeoutMs) {
+            if (_serial.available() > 0) {
+                uint8_t status = static_cast<uint8_t>(_serial.read());
+                _lastPaperRaw = status;
+
+                // Many ESC/POS modules report paper-end on bit 5 and/or 6.
+                if (status & 0x60) return PAPER_OUT;
+                return PAPER_PRESENT;
+            }
+            delay(1);
+            YIELD_WDT();
+        }
+
+        return PAPER_UNKNOWN;
+    }
+
+    int lastPaperRawStatus() const {
+        return _lastPaperRaw;
+    }
+
+    // power up the printer by driving the enable pin high
     void wake() {
-        // ESC @
-        _serial.write(0x1B);
-        _serial.write('@');
+        digitalWrite(PRINTER_ENABLE_PIN, HIGH);
+        // wait for the supply rail to stabilise before sending data
+        delay(100);
     }
 
     // set defaults (mimic Adafruit_Thermal)
     void setDefault() {
-        wake();
+        // just set a sane line spacing
         setLineSpacing(30);
+        setPrintDensity();
+    }
+
+    // ESC/POS density/speed control (DC2 # n).
+    // printDensity: 0..31 (higher is darker), printBreakTime: 0..7 (higher is slower/darker)
+    void setPrintDensity(uint8_t printDensity = 10, uint8_t printBreakTime = 2) {
+        if (printDensity > 31) printDensity = 31;
+        if (printBreakTime > 7) printBreakTime = 7;
+
+        _serial.write(0x12);  // DC2
+        _serial.write('#');
+        _serial.write((uint8_t)((printDensity << 3) | printBreakTime));
+    }
+
+    // Stronger profile for dark bitmap/logo output.
+    void setBitmapDarkProfile() {
+        setPrintDensity(23, 5);
     }
 
     // adjust line spacing (ESC 3 n)
@@ -37,11 +97,9 @@ public:
         _serial.write(spacing);
     }
 
-    // low‑power sleep (no op for now)
+    // power down printer by dropping the enable pin
     void sleep() {
-        // not all printers support this; sending a generic sleep command
-        _serial.write(0x1B);
-        _serial.write('8');
+        digitalWrite(PRINTER_ENABLE_PIN, LOW);
     }
 
     // text justification: 'L', 'C', 'R'
@@ -118,10 +176,14 @@ public:
     }
 
     // provide Print API
-    size_t write(uint8_t c) override { return _serial.write(c); }
+    size_t write(uint8_t c) override {
+        return _serial.write(c);
+    }
     // Print already provides a char* overload, no need to reimplement
     //size_t write(const char *str) override { return _serial.write(str); }
-    size_t write(const uint8_t *buffer, size_t size) override { return _serial.write(buffer, size); }
+    size_t write(const uint8_t *buffer, size_t size) override {
+        return _serial.write(buffer, size);
+    }
 
     // convenience helper used by power_save_manager
     void feed(uint8_t lines = 1) {
@@ -218,6 +280,7 @@ void printQRCode(const String &data) {
 
 private:
     HardwareSerial& _serial;
+    int _lastPaperRaw = -1;
 };
 
 // global printer instance will be defined in the main .ino

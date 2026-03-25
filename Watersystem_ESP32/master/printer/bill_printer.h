@@ -11,6 +11,7 @@ extern NimBLERemoteCharacteristic* pBleCharacteristic;
 // helper to transmit a command string over BLE (master app)
 extern bool bleSend(const String &cmd);
 extern bool blePrepareForPrint(uint32_t timeoutMs);
+extern bool bleCheckPaperPresent(uint32_t timeoutMs);
 extern void bleShutdownAfterPrint();
 
 void printBill();
@@ -20,6 +21,12 @@ void printBill() {
 
   // BLE-only print path: forward to slave printer.
   if (pBleCharacteristic && pBleClient && pBleClient->isConnected()) {
+    if (!bleCheckPaperPresent(1500)) {
+      Serial.println(F("Bill print blocked: no paper detected on slave"));
+      bleShutdownAfterPrint();
+      return;
+    }
+
     String msg = String("PRINT_BILL|") + currentBill.refNumber + "|" + currentBill.readingDateTime \
                  + "|" + currentBill.customerName + "|" + currentBill.accountNo \
                  + "|" + currentBill.customerType + "|" + currentBill.address \

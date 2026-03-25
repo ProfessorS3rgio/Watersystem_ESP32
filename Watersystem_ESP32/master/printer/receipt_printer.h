@@ -11,6 +11,7 @@ extern NimBLEClient* pBleClient;
 extern NimBLERemoteCharacteristic* pBleCharacteristic;
 extern bool bleSend(const String &cmd);
 extern bool blePrepareForPrint(uint32_t timeoutMs);
+extern bool bleCheckPaperPresent(uint32_t timeoutMs);
 extern void bleShutdownAfterPrint();
 
 void printReceipt() {
@@ -18,6 +19,12 @@ void printReceipt() {
 
   // forward over BLE if connected to slave
   if (pBleCharacteristic && pBleClient && pBleClient->isConnected()) {
+    if (!bleCheckPaperPresent(1500)) {
+      Serial.println(F("Receipt print blocked: no paper detected on slave"));
+      bleShutdownAfterPrint();
+      return;
+    }
+
     ReceiptData receipt = currentReceipt;
     String msg = String("PRINT_RECEIPT|") + receipt.receiptNumber + "|" + receipt.paymentDateTime
                  + "|" + receipt.customerName + "|" + receipt.accountNo

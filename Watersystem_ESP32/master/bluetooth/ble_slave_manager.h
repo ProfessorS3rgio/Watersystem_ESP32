@@ -17,6 +17,7 @@ bool bleIsConnected();
 bool bleIsReady();
 bool bleSend(const String &cmd);
 bool blePrepareForPrint(uint32_t timeoutMs = 8000);
+bool bleCheckPaperPresent(uint32_t timeoutMs = 1500);
 void bleShutdownAfterPrint();
 bool bleWaitForReady(uint32_t timeoutMs = 3000);
 String bleConnectionStatusText();
@@ -24,7 +25,7 @@ String bleConnectionStatusText();
 namespace {
 constexpr char BLE_MASTER_DEVICE_NAME[] = "WaterSystem";
 constexpr bool BLE_DIRECT_CONNECT_ENABLED = true;
-constexpr char BLE_SLAVE_KNOWN_MAC[] = "d4:e9:f4:8d:5f:82";
+constexpr char BLE_SLAVE_KNOWN_MAC[] = "68:fe:71:88:5b:9e";
 constexpr uint32_t BLE_SCAN_SECONDS = 5;
 constexpr uint32_t BLE_RETRY_DELAY_MS = 1200;
 constexpr uint32_t BLE_STATUS_POLL_MS = 1000;
@@ -57,6 +58,7 @@ struct BleSlaveManagerState {
 	uint32_t lastAttemptMs;
 	uint32_t lastRxMs;
 	uint32_t lastPingMs;
+	volatile int8_t paperStatus;
 };
 
 BleSlaveManagerState g_bleSlave = {
@@ -73,7 +75,8 @@ BleSlaveManagerState g_bleSlave = {
 	0,
 	0,
 	0,
-	0
+	0,
+	-1
 };
 
 String g_bleIncomingBuffer;
@@ -111,6 +114,7 @@ void bleClearConnectionState() {
 		g_bleSlave.intentionalShutdown = false;
 		g_bleSlave.lastRxMs = 0;
 		g_bleSlave.lastPingMs = 0;
+		g_bleSlave.paperStatus = -1;
 		bleUnlock();
 	}
 }
@@ -133,6 +137,21 @@ void bleHandleIncomingLine(const String& line) {
 	if (line.equalsIgnoreCase("PONG")) {
 		g_bleSlave.handshakeComplete = true;
 		g_bleSlave.awaitingPong = false;
+		return;
+	}
+
+	if (line.equalsIgnoreCase("PAPER_PRESENT")) {
+		g_bleSlave.paperStatus = 1;
+		return;
+	}
+
+	if (line.equalsIgnoreCase("PAPER_OUT")) {
+		g_bleSlave.paperStatus = 0;
+		return;
+	}
+
+	if (line.equalsIgnoreCase("PAPER_UNKNOWN")) {
+		g_bleSlave.paperStatus = -1;
 		return;
 	}
 
@@ -637,6 +656,46 @@ bool bleWaitForReady(uint32_t timeoutMs) {
 	}
 
 	return bleIsReady();
+}
+
+bool bleCheckPaperPresent(uint32_t timeoutMs) {
+	if (!bleIsReady()) {
+		return false;
+	}
+
+	if (bleLock()) {
+		g_bleSlave.paperStatus = -1;
+		bleUnlock();
+	}
+
+	if (!bleSend(F("PAPER_STATUS"))) {
+		Serial.println(F("[BLE] Failed to request paper status"));
+		return false;
+	}
+
+	const uint32_t startMs = millis();
+	while ((millis() - startMs) < timeoutMs) {
+		int8_t status = -1;
+		if (bleLock()) {
+			status = g_bleSlave.paperStatus;
+			bleUnlock();
+		}
+
+		if (status == 1) {
+			Serial.println(F("[BLE] Paper check: PRESENT"));
+			return true;
+		}
+
+		if (status == 0) {
+			Serial.println(F("[BLE] Paper check: OUT"));
+			return false;
+		}
+
+		delay(20);
+	}
+
+	Serial.println(F("[BLE] Paper check timeout/unknown"));
+	return false;
 }
 
 String bleConnectionStatusText() {
