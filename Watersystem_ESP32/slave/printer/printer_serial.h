@@ -169,7 +169,14 @@ public:
                     _serial.write(bitmap[baseIndex + col]);
                 }
             }
+
+            // Pace chunk output so budget ESC/POS modules don't overrun and smear/duplicate rows.
+            _serial.flush();
+            delay(6);
+            YIELD_WDT();
         }
+
+        _serial.flush();
 
         // restore default line spacing used by the rest of the code
         setLineSpacing(30);

@@ -36,9 +36,11 @@ ThermalPrinter printer(Serial2);      // corresponds to HW UART2
 
 // ---------- printer power management ----------
 // track when we last used the printer; if it's idle for more
-// than a minute we'll cut power using PRINTER_ENABLE_PIN.
+// than 2 hours we'll cut power using PRINTER_ENABLE_PIN.
+const unsigned long PRINTER_IDLE_TIMEOUT_MS = 2UL * 60UL * 60UL * 1000UL;
 unsigned long g_printerLastActiveMs = 0;
 bool g_printerIsEnabled = false;
+volatile bool g_printJobInProgress = false;
 
 void enablePrinter() {
     if (!g_printerIsEnabled) {
@@ -59,12 +61,26 @@ void disablePrinter() {
 }
 
 void checkPrinterIdle() {
-    if (g_printerIsEnabled && static_cast<long>(millis() - g_printerLastActiveMs) >= 60000) {
+    if (g_printerIsEnabled && static_cast<long>(millis() - g_printerLastActiveMs) >= static_cast<long>(PRINTER_IDLE_TIMEOUT_MS)) {
         disablePrinter();
     }
 }
 
+void beginPrintJob() {
+    g_printJobInProgress = true;
+    enablePrinter();
+}
+
+void endPrintJob() {
+    g_printerLastActiveMs = millis();
+    g_printJobInProgress = false;
+}
+
 ThermalPrinter::PaperStatus readPaperStatus(bool autoWakeIfNeeded) {
+    if (g_printJobInProgress) {
+        return ThermalPrinter::PAPER_UNKNOWN;
+    }
+
     bool wasEnabled = g_printerIsEnabled;
     if (!wasEnabled && autoWakeIfNeeded) {
         enablePrinter();
@@ -295,14 +311,16 @@ void handleCommand(const String &cmd) {
         if (c != nullptr) {
             if (strcmp(c, "PRINT_BILL") == 0) {
                 // TODO: copy additional fields from JSON into currentBill
-                enablePrinter();
+                beginPrintJob();
                 printBill();
+                endPrintJob();
                 Serial.println("printed bill (json)");
                 return;
             }
             if (strcmp(c, "PRINT_RECEIPT") == 0) {
-                enablePrinter();
+                beginPrintJob();
                 printReceipt();
+                endPrintJob();
                 Serial.println("printed receipt (json)");
                 return;
             }
@@ -312,14 +330,16 @@ void handleCommand(const String &cmd) {
     if (cmd.startsWith("PRINT_BILL")) {
         String payload = cmd.substring(strlen("PRINT_BILL") + 1);
         parseBillPayload(payload);
-        enablePrinter();
+        beginPrintJob();
         printBill();
+        endPrintJob();
         Serial.println("printed bill");
     } else if (cmd.startsWith("PRINT_RECEIPT")) {
         String payload = cmd.substring(strlen("PRINT_RECEIPT") + 1);
         parseReceiptPayload(payload);
-        enablePrinter();
+        beginPrintJob();
         printReceipt();
+        endPrintJob();
         Serial.println("printed receipt");
     } else {
         Serial.print("unknown command: ");
@@ -331,7 +351,7 @@ void setup() {
     Serial.begin(115200);
     Serial.println("ESP32 Slave BLE Server starting...");
     Serial.println("Serial commands: RESTART, PRN_SLEEP, PRN_WAKE, PRN_TEST, PRINT_LOGO, PAPER_STATUS, BATTERY");
-    Serial.println("           (printer automatically powers off after 60s idle)");
+    Serial.println("           (printer automatically powers off after 2 hours idle)");
 
     // initialize I2C and fuel gauge (SDA=GPIO26, SCL=GPIO27 on this board)
     Wire.begin(26, 27);
@@ -401,7 +421,7 @@ void loop() {
         refreshBleAdvertising();
     }
 
-    // power management for the printer: if idle for more than a minute
+    // power management for the printer: if idle for more than 2 hours
     // cut power. any command that uses the printer should call enablePrinter().
     checkPrinterIdle();
 
@@ -449,16 +469,18 @@ void loop() {
             Serial.println("Printer wake command executed (powered on)");
         } else if (line.equalsIgnoreCase("PRN_TEST")) {
             // perform test print and restart idle countdown once complete
-            enablePrinter();          // this updates g_printerLastActiveMs
+            beginPrintJob();          // this updates g_printerLastActiveMs
             printer.println("[PRN_TEST] slave printer is awake");
             printer.feed(2);
+            endPrintJob();
             // also refresh timer explicitly in case enablePrinter was skipped
             g_printerLastActiveMs = millis();
             Serial.println("PRN_TEST line sent; idle timer reset");
         } else if (line.equalsIgnoreCase("PRINT_LOGO")) {
-            enablePrinter();
+            beginPrintJob();
             printLogoOnly();
             printer.feed(2);
+            endPrintJob();
             Serial.println("PRINT_LOGO done");
         } else if (line.equalsIgnoreCase("PAPER_STATUS")) {
             ThermalPrinter::PaperStatus status = readPaperStatus(true);
@@ -488,6 +510,12 @@ void loop() {
 
     if (static_cast<long>(millis() - g_nextPaperPollMs) >= 0) {
         g_nextPaperPollMs = millis() + 1000;
+
+        if (g_printJobInProgress) {
+            delay(10);
+            return;
+        }
+
         if (!g_printerIsEnabled) {
             if (g_lastPaperStatus != ThermalPrinter::PAPER_UNKNOWN) {
                 g_lastPaperStatus = ThermalPrinter::PAPER_UNKNOWN;

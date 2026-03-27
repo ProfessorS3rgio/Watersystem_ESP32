@@ -34,7 +34,9 @@ void printBill() {
 
 //   customFeed(1);
   YIELD_WDT();
+  printer.setBitmapDarkProfile();
   printer.printBitmap(LOGO_WIDTH, LOGO_HEIGHT, logo);
+  printer.setDefault();
   YIELD_WDT();  // 🚨 REQUIRED
 
   // blank line after logo

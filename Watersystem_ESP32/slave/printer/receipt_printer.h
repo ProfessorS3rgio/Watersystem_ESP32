@@ -101,7 +101,9 @@ void printReceipt() {
 //   customFeed(1);
 
 //   printer.justify('C');
+  printer.setBitmapDarkProfile();
   printer.printBitmap(LOGO_WIDTH, LOGO_HEIGHT, logo);
+  printer.setDefault();
 
 
   printer.println();
