@@ -65,7 +65,9 @@ Adafruit_MCP23X17 mcp;
 bool g_mcpReady = false;
 
 // ===== BATTERY MONITOR =====
-BatteryMonitor batteryMonitor(BATTERY_PIN, 1629, 0, 10, 3400, 4200, CHARGING_PIN_MCP);
+// 47k/47k divider is ~0.5x, measured 1.94V midpoint at 3.8V battery.
+// Scale factor = 3.8 / 1.94 = 1.9588 -> 1959 per-mille.
+BatteryMonitor batteryMonitor(BATTERY_PIN, 1959, 0, 10, 3400, 4200, CHARGING_PIN_MCP);
 
 constexpr bool BLE_SLAVE_LINK_ENABLED = true;
 
@@ -86,6 +88,7 @@ bool isIdleWorkflowState() {
   return currentState == STATE_WELCOME
       || currentState == STATE_MENU
       || currentState == STATE_ABOUT
+  || currentState == STATE_PRINTER_STATUS
       || currentState == STATE_VIEW_RATE;
 }
 
@@ -153,7 +156,7 @@ void setup() {
     // don't block; system can still run in reduced mode
   } else {
     Serial.println(F("MCP23017 initialized"));
-    mcp.pinMode(CHARGING_PIN_MCP, INPUT);  // GPB1 for charging state
+    mcp.pinMode(CHARGING_PIN_MCP, INPUT);  // GPB0 for charging state
   }
   
   // Initialize TFT Backlight with PWM
@@ -224,10 +227,29 @@ void loop() {
 
   // ===== BATTERY MONITORING =====
   static unsigned long lastMeasure = 0;
+  static int lastChargingState = -1;
   if (millis() - lastMeasure > 1000) {  // Measure every 1 second
     batteryMonitor.measure();  // Force a new ADC sample each cycle (no cached reading)
 
     const int battery_pct = batteryMonitor.getPercentage();
+    const bool chargingNow = batteryMonitor.isCharging();
+
+    if (lastChargingState != (chargingNow ? 1 : 0)) {
+      lastChargingState = chargingNow ? 1 : 0;
+
+      Serial.print(F("[CHG] State changed: "));
+      Serial.println(chargingNow ? F("CHARGING") : F("NOT CHARGING"));
+
+      if (g_mcpReady) {
+        const int rawLevel = mcp.digitalRead(CHARGING_PIN_MCP);
+        Serial.print(F("[CHG] MCP pin "));
+        Serial.print(CHARGING_PIN_MCP);
+        Serial.print(F(" raw level: "));
+        Serial.println(rawLevel ? F("HIGH") : F("LOW"));
+      } else {
+        Serial.println(F("[CHG] MCP not ready"));
+      }
+    }
 
     if (currentState == STATE_WELCOME) {
       updateWelcomeBatteryStatus(battery_pct);

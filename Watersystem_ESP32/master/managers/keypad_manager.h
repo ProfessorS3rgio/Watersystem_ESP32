@@ -33,6 +33,7 @@ void processReadingEntry();
 void resetWorkflow();
 void displayMenuScreen();
 void displayViewRateScreen();
+void displayPrinterStatusScreen();
 void startParallelPrintingJob(void (*job)());
 void waitForPrintCompletion();
 
@@ -57,7 +58,7 @@ char keys[KEYPAD_ROWS][KEYPAD_COLS] = {
 // MCP23017 pins for keypad
 // Rows: GPA0-GPA3, Columns: GPA4-GPA7
 
-constexpr bool KEYPAD_SCANNING_ENABLED = false;
+constexpr bool KEYPAD_SCANNING_ENABLED = true;
 
 // ===== KEYPAD SCANNING FUNCTION =====
 char getKey() {
@@ -185,16 +186,9 @@ void handleKeypadInput(char key) {
       tft.println(F("to the Menu"));
     }
     else if (key == '2') {
-      // Update - placeholder
-      tft.fillScreen(COLOR_BG);
-      tft.setTextColor(COLOR_HEADER);
-      tft.setCursor(62, 50);
-      tft.println(F("UPDATE"));
-      tft.setTextColor(COLOR_TEXT);
-      tft.setCursor(38, 70);
-      tft.println(F("Coming soon..."));
-      delay(2000);
-      displayMenuScreen();
+      // Printer Status
+      currentState = STATE_PRINTER_STATUS;
+      displayPrinterStatusScreen();
     }
     else if (key == '3') {
       // Void payments
@@ -367,6 +361,16 @@ void handleKeypadInput(char key) {
     // Viewing current rate
     if (key == 'C') {
       // Exit to menu
+      currentState = STATE_MENU;
+      displayMenuScreen();
+    }
+  }
+  else if (currentState == STATE_PRINTER_STATUS) {
+    if (key == 'D') {
+      // Refresh status from slave
+      displayPrinterStatusScreen();
+    }
+    else if (key == 'C' || key == '#') {
       currentState = STATE_MENU;
       displayMenuScreen();
     }

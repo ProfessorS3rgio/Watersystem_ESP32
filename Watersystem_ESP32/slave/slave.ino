@@ -303,6 +303,35 @@ void handleCommand(const String &cmd) {
         return;
     }
 
+    if (cmd.equalsIgnoreCase("CHARGING_STATUS")) {
+        bool charging = !digitalRead(CHARGER_PIN);  // low = charging
+        sendNotificationLine(charging ? "CHARGING" : "NOT_CHARGING");
+        Serial.println(charging ? "CHARGING" : "NOT_CHARGING");
+        return;
+    }
+
+    if (cmd.equalsIgnoreCase("STATUS")) {
+        double voltage = lipo.getVoltage();
+        double soc = lipo.getSOC();
+        bool alert = lipo.getAlert();
+        bool charging = !digitalRead(CHARGER_PIN);  // low = charging
+
+        int paper = -1;
+        ThermalPrinter::PaperStatus paperStatus = readPaperStatus(true);
+        if (paperStatus == ThermalPrinter::PAPER_PRESENT) {
+            paper = 1;
+        } else if (paperStatus == ThermalPrinter::PAPER_OUT) {
+            paper = 0;
+        }
+
+        char buf[96];
+        snprintf(buf, sizeof(buf), "STATUS V=%.2fV SOC=%.1f%% ALERT=%d CHG=%d PAPER=%d",
+                 voltage, soc, alert ? 1 : 0, charging ? 1 : 0, paper);
+        sendNotificationLine(String(buf));
+        Serial.println(buf);
+        return;
+    }
+
     // try JSON first
     StaticJsonDocument<300> doc;
     DeserializationError err = deserializeJson(doc, cmd);

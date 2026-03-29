@@ -18,6 +18,11 @@ bool bleIsReady();
 bool bleSend(const String &cmd);
 bool blePrepareForPrint(uint32_t timeoutMs = 8000);
 bool bleCheckPaperPresent(uint32_t timeoutMs = 1500);
+bool bleRequestSlaveStatus(uint32_t timeoutMs = 2200);
+int bleSlaveBatteryPercent();
+String bleSlaveBatteryLevelText();
+String bleSlaveChargingStatusText();
+String bleSlavePaperStatusText();
 void bleShutdownAfterPrint();
 bool bleWaitForReady(uint32_t timeoutMs = 3000);
 String bleConnectionStatusText();
@@ -58,6 +63,11 @@ struct BleSlaveManagerState {
 	uint32_t lastAttemptMs;
 	uint32_t lastRxMs;
 	uint32_t lastPingMs;
+	volatile uint32_t statusSeq;
+	volatile int16_t batterySocTenths;
+	volatile int16_t batteryVoltageCenti;
+	volatile int8_t batteryAlert;
+	volatile int8_t chargingStatus;
 	volatile int8_t paperStatus;
 };
 
@@ -76,6 +86,11 @@ BleSlaveManagerState g_bleSlave = {
 	0,
 	0,
 	0,
+	0,
+	-1,
+	-1,
+	-1,
+	-1,
 	-1
 };
 
@@ -114,7 +129,91 @@ void bleClearConnectionState() {
 		g_bleSlave.intentionalShutdown = false;
 		g_bleSlave.lastRxMs = 0;
 		g_bleSlave.lastPingMs = 0;
+		g_bleSlave.statusSeq = 0;
+		g_bleSlave.batterySocTenths = -1;
+		g_bleSlave.batteryVoltageCenti = -1;
+		g_bleSlave.batteryAlert = -1;
+		g_bleSlave.chargingStatus = -1;
 		g_bleSlave.paperStatus = -1;
+		bleUnlock();
+	}
+}
+
+bool bleParseIntField(const String& line, const char* key, int& valueOut) {
+	const String token = String(key) + "=";
+	const int keyPos = line.indexOf(token);
+	if (keyPos < 0) {
+		return false;
+	}
+
+	const int valueStart = keyPos + token.length();
+	int valueEnd = valueStart;
+	while (valueEnd < static_cast<int>(line.length())
+			&& line[valueEnd] != ' '
+			&& line[valueEnd] != 'V'
+			&& line[valueEnd] != '%') {
+		valueEnd++;
+	}
+
+	const String numText = line.substring(valueStart, valueEnd);
+	if (numText.length() == 0) {
+		return false;
+	}
+
+	valueOut = numText.toInt();
+	return true;
+}
+
+bool bleParseFloatField(const String& line, const char* key, float& valueOut) {
+	const String token = String(key) + "=";
+	const int keyPos = line.indexOf(token);
+	if (keyPos < 0) {
+		return false;
+	}
+
+	const int valueStart = keyPos + token.length();
+	int valueEnd = valueStart;
+	while (valueEnd < static_cast<int>(line.length())
+			&& line[valueEnd] != ' '
+			&& line[valueEnd] != 'V'
+			&& line[valueEnd] != '%') {
+		valueEnd++;
+	}
+
+	const String numText = line.substring(valueStart, valueEnd);
+	if (numText.length() == 0) {
+		return false;
+	}
+
+	valueOut = numText.toFloat();
+	return true;
+}
+
+void bleParseBatteryTelemetry(const String& line) {
+	float voltage = -1.0f;
+	float soc = -1.0f;
+	int alert = -1;
+	int chg = -1;
+
+	const bool hasVoltage = bleParseFloatField(line, "V", voltage);
+	const bool hasSoc = bleParseFloatField(line, "SOC", soc);
+	const bool hasAlert = bleParseIntField(line, "ALERT", alert);
+	const bool hasChg = bleParseIntField(line, "CHG", chg);
+
+	if (bleLock()) {
+		if (hasVoltage) {
+			g_bleSlave.batteryVoltageCenti = static_cast<int16_t>(lroundf(voltage * 100.0f));
+		}
+		if (hasSoc) {
+			g_bleSlave.batterySocTenths = static_cast<int16_t>(lroundf(soc * 10.0f));
+		}
+		if (hasAlert) {
+			g_bleSlave.batteryAlert = static_cast<int8_t>(alert != 0 ? 1 : 0);
+		}
+		if (hasChg) {
+			g_bleSlave.chargingStatus = static_cast<int8_t>(chg != 0 ? 1 : 0);
+		}
+		g_bleSlave.statusSeq++;
 		bleUnlock();
 	}
 }
@@ -141,17 +240,72 @@ void bleHandleIncomingLine(const String& line) {
 	}
 
 	if (line.equalsIgnoreCase("PAPER_PRESENT")) {
-		g_bleSlave.paperStatus = 1;
+		if (bleLock()) {
+			g_bleSlave.paperStatus = 1;
+			g_bleSlave.statusSeq++;
+			bleUnlock();
+		}
 		return;
 	}
 
 	if (line.equalsIgnoreCase("PAPER_OUT")) {
-		g_bleSlave.paperStatus = 0;
+		if (bleLock()) {
+			g_bleSlave.paperStatus = 0;
+			g_bleSlave.statusSeq++;
+			bleUnlock();
+		}
 		return;
 	}
 
 	if (line.equalsIgnoreCase("PAPER_UNKNOWN")) {
-		g_bleSlave.paperStatus = -1;
+		if (bleLock()) {
+			g_bleSlave.paperStatus = -1;
+			g_bleSlave.statusSeq++;
+			bleUnlock();
+		}
+		return;
+	}
+
+	if (line.equalsIgnoreCase("CHARGING")) {
+		if (bleLock()) {
+			g_bleSlave.chargingStatus = 1;
+			g_bleSlave.statusSeq++;
+			bleUnlock();
+		}
+		return;
+	}
+
+	if (line.equalsIgnoreCase("NOT_CHARGING")) {
+		if (bleLock()) {
+			g_bleSlave.chargingStatus = 0;
+			g_bleSlave.statusSeq++;
+			bleUnlock();
+		}
+		return;
+	}
+
+	if (line.equalsIgnoreCase("CHARGING_UNKNOWN")) {
+		if (bleLock()) {
+			g_bleSlave.chargingStatus = -1;
+			g_bleSlave.statusSeq++;
+			bleUnlock();
+		}
+		return;
+	}
+
+	if (line.startsWith("BATTERY ")) {
+		bleParseBatteryTelemetry(line);
+		return;
+	}
+
+	if (line.startsWith("STATUS ")) {
+		bleParseBatteryTelemetry(line);
+		int paper = -2;
+		if (bleParseIntField(line, "PAPER", paper) && bleLock()) {
+			g_bleSlave.paperStatus = static_cast<int8_t>(paper);
+			g_bleSlave.statusSeq++;
+			bleUnlock();
+		}
 		return;
 	}
 
@@ -696,6 +850,110 @@ bool bleCheckPaperPresent(uint32_t timeoutMs) {
 
 	Serial.println(F("[BLE] Paper check timeout/unknown"));
 	return false;
+}
+
+bool bleRequestSlaveStatus(uint32_t timeoutMs) {
+	if (!bleIsReady()) {
+		return false;
+	}
+
+	uint32_t startSeq = 0;
+	if (bleLock()) {
+		startSeq = g_bleSlave.statusSeq;
+		bleUnlock();
+	}
+
+	if (!bleSend(F("STATUS"))) {
+		Serial.println(F("[BLE] Failed to request STATUS"));
+		return false;
+	}
+
+	const uint32_t startMs = millis();
+	while ((millis() - startMs) < timeoutMs) {
+		uint32_t seqNow = startSeq;
+		if (bleLock()) {
+			seqNow = g_bleSlave.statusSeq;
+			bleUnlock();
+		}
+
+		if (seqNow != startSeq) {
+			return true;
+		}
+
+		delay(20);
+	}
+
+	return false;
+}
+
+int bleSlaveBatteryPercent() {
+	int16_t socTenths = -1;
+	if (bleLock()) {
+		socTenths = g_bleSlave.batterySocTenths;
+		bleUnlock();
+	}
+
+	if (socTenths < 0) {
+		return -1;
+	}
+
+	int pct = static_cast<int>((socTenths + 5) / 10);
+	if (pct < 0) pct = 0;
+	if (pct > 100) pct = 100;
+	return pct;
+}
+
+String bleSlaveBatteryLevelText() {
+	const int pct = bleSlaveBatteryPercent();
+	if (pct < 0) {
+		return String(F("unknown"));
+	}
+
+	if (pct <= 25) {
+		return String(F("LOW"));
+	}
+
+	if (pct >= 90) {
+		return String(F("FULL"));
+	}
+
+	return String(F("GOOD"));
+}
+
+String bleSlaveChargingStatusText() {
+	int8_t chg = -1;
+	if (bleLock()) {
+		chg = g_bleSlave.chargingStatus;
+		bleUnlock();
+	}
+
+	if (chg == 1) {
+		return String(F("charging"));
+	}
+
+	if (chg == 0) {
+		return String(F("not charging"));
+	}
+
+	return String(F("unknown"));
+}
+
+String bleSlavePaperStatusText() {
+	int8_t paper = -1;
+	if (bleLock()) {
+		paper = g_bleSlave.paperStatus;
+		bleUnlock();
+	}
+
+	if (paper == 1) {
+		return String(F("present"));
+	}
+
+	if (paper == 0) {
+		return String(F("out"));
+	}
+
+	return String(F("unknown"));
 }
 
 String bleConnectionStatusText() {

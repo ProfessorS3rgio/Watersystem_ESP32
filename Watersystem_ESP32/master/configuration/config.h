@@ -38,14 +38,13 @@ class BatteryMonitor;
 
 // ===== MCP23017 I/O EXPANDER (I2C) =====
 #define MCP23017_ADDR 0x20  // A0-A2 grounded
-#define MCP23017_INT 32     // Interrupt pin connected to ESP32 GPIO 32 
 
 // ===== POWER SAVING =====
 #define POWER_SAVE_TIMEOUT 35000  // 35 seconds in milliseconds
 
 // ===== BATTERY MONITOR =====
-#define BATTERY_PIN 25  // ADC pin for battery voltage measurement
-#define CHARGING_PIN_MCP 9  // MCP23017 GPB1 for charging state
+#define BATTERY_PIN 35  // ADC pin for battery voltage measurement
+#define CHARGING_PIN_MCP 8  // MCP23017 GPB0 for charging state
 
 // ===== 4x4 KEYPAD PINS (via MCP23017) =====
 #define KEYPAD_ROWS 4

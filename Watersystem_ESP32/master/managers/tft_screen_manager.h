@@ -22,6 +22,7 @@ extern RTC_DS3231 rtc;
 #include "../screens/payment_summary_screen.h"
 #include "../screens/payment_confirmation_screen.h"
 #include "../screens/view_rate_screen.h"
+#include "../screens/printer_status_screen.h"
 #include "../screens/bill_display_screen.h"
 #include "../screens/void_payment_screen.h"
 #include "../screens/warning_screen.h"
@@ -46,6 +47,7 @@ enum WorkflowState {
   STATE_BILL_CALCULATED,   // Bill calculated, ready to print
   STATE_PRINTING,          // Printing bill
   STATE_VIEW_RATE,         // Viewing current rate
+  STATE_PRINTER_STATUS,    // Printer status page from BLE slave
   STATE_ENTER_PAYMENT,     // Waiting for payment amount entry
   STATE_PAYMENT_SUMMARY,   // Payment summary, showing bill details
   STATE_PAYMENT_CONFIRMATION, // Payment confirmation, showing cash and change
