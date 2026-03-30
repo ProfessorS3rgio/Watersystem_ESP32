@@ -298,6 +298,26 @@ void bleHandleIncomingLine(const String& line) {
 		return;
 	}
 
+	if (line.startsWith("SOC=")) {
+		const float soc = line.substring(4).toFloat();
+		if (bleLock()) {
+			g_bleSlave.batterySocTenths = static_cast<int16_t>(lroundf(soc * 10.0f));
+			g_bleSlave.statusSeq++;
+			bleUnlock();
+		}
+		return;
+	}
+
+	if (line.startsWith("VOLT=")) {
+		const float voltage = line.substring(5).toFloat();
+		if (bleLock()) {
+			g_bleSlave.batteryVoltageCenti = static_cast<int16_t>(lroundf(voltage * 100.0f));
+			g_bleSlave.statusSeq++;
+			bleUnlock();
+		}
+		return;
+	}
+
 	if (line.startsWith("STATUS ")) {
 		bleParseBatteryTelemetry(line);
 		int paper = -2;
@@ -858,8 +878,14 @@ bool bleRequestSlaveStatus(uint32_t timeoutMs) {
 	}
 
 	uint32_t startSeq = 0;
+	int16_t startSoc = -1;
+	int8_t startChg = -1;
+	int8_t startPaper = -1;
 	if (bleLock()) {
 		startSeq = g_bleSlave.statusSeq;
+		startSoc = g_bleSlave.batterySocTenths;
+		startChg = g_bleSlave.chargingStatus;
+		startPaper = g_bleSlave.paperStatus;
 		bleUnlock();
 	}
 
@@ -871,12 +897,23 @@ bool bleRequestSlaveStatus(uint32_t timeoutMs) {
 	const uint32_t startMs = millis();
 	while ((millis() - startMs) < timeoutMs) {
 		uint32_t seqNow = startSeq;
+		int16_t socNow = -1;
+		int8_t chgNow = -1;
+		int8_t paperNow = -1;
 		if (bleLock()) {
 			seqNow = g_bleSlave.statusSeq;
+			socNow = g_bleSlave.batterySocTenths;
+			chgNow = g_bleSlave.chargingStatus;
+			paperNow = g_bleSlave.paperStatus;
 			bleUnlock();
 		}
 
-		if (seqNow != startSeq) {
+		const bool changed = seqNow != startSeq;
+		const bool gotSoc = socNow >= 0 && socNow != startSoc;
+		const bool gotChg = chgNow != -1 && chgNow != startChg;
+		const bool gotPaper = paperNow != -1 && paperNow != startPaper;
+
+		if (changed && (gotSoc || gotChg || gotPaper)) {
 			return true;
 		}
 

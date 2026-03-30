@@ -199,8 +199,8 @@ bool BatteryMonitor::isCharging()
     if (_chargingPin_mcp == -1 || !g_mcpReady) {
         return false;  // Not configured
     }
-    // Active high: high = charging
-    return mcp.digitalRead(_chargingPin_mcp);
+    // Active low: LOW = charging, HIGH = not charging
+    return mcp.digitalRead(_chargingPin_mcp) == LOW;
 }
 
 int BatteryMonitor::getAdc_mV()

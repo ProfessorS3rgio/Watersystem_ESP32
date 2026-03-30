@@ -324,11 +324,39 @@ void handleCommand(const String &cmd) {
             paper = 0;
         }
 
-        char buf[96];
-        snprintf(buf, sizeof(buf), "STATUS V=%.2fV SOC=%.1f%% ALERT=%d CHG=%d PAPER=%d",
-                 voltage, soc, alert ? 1 : 0, charging ? 1 : 0, paper);
-        sendNotificationLine(String(buf));
-        Serial.println(buf);
+        // Keep status notifications short (<20 bytes) to avoid BLE notify truncation.
+        char socBuf[16];
+        snprintf(socBuf, sizeof(socBuf), "SOC=%.1f", soc);
+        sendNotificationLine(String(socBuf));
+
+        char voltBuf[16];
+        snprintf(voltBuf, sizeof(voltBuf), "VOLT=%.2f", voltage);
+        sendNotificationLine(String(voltBuf));
+
+        if (charging) {
+            sendNotificationLine("CHARGING");
+        } else {
+            sendNotificationLine("NOT_CHARGING");
+        }
+
+        if (paper == 1) {
+            sendNotificationLine("PAPER_PRESENT");
+        } else if (paper == 0) {
+            sendNotificationLine("PAPER_OUT");
+        } else {
+            sendNotificationLine("PAPER_UNKNOWN");
+        }
+
+        Serial.print("STATUS SOC=");
+        Serial.print(soc, 1);
+        Serial.print(" VOLT=");
+        Serial.print(voltage, 2);
+        Serial.print(" ALERT=");
+        Serial.print(alert ? 1 : 0);
+        Serial.print(" CHG=");
+        Serial.print(charging ? 1 : 0);
+        Serial.print(" PAPER=");
+        Serial.println(paper);
         return;
     }
 
