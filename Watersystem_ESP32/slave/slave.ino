@@ -5,7 +5,6 @@
 #include <BLEServer.h>
 #include <BLEUtils.h>
 #include <BLE2902.h>
-#include <esp32-hal-cpu.h>
 #include "printer/printer_serial.h"
 
 #include <Wire.h> // I2C for fuel gauge
@@ -38,94 +37,7 @@ int getDisconnectionDaysSetting() { return g_disconnectionDayOfMonth; }
 
 ThermalPrinter printer(Serial2);      // corresponds to HW UART2
 
-// ---------- printer power management ----------
-// track when we last used the printer; if it's idle for more
-// than PRINTER_IDLE_TIMEOUT_MINUTES we'll cut power using PRINTER_ENABLE_PIN.
-unsigned long g_printerLastActiveMs = 0;
-bool g_printerIsEnabled = false;
-volatile bool g_printJobInProgress = false;
-bool g_lowPowerCpuMode = false;
-
-void setCpuPowerMode(bool lowPower) {
-    const int targetMhz = lowPower ? CPU_IDLE_MHZ : CPU_ACTIVE_MHZ;
-    if (getCpuFrequencyMhz() != targetMhz) {
-        setCpuFrequencyMhz(targetMhz);
-        Serial.print("[PWR] CPU set to ");
-        Serial.print(targetMhz);
-        Serial.println(" MHz");
-    }
-    g_lowPowerCpuMode = lowPower;
-}
-
-void ensureActiveCpuMode() {
-    if (g_lowPowerCpuMode) {
-        setCpuPowerMode(false);
-    }
-}
-
-void enablePrinter() {
-    if (!g_printerIsEnabled) {
-        printer.wake();             // sets pin high and waits
-        printer.setDefault();
-        g_printerIsEnabled = true;
-        Serial.println("Printer powered on");
-    }
-    g_printerLastActiveMs = millis();
-}
-
-void disablePrinter() {
-    if (g_printerIsEnabled) {
-        printer.sleep();            // drops pin low
-        g_printerIsEnabled = false;
-        Serial.println("Printer powered off (idle)");
-    }
-}
-
-void checkPrinterIdle() {
-    if (g_printerIsEnabled && static_cast<long>(millis() - g_printerLastActiveMs) >= static_cast<long>(PRINTER_IDLE_TIMEOUT_MS)) {
-        disablePrinter();
-    }
-}
-
-void beginPrintJob() {
-    ensureActiveCpuMode();
-    g_printJobInProgress = true;
-    enablePrinter();
-}
-
-void endPrintJob() {
-    g_printerLastActiveMs = millis();
-    g_printJobInProgress = false;
-}
-
-ThermalPrinter::PaperStatus readPaperStatus(bool autoWakeIfNeeded) {
-    if (g_printJobInProgress) {
-        return ThermalPrinter::PAPER_UNKNOWN;
-    }
-
-    bool wasEnabled = g_printerIsEnabled;
-    if (!wasEnabled && autoWakeIfNeeded) {
-        enablePrinter();
-        delay(80);
-    }
-
-    if (!g_printerIsEnabled) {
-        return ThermalPrinter::PAPER_UNKNOWN;
-    }
-
-    ThermalPrinter::PaperStatus status = printer.queryPaperStatus(220);
-    // Only explicit checks (with auto wake) should extend the idle timer.
-    // Background polling must not keep the printer awake forever.
-    if (autoWakeIfNeeded) {
-        g_printerLastActiveMs = millis();
-    }
-
-    if (!wasEnabled && g_printerIsEnabled) {
-        disablePrinter();
-    }
-
-    return status;
-}
+#include "managers/printer_power_manager.h"
 
 // ---------- charger detection ----------
 // GPIO 23: NPN transistor collector, low when charger active (inverted logic)
@@ -144,6 +56,8 @@ void parseBillPayload(const String &payload);
 void parseReceiptPayload(const String &payload);
 void handleCommand(const String &cmd);
 void printLogoOnly();
+
+#include "managers/payload_parser_manager.h"
 
 BLECharacteristic* pCharacteristic;
 BLEServer* g_pServer = nullptr;
@@ -223,109 +137,8 @@ void refreshBleAdvertising() {
 }
 
 // --------------------------------------------------
-// parsers and command handler
+// command handler
 // --------------------------------------------------
-
-static void splitString(const String &src, char delim, String dest[], int &count, int maxCount) {
-    count = 0;
-    int start = 0;
-    while (count < maxCount) {
-        int idx = src.indexOf(delim, start);
-        if (idx == -1) {
-            dest[count++] = src.substring(start);
-            break;
-        }
-        dest[count++] = src.substring(start, idx);
-        start = idx + 1;
-    }
-}
-
-void parseBillPayload(const String &payload) {
-    String p[20];
-    int c;
-    splitString(payload, '|', p, c, 20);
-    if (c < 11) return; // not enough fields
-    currentBill.refNumber      = p[0];
-    currentBill.readingDateTime = p[1];
-    currentBill.customerName   = p[2];
-    currentBill.accountNo      = p[3];
-    currentBill.customerType   = p[4];
-    currentBill.address        = p[5];
-    currentBill.collector      = p[6];
-    currentBill.prevReading    = p[7].toInt();
-    currentBill.currReading    = p[8].toInt();
-    currentBill.rate           = p[9].toFloat();
-    currentBill.subtotal       = p[10].toFloat();
-
-    // Default values
-    currentBill.deductions = 0;
-    currentBill.penalty = 0;
-    currentBill.total = currentBill.subtotal;
-    currentBill.billDate = "";
-    g_billDueDayOfMonth = 5;
-    g_disconnectionDayOfMonth = 8;
-
-    // Preferred payload from master:
-    // ...|rate|subtotal|deductions|penalty|total|billDate|dueDay|disconnectDay
-    if (c >= 17) {
-        currentBill.deductions = p[11].toFloat();
-        currentBill.penalty = p[12].toFloat();
-        currentBill.total = p[13].toFloat();
-        currentBill.billDate = p[14];
-
-        int dueDay = p[15].toInt();
-        int disDay = p[16].toInt();
-        if (dueDay >= 1 && dueDay <= 31) g_billDueDayOfMonth = dueDay;
-        if (disDay >= 1 && disDay <= 31) g_disconnectionDayOfMonth = disDay;
-        return;
-    }
-
-    // Legacy/extended payload:
-    // ...|rate|subtotal|deductions|penalty|total|billDate
-    if (c >= 15) {
-        currentBill.deductions = p[11].toFloat();
-        currentBill.penalty = p[12].toFloat();
-        currentBill.total = p[13].toFloat();
-        currentBill.billDate = p[14];
-        return;
-    }
-
-    // Compact payload from master (current):
-    // ...|rate|subtotal|total|billDate
-    if (c >= 13) {
-        currentBill.total = p[11].toFloat();
-        currentBill.billDate = p[12];
-        return;
-    }
-
-    if (c > 11) currentBill.deductions = p[11].toFloat();
-    if (c > 12) currentBill.penalty = p[12].toFloat();
-    currentBill.total = currentBill.subtotal - currentBill.deductions + currentBill.penalty;
-}
-
-void parseReceiptPayload(const String &payload) {
-    String p[25];
-    int c;
-    splitString(payload, '|', p, c, 25);
-    if (c < 13) return;
-    currentReceipt.receiptNumber   = p[0];
-    currentReceipt.paymentDateTime = p[1];
-    currentReceipt.customerName    = p[2];
-    currentReceipt.accountNo       = p[3];
-    currentReceipt.customerType    = p[4];
-    currentReceipt.address         = p[5];
-    currentReceipt.collector       = p[6];
-    currentReceipt.prevReading     = p[7].toInt();
-    currentReceipt.currReading     = p[8].toInt();
-    currentReceipt.rate            = p[9].toFloat();
-    currentReceipt.subtotal        = p[10].toFloat();
-    currentReceipt.deductions      = p[11].toFloat();
-    currentReceipt.penalty         = p[12].toFloat();
-    currentReceipt.total           = (c > 13 ? p[13].toFloat()
-                                          : currentReceipt.subtotal - currentReceipt.deductions + currentReceipt.penalty);
-    currentReceipt.amountPaid      = (c > 14 ? p[14].toFloat() : currentReceipt.total);
-    currentReceipt.change          = (c > 15 ? p[15].toFloat() : 0);
-}
 
 void handleCommand(const String &cmd) {
     ensureActiveCpuMode();
@@ -337,7 +150,8 @@ void handleCommand(const String &cmd) {
     }
 
     if (cmd.equalsIgnoreCase("PAPER_STATUS") || cmd.equalsIgnoreCase("CHECK_PAPER")) {
-        ThermalPrinter::PaperStatus status = readPaperStatus(true);
+        // Keep printer awake after paper check because print command usually follows immediately.
+        ThermalPrinter::PaperStatus status = readPaperStatus(true, true);
         if (status == ThermalPrinter::PAPER_PRESENT) {
             sendNotificationLine("PAPER_PRESENT");
             Serial.println("PAPER_PRESENT sent to master");
@@ -630,7 +444,7 @@ void loop() {
             endPrintJob();
             Serial.println("PRINT_LOGO done");
         } else if (line.equalsIgnoreCase("PAPER_STATUS")) {
-            ThermalPrinter::PaperStatus status = readPaperStatus(true);
+            ThermalPrinter::PaperStatus status = readPaperStatus(true, true);
             if (status == ThermalPrinter::PAPER_OUT) {
                 Serial.print("Paper status: OUT (raw=0x");
                 Serial.print(printer.lastPaperRawStatus(), HEX);

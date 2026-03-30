@@ -223,7 +223,8 @@ void setup() {
 }
 
 void loop() {
-  powerSaveSetEnabled(isIdleWorkflowState());
+  const bool allowPowerSave = isIdleWorkflowState() && !bleIsBusyForPrint();
+  powerSaveSetEnabled(allowPowerSave);
 
   // ===== BATTERY MONITORING =====
   static unsigned long lastMeasure = 0;
@@ -264,10 +265,8 @@ void loop() {
     if (!powerSaveConsumeWakeKey(key)) {
       return;
     }
+    powerSaveNotifyActivity("keypad");
     handleKeypadInput(key);
-    if (isPowerControlKey(key)) {
-      powerSaveNotifyActivity("keypad-abcd");
-    }
   }
   
   // ===== SERIAL INPUT =====
@@ -285,10 +284,8 @@ void loop() {
         if (!powerSaveConsumeWakeKey(key)) {
           return;
         }
+        powerSaveNotifyActivity("serial-keypad");
         handleKeypadInput(key);
-        if (isPowerControlKey(key)) {
-          powerSaveNotifyActivity("serial-keypad-abcd");
-        }
         return;
       }
     }

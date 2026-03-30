@@ -17,6 +17,7 @@ bool bleIsConnected();
 bool bleIsReady();
 bool bleSend(const String &cmd);
 bool blePrepareForPrint(uint32_t timeoutMs = 8000);
+bool bleIsBusyForPrint();
 bool bleCheckPaperPresent(uint32_t timeoutMs = 1500);
 bool bleRequestSlaveStatus(uint32_t timeoutMs = 2200);
 int bleSlaveBatteryPercent();
@@ -59,6 +60,7 @@ struct BleSlaveManagerState {
 	volatile bool handshakeComplete;
 	volatile bool awaitingPong;
 	volatile bool intentionalShutdown;
+	volatile bool prepareForPrintInProgress;
 	volatile uint8_t consecutiveConnectFailures;
 	uint32_t lastAttemptMs;
 	uint32_t lastRxMs;
@@ -77,6 +79,7 @@ BleSlaveManagerState g_bleSlave = {
 	false,
 	false,
 	true,
+	false,
 	false,
 	false,
 	false,
@@ -550,14 +553,12 @@ void bleResetClientStack(const __FlashStringHelper* reason) {
 	bleDisposeFoundDevice();
 	bleClearConnectionState();
 	pBleCharacteristic = nullptr;
-	if (pBleClient != nullptr) {
-		NimBLEDevice::deleteClient(pBleClient);
-		pBleClient = nullptr;
-	}
 
-	if (g_bleSlave.stackInitialized) {
-		NimBLEDevice::deinit(false);
-		g_bleSlave.stackInitialized = false;
+	// Avoid hard NimBLE teardown on failure recovery; repeated deinit/delete after
+	// connection timeout can trigger heap free asserts on some ESP32/NimBLE builds.
+	// Keep the stack initialized and reuse client objects on the next attempt.
+	if (!g_bleSlave.stackInitialized) {
+		g_bleSlave.stackInitialized = true;
 	}
 
 	g_bleSlave.intentionalShutdown = false;
@@ -565,6 +566,7 @@ void bleResetClientStack(const __FlashStringHelper* reason) {
 	g_bleSlave.lastAttemptMs = millis();
 	g_bleSlave.consecutiveConnectFailures = 0;
 	g_bleIncomingBuffer = "";
+	g_bleSlave.reconnectRequested = true;
 	delay(BLE_POST_RESET_COOLDOWN_MS);
 }
 
@@ -742,17 +744,20 @@ bool bleSend(const String &cmd) {
 
 bool blePrepareForPrint(uint32_t timeoutMs) {
 	bleSlaveManagerBegin();
+	g_bleSlave.prepareForPrintInProgress = true;
 	g_bleSlave.reconnectRequested = true;
 	const uint32_t defaultTimeoutMs = BLE_CONNECT_TIMEOUT_MS + BLE_HANDSHAKE_TIMEOUT_MS + 2000;
 	const uint32_t effectiveTimeoutMs = timeoutMs == 0 ? defaultTimeoutMs : max(timeoutMs, static_cast<uint32_t>(1500));
 
 	if (bleIsReady()) {
+		g_bleSlave.prepareForPrintInProgress = false;
 		return true;
 	}
 
 	const uint32_t startMs = millis();
 	while ((millis() - startMs) < effectiveTimeoutMs) {
 		if (bleIsReady()) {
+			g_bleSlave.prepareForPrintInProgress = false;
 			return true;
 		}
 
@@ -768,18 +773,25 @@ bool blePrepareForPrint(uint32_t timeoutMs) {
 	}
 
 	if (bleIsReady()) {
+		g_bleSlave.prepareForPrintInProgress = false;
 		return true;
 	}
 
 	if (bleIsConnected()) {
 		Serial.println(F("[BLE] Prepare timeout reached but transport is connected; skipping forced reset"));
+		g_bleSlave.prepareForPrintInProgress = false;
 		return false;
 	}
 
 	Serial.println(F("[BLE] Prepare timeout (no link); resetting BLE stack for next attempt"));
 	bleResetClientStack(F("[BLE] BLE stack reset after prepare timeout"));
+	g_bleSlave.prepareForPrintInProgress = false;
 
 	return false;
+}
+
+bool bleIsBusyForPrint() {
+	return g_bleSlave.prepareForPrintInProgress || g_bleSlave.connectionAttemptInProgress;
 }
 
 void bleShutdownAfterPrint() {
@@ -837,35 +849,42 @@ bool bleCheckPaperPresent(uint32_t timeoutMs) {
 		return false;
 	}
 
-	if (bleLock()) {
-		g_bleSlave.paperStatus = -1;
-		bleUnlock();
-	}
-
-	if (!bleSend(F("PAPER_STATUS"))) {
-		Serial.println(F("[BLE] Failed to request paper status"));
-		return false;
-	}
-
-	const uint32_t startMs = millis();
-	while ((millis() - startMs) < timeoutMs) {
-		int8_t status = -1;
+	for (int attempt = 0; attempt < 2; ++attempt) {
 		if (bleLock()) {
-			status = g_bleSlave.paperStatus;
+			g_bleSlave.paperStatus = -1;
 			bleUnlock();
 		}
 
-		if (status == 1) {
-			Serial.println(F("[BLE] Paper check: PRESENT"));
-			return true;
-		}
-
-		if (status == 0) {
-			Serial.println(F("[BLE] Paper check: OUT"));
+		if (!bleSend(F("PAPER_STATUS"))) {
+			Serial.println(F("[BLE] Failed to request paper status"));
 			return false;
 		}
 
-		delay(20);
+		const uint32_t startMs = millis();
+		while ((millis() - startMs) < timeoutMs) {
+			int8_t status = -1;
+			if (bleLock()) {
+				status = g_bleSlave.paperStatus;
+				bleUnlock();
+			}
+
+			if (status == 1) {
+				Serial.println(F("[BLE] Paper check: PRESENT"));
+				return true;
+			}
+
+			if (status == 0) {
+				Serial.println(F("[BLE] Paper check: OUT"));
+				return false;
+			}
+
+			delay(20);
+		}
+
+		if (attempt == 0) {
+			Serial.println(F("[BLE] Paper check timeout/unknown; retrying..."));
+			delay(180);
+		}
 	}
 
 	Serial.println(F("[BLE] Paper check timeout/unknown"));

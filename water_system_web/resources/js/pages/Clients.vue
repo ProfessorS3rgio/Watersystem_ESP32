@@ -170,9 +170,15 @@
               </div>
             </div>
 
-            <div class="rounded-lg p-3 mt-3" :class="isDark ? 'bg-gray-800/80' : 'bg-gray-50'">
-              <p class="text-xs uppercase tracking-wide" :class="isDark ? 'text-gray-400' : 'text-gray-500'">Address</p>
-              <p class="text-sm mt-1">{{ viewingCustomer?.address || '-' }}</p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+              <div class="rounded-lg p-3" :class="isDark ? 'bg-gray-800/80' : 'bg-gray-50'">
+                <p class="text-xs uppercase tracking-wide" :class="isDark ? 'text-gray-400' : 'text-gray-500'">Address</p>
+                <p class="text-sm mt-1">{{ viewingCustomer?.address || '-' }}</p>
+              </div>
+              <div class="rounded-lg p-3" :class="isDark ? 'bg-gray-800/80' : 'bg-gray-50'">
+                <p class="text-xs uppercase tracking-wide" :class="isDark ? 'text-gray-400' : 'text-gray-500'">Deduction</p>
+                <p class="text-sm mt-1">{{ getDeductionName(viewingCustomer?.deduction_id) }}</p>
+              </div>
             </div>
           </div>
 
@@ -548,6 +554,12 @@ export default {
       return brgy ? brgy.barangay : 'Unknown'
     }
 
+    const getDeductionName = (deductionId) => {
+      if (!deductionId) return ''
+      const deduction = customersComposable.deductions.value.find(d => d.deduction_id === deductionId)
+      return deduction ? deduction.name : ''
+    }
+
     const previewAccountNoNew = computed(() => {
       const brgyId = formComposable.newCustomer.brgy_id
       if (!brgyId) return ''
@@ -597,6 +609,7 @@ export default {
       inputClass,
       getTypeName,
       getBarangayName,
+      getDeductionName,
       previewAccountNoNew,
       isViewModalOpen,
       viewingCustomer,
