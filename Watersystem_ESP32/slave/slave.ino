@@ -5,6 +5,7 @@
 #include <BLEServer.h>
 #include <BLEUtils.h>
 #include <BLE2902.h>
+#include <esp32-hal-cpu.h>
 #include "printer/printer_serial.h"
 
 #include <Wire.h> // I2C for fuel gauge
@@ -26,21 +27,41 @@ String getCurrentDateTimeString();
 BillData currentBill;
 ReceiptData currentReceipt;
 
+int g_billDueDayOfMonth = 5;
+int g_disconnectionDayOfMonth = 8;
+
 // serial objects used by printer helpers
 HardwareSerial printerSerial = Serial2;   // matches ThermalPrinter printer(Serial2)
 
-int getBillDueDaysSetting() { return 30; }
-int getDisconnectionDaysSetting() { return 45; }
+int getBillDueDaysSetting() { return g_billDueDayOfMonth; }
+int getDisconnectionDaysSetting() { return g_disconnectionDayOfMonth; }
 
 ThermalPrinter printer(Serial2);      // corresponds to HW UART2
 
 // ---------- printer power management ----------
 // track when we last used the printer; if it's idle for more
-// than 2 hours we'll cut power using PRINTER_ENABLE_PIN.
-const unsigned long PRINTER_IDLE_TIMEOUT_MS = 2UL * 60UL * 60UL * 1000UL;
+// than PRINTER_IDLE_TIMEOUT_MINUTES we'll cut power using PRINTER_ENABLE_PIN.
 unsigned long g_printerLastActiveMs = 0;
 bool g_printerIsEnabled = false;
 volatile bool g_printJobInProgress = false;
+bool g_lowPowerCpuMode = false;
+
+void setCpuPowerMode(bool lowPower) {
+    const int targetMhz = lowPower ? CPU_IDLE_MHZ : CPU_ACTIVE_MHZ;
+    if (getCpuFrequencyMhz() != targetMhz) {
+        setCpuFrequencyMhz(targetMhz);
+        Serial.print("[PWR] CPU set to ");
+        Serial.print(targetMhz);
+        Serial.println(" MHz");
+    }
+    g_lowPowerCpuMode = lowPower;
+}
+
+void ensureActiveCpuMode() {
+    if (g_lowPowerCpuMode) {
+        setCpuPowerMode(false);
+    }
+}
 
 void enablePrinter() {
     if (!g_printerIsEnabled) {
@@ -67,6 +88,7 @@ void checkPrinterIdle() {
 }
 
 void beginPrintJob() {
+    ensureActiveCpuMode();
     g_printJobInProgress = true;
     enablePrinter();
 }
@@ -92,7 +114,11 @@ ThermalPrinter::PaperStatus readPaperStatus(bool autoWakeIfNeeded) {
     }
 
     ThermalPrinter::PaperStatus status = printer.queryPaperStatus(220);
-    g_printerLastActiveMs = millis();
+    // Only explicit checks (with auto wake) should extend the idle timer.
+    // Background polling must not keep the printer awake forever.
+    if (autoWakeIfNeeded) {
+        g_printerLastActiveMs = millis();
+    }
 
     if (!wasEnabled && g_printerIsEnabled) {
         disablePrinter();
@@ -137,6 +163,8 @@ static String bleBuffer = "";
 // callback when data is written by master
 class CharacteristicCallbacks: public BLECharacteristicCallbacks {
   void onWrite(BLECharacteristic* characteristic) {
+        ensureActiveCpuMode();
+
     // on server, getValue() returns an Arduino String
     String val = characteristic->getValue();
     if (val.length() == 0) return;
@@ -228,11 +256,51 @@ void parseBillPayload(const String &payload) {
     currentBill.currReading    = p[8].toInt();
     currentBill.rate           = p[9].toFloat();
     currentBill.subtotal       = p[10].toFloat();
-    currentBill.deductions     = (c > 11 ? p[11].toFloat() : 0);
-    currentBill.penalty        = (c > 12 ? p[12].toFloat() : 0);
-    currentBill.total          = (c > 13 ? p[13].toFloat()
-                                         : currentBill.subtotal - currentBill.deductions + currentBill.penalty);
-    if (c > 14) currentBill.billDate = p[14];
+
+    // Default values
+    currentBill.deductions = 0;
+    currentBill.penalty = 0;
+    currentBill.total = currentBill.subtotal;
+    currentBill.billDate = "";
+    g_billDueDayOfMonth = 5;
+    g_disconnectionDayOfMonth = 8;
+
+    // Preferred payload from master:
+    // ...|rate|subtotal|deductions|penalty|total|billDate|dueDay|disconnectDay
+    if (c >= 17) {
+        currentBill.deductions = p[11].toFloat();
+        currentBill.penalty = p[12].toFloat();
+        currentBill.total = p[13].toFloat();
+        currentBill.billDate = p[14];
+
+        int dueDay = p[15].toInt();
+        int disDay = p[16].toInt();
+        if (dueDay >= 1 && dueDay <= 31) g_billDueDayOfMonth = dueDay;
+        if (disDay >= 1 && disDay <= 31) g_disconnectionDayOfMonth = disDay;
+        return;
+    }
+
+    // Legacy/extended payload:
+    // ...|rate|subtotal|deductions|penalty|total|billDate
+    if (c >= 15) {
+        currentBill.deductions = p[11].toFloat();
+        currentBill.penalty = p[12].toFloat();
+        currentBill.total = p[13].toFloat();
+        currentBill.billDate = p[14];
+        return;
+    }
+
+    // Compact payload from master (current):
+    // ...|rate|subtotal|total|billDate
+    if (c >= 13) {
+        currentBill.total = p[11].toFloat();
+        currentBill.billDate = p[12];
+        return;
+    }
+
+    if (c > 11) currentBill.deductions = p[11].toFloat();
+    if (c > 12) currentBill.penalty = p[12].toFloat();
+    currentBill.total = currentBill.subtotal - currentBill.deductions + currentBill.penalty;
 }
 
 void parseReceiptPayload(const String &payload) {
@@ -260,6 +328,8 @@ void parseReceiptPayload(const String &payload) {
 }
 
 void handleCommand(const String &cmd) {
+    ensureActiveCpuMode();
+
     if (cmd.equalsIgnoreCase("PING")) {
         sendNotificationLine("PONG");
         Serial.println("PONG sent to master");
@@ -408,7 +478,14 @@ void setup() {
     Serial.begin(115200);
     Serial.println("ESP32 Slave BLE Server starting...");
     Serial.println("Serial commands: RESTART, PRN_SLEEP, PRN_WAKE, PRN_TEST, PRINT_LOGO, PAPER_STATUS, BATTERY");
-    Serial.println("           (printer automatically powers off after 2 hours idle)");
+    Serial.print("           (printer automatically powers off after ");
+    Serial.print(PRINTER_IDLE_TIMEOUT_MINUTES);
+    Serial.println(" minutes idle)");
+    Serial.print("           (CPU active/idle MHz: ");
+    Serial.print(CPU_ACTIVE_MHZ);
+    Serial.print("/");
+    Serial.print(CPU_IDLE_MHZ);
+    Serial.println(")");
 
     // initialize I2C and fuel gauge (SDA=GPIO26, SCL=GPIO27 on this board)
     Wire.begin(26, 27);
@@ -439,6 +516,7 @@ void setup() {
                                         (void)pServer;
                     g_bleClientConnected = true;
                                         g_bleRefreshRequested = false;
+          ensureActiveCpuMode();
           Serial.println("Master connected");
       }
       void onDisconnect(BLEServer* pServer) {
@@ -469,6 +547,7 @@ void setup() {
 
     printer.begin();                 // init UART2 for printer
     g_nextPaperPollMs = millis() + 1000;
+    setCpuPowerMode(false);
     // …other init (RTC, database, etc.)
 }
 
@@ -478,9 +557,20 @@ void loop() {
         refreshBleAdvertising();
     }
 
-    // power management for the printer: if idle for more than 2 hours
+    // power management for the printer: if idle for more than configured timeout
     // cut power. any command that uses the printer should call enablePrinter().
     checkPrinterIdle();
+
+    const bool canIdleCpu = !g_bleClientConnected
+                         && !g_printJobInProgress
+                         && !g_printerIsEnabled;
+    if (canIdleCpu) {
+        if (!g_lowPowerCpuMode) {
+            setCpuPowerMode(true);
+        }
+    } else {
+        ensureActiveCpuMode();
+    }
 
     // check charger state and notify if changed
     bool currentCharging = !digitalRead(CHARGER_PIN);  // invert: low = charging, high = not charging
@@ -612,8 +702,54 @@ String getCurrentDateTimeString() {
     return "2026-02-23 12:00:00";
 }
 
-String calculateDueDate(String billDate, int daysToAdd) {
-    return billDate;
+static bool isLeapYear(int year) {
+    return (year % 400 == 0) || ((year % 4 == 0) && (year % 100 != 0));
+}
+
+static int daysInMonth(int year, int month) {
+    static const int mdays[12] = {31,28,31,30,31,30,31,31,30,31,30,31};
+    if (month < 1 || month > 12) return 30;
+    if (month == 2 && isLeapYear(year)) return 29;
+    return mdays[month - 1];
+}
+
+String calculateDueDate(String billDate, int dayOfMonth) {
+    // Expected billDate format: YYYY-MM-DD (or YYYY-MM-DD HH:MM:SS)
+    if (billDate.length() < 10) {
+        return billDate;
+    }
+
+    const int year = billDate.substring(0, 4).toInt();
+    const int month = billDate.substring(5, 7).toInt();
+    const int day = billDate.substring(8, 10).toInt();
+    if (year < 2000 || month < 1 || month > 12 || day < 1 || day > 31) {
+        return billDate;
+    }
+
+    int targetDay = dayOfMonth;
+    if (targetDay < 1) targetDay = 1;
+    if (targetDay > 31) targetDay = 31;
+
+    int targetYear = year;
+    int targetMonth = month;
+
+    int dim = daysInMonth(targetYear, targetMonth);
+    int scheduledDay = targetDay > dim ? dim : targetDay;
+
+    // If today's bill date is already past the target day, schedule next month.
+    if (day > scheduledDay) {
+        targetMonth++;
+        if (targetMonth > 12) {
+            targetMonth = 1;
+            targetYear++;
+        }
+        dim = daysInMonth(targetYear, targetMonth);
+        scheduledDay = targetDay > dim ? dim : targetDay;
+    }
+
+    char out[16];
+    snprintf(out, sizeof(out), "%04d-%02d-%02d", targetYear, targetMonth, scheduledDay);
+    return String(out);
 }
 
 void printLogoOnly() {

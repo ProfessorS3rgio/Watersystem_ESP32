@@ -24,6 +24,38 @@ static String fitAddressForPrint(const String& address, size_t maxChars = 21) {
   return address.substring(0, maxChars);
 }
 
+static float getAfterDueSurcharge(const BillData& bill) {
+  String type = bill.customerType;
+  type.toLowerCase();
+
+  String deduction = bill.deductionName;
+  deduction.toLowerCase();
+
+  const bool hasSeniorDeduction = deduction.indexOf("senior") >= 0;
+
+  if (type == "residential" && hasSeniorDeduction) {
+    return 20.0f;
+  }
+
+  if (type == "residential") {
+    return 50.0f;
+  }
+
+  if (type == "commercial") {
+    return 50.0f;
+  }
+
+  if (type == "officers") {
+    return 20.0f;
+  }
+
+  if (type == "communical faucet" || type == "communal faucet") {
+    return 20.0f;
+  }
+
+  return 0.0f;
+}
+
 void printBill() {
   printer.wake();
   printer.setDefault();
@@ -159,6 +191,9 @@ void printBill() {
   printer.print(F("Disconnection : "));
   String disconnectionDate = calculateDueDate(currentBill.billDate, getDisconnectionDaysSetting());
   printer.println(disconnectionDate);
+  const float afterDueAmount = total + getAfterDueSurcharge(currentBill);
+  printer.print(F("After Due Date: PHP "));
+  printer.println(afterDueAmount, 2);
   printer.boldOff();
   printer.println(F("--------------------------------"));
   YIELD_WDT();
@@ -175,8 +210,8 @@ void printBill() {
   // Footer
   printer.justify('C');
   printer.println();
-  printer.println(F("Please pay on or before due date"));
-  printer.println(F("to avoid penalties."));
+  printer.println(F("This bill also serves as"));
+  printer.println(F("Notice of Disconnection!"));
   printer.println(F(""));
   printer.println(F("Thank you!"));
   printer.println(F("Save Water, Save Life!"));
@@ -190,10 +225,23 @@ void printBill() {
 }
 
 String getPeriodCovered() {
-  // Get current date from RTC
-  String currentDate = getCurrentDateTimeString().substring(0,10); // YYYY-MM-DD
+  // Prefer date carried by the incoming bill payload.
+  String currentDate = "";
+
+  if (currentBill.billDate.length() >= 10) {
+    currentDate = currentBill.billDate.substring(0, 10);
+  } else if (currentBill.readingDateTime.length() >= 10) {
+    currentDate = currentBill.readingDateTime.substring(0, 10);
+  } else {
+    currentDate = getCurrentDateTimeString().substring(0, 10);  // fallback
+  }
+
   int year = currentDate.substring(0,4).toInt();
   int month = currentDate.substring(5,7).toInt();
+
+  if (month < 1 || month > 12) {
+    return String("Invalid Date");
+  }
   
   // Previous month
   int prevMonth = month - 1;

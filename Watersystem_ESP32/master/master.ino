@@ -65,9 +65,9 @@ Adafruit_MCP23X17 mcp;
 bool g_mcpReady = false;
 
 // ===== BATTERY MONITOR =====
-// 47k/47k divider is ~0.5x, measured 1.94V midpoint at 3.8V battery.
-// Scale factor = 3.8 / 1.94 = 1.9588 -> 1959 per-mille.
-BatteryMonitor batteryMonitor(BATTERY_PIN, 1959, 0, 10, 3400, 4200, CHARGING_PIN_MCP);
+// 47k/47k divider is ~0.5x, measured 1.86V midpoint at 3.98V battery.
+// Scale factor = 3.98 / 1.86 = 2.1398 -> 2140 per-mille.
+BatteryMonitor batteryMonitor(BATTERY_PIN, 2140, 0, 10, 3400, 4200, CHARGING_PIN_MCP);
 
 constexpr bool BLE_SLAVE_LINK_ENABLED = true;
 

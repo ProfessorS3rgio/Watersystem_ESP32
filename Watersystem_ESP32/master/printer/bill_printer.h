@@ -27,23 +27,26 @@ void printBill() {
       return;
     }
 
+    String billDate = currentBill.billDate;
+    if (billDate.length() < 10 && currentBill.readingDateTime.length() >= 10) {
+      billDate = currentBill.readingDateTime.substring(0, 10);
+    }
+
+    const int dueDayOfMonth = getBillDueDaysSetting();
+    const int disconnectDayOfMonth = getDisconnectionDaysSetting();
+
     String msg = String("PRINT_BILL|") + currentBill.refNumber + "|" + currentBill.readingDateTime \
                  + "|" + currentBill.customerName + "|" + currentBill.accountNo \
                  + "|" + currentBill.customerType + "|" + currentBill.address \
                  + "|" + currentBill.collector + "|" + String(currentBill.prevReading) \
                  + "|" + String(currentBill.currReading) + "|" + String(currentBill.rate, 2) \
-                 + "|" + String(currentBill.subtotal, 2);
-    if (currentBill.deductions > 0) {
-      msg += "|" + String(currentBill.deductions, 2);
-    }
-    if (currentBill.penalty > 0) {
-      msg += "|" + String(currentBill.penalty, 2);
-    }
-    msg += "|" + String(currentBill.total, 2);
-    // include bill date if available
-    if (currentBill.billDate.length() > 0) {
-      msg += "|" + currentBill.billDate;
-    }
+                 + "|" + String(currentBill.subtotal, 2)
+                 + "|" + String(currentBill.deductions, 2)
+                 + "|" + String(currentBill.penalty, 2)
+                 + "|" + String(currentBill.total, 2)
+                 + "|" + billDate
+                 + "|" + String(dueDayOfMonth)
+                 + "|" + String(disconnectDayOfMonth);
     msg += "\n";
     if (bleSend(msg)) {
       Serial.println(F("Bill forwarded to BLE slave for printing"));
