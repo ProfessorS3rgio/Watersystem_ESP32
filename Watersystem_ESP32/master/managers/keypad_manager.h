@@ -303,6 +303,44 @@ void handleKeypadInput(char key) {
       inputBuffer = "";
       displayEnterReadingScreen();
     }
+    else if (key == 'A') {  // Reprint latest bill for this month
+      if (currentCustomer == nullptr || !hasReadingThisMonth(currentCustomer->customer_id)) {
+        displayWarningScreen(F("NO READING"),
+                             String("No reading this month"),
+                             String("to reprint."),
+                             F("Press C to cancel"));
+        delay(1500);
+        displayCustomerInfo();
+        return;
+      }
+
+      if (!getBillForCustomer(currentCustomer->account_no)) {
+        displayWarningScreen(F("NO BILL FOUND"),
+                             String("Cannot load latest bill"),
+                             String("for this account."),
+                             F("Press C to cancel"));
+        delay(1500);
+        displayCustomerInfo();
+        return;
+      }
+
+      Serial.println(F("Starting reprint job..."));
+      currentState = STATE_PRINTING;
+
+      incrementPrintCount();
+      blePrepareForPrint(8000);
+      startParallelPrinting();
+      waitForPrintCompletion();
+
+      Serial.println(F("Reprint workflow complete."));
+
+      deselectTftSelectSd();
+      SD.remove("/temp_reading_date.txt");
+      Serial.println(F("Temp reading date removed from SD"));
+
+      delay(500);
+      resetWorkflow();
+    }
     else if (key == 'C') {  // Cancel and go back
       resetWorkflow();
     }

@@ -1,10 +1,27 @@
-// ===== THERMAL PRINTER PINS (UART2) =====
-#define PRINTER_RX  16   // ESP32 RX <- Printer TX
-#define PRINTER_TX  17   // ESP32 TX -> Printer RX
+// ===== BOARD PIN MAP (ESP32-C3 Mini defaults) =====
+// Override these in build flags if your wiring differs.
+
+// Thermal printer UART pins
+#define PRINTER_RX  7    // ESP32-C3 RX <- Printer TX
+#define PRINTER_TX  6    // ESP32-C3 TX -> Printer RX
 #define PRINTER_BAUD 9600
 
+// I2C pins for MAX17043 fuel gauge
+#ifndef I2C_SDA_PIN
+#define I2C_SDA_PIN 4
+#endif
+
+#ifndef I2C_SCL_PIN
+#define I2C_SCL_PIN 5
+#endif
+
+// Charger detection input pin (inverted logic in code: LOW = charging)
+#ifndef CHARGER_PIN
+#define CHARGER_PIN 3
+#endif
+
 // gate pin for IRLZ44N MOSFET controlling printer 5V supply
-#define PRINTER_ENABLE_PIN 14  // drive high to power the printer, low to cut power
+#define PRINTER_ENABLE_PIN 1  // drive high to power the printer, low to cut power
 
 // printer auto-sleep timeout (minutes)
 // Set to 3 minutes for testing; increase for production use.
@@ -17,9 +34,9 @@
 #endif
 
 // CPU frequency profile for low-power operation on slave.
-// Keep 240 MHz for BLE/printing responsiveness and use 80 MHz at idle for BLE stability.
+// Keep 160 MHz for BLE/printing responsiveness and use 80 MHz at idle for BLE stability.
 #ifndef CPU_ACTIVE_MHZ
-#define CPU_ACTIVE_MHZ 240
+#define CPU_ACTIVE_MHZ 160
 #endif
 
 #ifndef CPU_IDLE_MHZ

@@ -4,6 +4,7 @@
 #include "../configuration/config.h"
 #include "../database/customers_database.h"
 #include "../database/bill_database.h"
+#include "../screens/warning_screen.h"
 #include <SD.h>
 #include <RTClib.h>
 
@@ -41,11 +42,22 @@ void displayBillCalculated() {
   Serial.print(F("Bill generated: "));
   Serial.println(billGenerated ? F("Success") : F("Failed"));
   if (!billGenerated) {
-    // Handle error - customer not found or invalid
-    tft.setTextColor(ST77XX_RED);
-    tft.setTextSize(1);
-    tft.setCursor(20, 50);
-    tft.println(F("Bill generation failed!"));
+    unsigned long existingPrev = 0;
+    unsigned long existingCurr = 0;
+    unsigned long existingUsage = 0;
+    if (hasReadingThisMonth(cust->customer_id)
+        && getExistingReadingDataThisMonth(cust->customer_id, existingPrev, existingCurr, existingUsage)
+        && currentReading == existingCurr) {
+      displayWarningScreen(F("READING NOT CHANGED"),
+                           String("Current reading is same"),
+                           String("as saved this month."),
+                           F("Enter new reading or C"));
+    } else {
+      displayWarningScreen(F("BILL FAILED"),
+                           String("Cannot generate bill"),
+                           String("Check reading value."),
+                           F("Press C to cancel"));
+    }
     return;
   }
   

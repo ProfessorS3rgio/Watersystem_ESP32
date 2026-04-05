@@ -16,6 +16,7 @@ void bleRequestReconnect();
 bool bleIsConnected();
 bool bleIsReady();
 bool bleSend(const String &cmd);
+bool bleSendBillCommand(const String &cmd, uint32_t ackTimeoutMs = 4500, uint8_t maxAttempts = 3);
 bool blePrepareForPrint(uint32_t timeoutMs = 8000);
 bool bleIsBusyForPrint();
 bool bleCheckPaperPresent(uint32_t timeoutMs = 1500);
@@ -31,7 +32,7 @@ String bleConnectionStatusText();
 namespace {
 constexpr char BLE_MASTER_DEVICE_NAME[] = "WaterSystem";
 constexpr bool BLE_DIRECT_CONNECT_ENABLED = true;
-constexpr char BLE_SLAVE_KNOWN_MAC[] = "68:fe:71:88:5b:9e";
+constexpr char BLE_SLAVE_KNOWN_MAC[] = "ac:a7:04:d7:5d:0e";
 constexpr uint32_t BLE_SCAN_SECONDS = 5;
 constexpr uint32_t BLE_RETRY_DELAY_MS = 1200;
 constexpr uint32_t BLE_STATUS_POLL_MS = 1000;
@@ -48,9 +49,10 @@ constexpr bool BLE_BACKGROUND_RECONNECT_ENABLED = false;
 NimBLEUUID g_serviceUuid("4fafc201-1fb5-459e-8fcc-c5c9c331914b");
 NimBLEUUID g_characteristicUuid("beb5483e-36e1-4688-b7f5-ea07361b26a8");
 bool g_classicBtMemoryReleased = false;
-
+ 
 struct BleSlaveManagerState {
 	SemaphoreHandle_t mutex;
+	SemaphoreHandle_t txMutex;
 	TaskHandle_t taskHandle;
 	volatile bool initialized;
 	volatile bool stackInitialized;
@@ -71,9 +73,11 @@ struct BleSlaveManagerState {
 	volatile int8_t batteryAlert;
 	volatile int8_t chargingStatus;
 	volatile int8_t paperStatus;
+	volatile int8_t billAckStatus;
 };
 
 BleSlaveManagerState g_bleSlave = {
+	nullptr,
 	nullptr,
 	nullptr,
 	false,
@@ -90,6 +94,7 @@ BleSlaveManagerState g_bleSlave = {
 	0,
 	0,
 	0,
+	-1,
 	-1,
 	-1,
 	-1,
@@ -115,9 +120,19 @@ bool bleLock(TickType_t timeout = pdMS_TO_TICKS(250)) {
 	return g_bleSlave.mutex != nullptr && xSemaphoreTake(g_bleSlave.mutex, timeout) == pdTRUE;
 }
 
+bool bleTxLock(TickType_t timeout = pdMS_TO_TICKS(2000)) {
+	return g_bleSlave.txMutex != nullptr && xSemaphoreTake(g_bleSlave.txMutex, timeout) == pdTRUE;
+}
+
 void bleUnlock() {
 	if (g_bleSlave.mutex != nullptr) {
 		xSemaphoreGive(g_bleSlave.mutex);
+	}
+}
+
+void bleTxUnlock() {
+	if (g_bleSlave.txMutex != nullptr) {
+		xSemaphoreGive(g_bleSlave.txMutex);
 	}
 }
 
@@ -138,6 +153,7 @@ void bleClearConnectionState() {
 		g_bleSlave.batteryAlert = -1;
 		g_bleSlave.chargingStatus = -1;
 		g_bleSlave.paperStatus = -1;
+		g_bleSlave.billAckStatus = -1;
 		bleUnlock();
 	}
 }
@@ -226,6 +242,9 @@ void bleHandleIncomingLine(const String& line) {
 		return;
 	}
 
+	String upperLine = line;
+	upperLine.toUpperCase();
+
 	const uint32_t nowMs = millis();
 	g_bleSlave.lastRxMs = nowMs;
 
@@ -242,7 +261,7 @@ void bleHandleIncomingLine(const String& line) {
 		return;
 	}
 
-	if (line.equalsIgnoreCase("PAPER_PRESENT")) {
+	if (upperLine.indexOf("PAPER_PRESENT") >= 0) {
 		if (bleLock()) {
 			g_bleSlave.paperStatus = 1;
 			g_bleSlave.statusSeq++;
@@ -251,9 +270,27 @@ void bleHandleIncomingLine(const String& line) {
 		return;
 	}
 
-	if (line.equalsIgnoreCase("PAPER_OUT")) {
+	if (upperLine.indexOf("PAPER_OUT") >= 0) {
 		if (bleLock()) {
 			g_bleSlave.paperStatus = 0;
+			g_bleSlave.statusSeq++;
+			bleUnlock();
+		}
+		return;
+	}
+
+	if (line.equalsIgnoreCase("ACK_PRINT_BILL")) {
+		if (bleLock()) {
+			g_bleSlave.billAckStatus = 1;
+			g_bleSlave.statusSeq++;
+			bleUnlock();
+		}
+		return;
+	}
+
+	if (line.equalsIgnoreCase("NACK_PRINT_BILL")) {
+		if (bleLock()) {
+			g_bleSlave.billAckStatus = 0;
 			g_bleSlave.statusSeq++;
 			bleUnlock();
 		}
@@ -533,6 +570,7 @@ bool bleEnsureInitialized() {
 	}
 
 	NimBLEDevice::init(BLE_MASTER_DEVICE_NAME);
+	NimBLEDevice::setMTU(185);
 	NimBLEDevice::setPower(ESP_PWR_LVL_P9);
 	g_bleSlave.stackInitialized = true;
 	Serial.println(F("[BLE] NimBLE client stack initialized"));
@@ -632,6 +670,9 @@ void bleSlaveManagerBegin() {
 	if (g_bleSlave.mutex == nullptr) {
 		g_bleSlave.mutex = xSemaphoreCreateMutex();
 	}
+	if (g_bleSlave.txMutex == nullptr) {
+		g_bleSlave.txMutex = xSemaphoreCreateMutex();
+	}
 
 	g_bleSlave.initialized = true;
 	g_bleSlave.reconnectRequested = true;
@@ -690,16 +731,24 @@ bool bleIsReady() {
 }
 
 bool bleSend(const String &cmd) {
+	NimBLEClient* localClient = nullptr;
+	NimBLERemoteCharacteristic* localCharacteristic = nullptr;
 	if (!bleLock()) {
 		return false;
 	}
 
-	const bool connected = pBleClient != nullptr
-			&& pBleCharacteristic != nullptr
-			&& pBleClient->isConnected();
+	localClient = pBleClient;
+	localCharacteristic = pBleCharacteristic;
+	const bool connected = localClient != nullptr
+			&& localCharacteristic != nullptr
+			&& localClient->isConnected();
+	bleUnlock();
 
 	if (!connected) {
-		bleUnlock();
+		return false;
+	}
+
+	if (!bleTxLock()) {
 		return false;
 	}
 
@@ -710,36 +759,86 @@ bool bleSend(const String &cmd) {
 
 	const char* data = payload.c_str();
 	const size_t len = payload.length();
-	size_t offset = 0;
 	bool success = true;
-
+	size_t offset = 0;
 	while (offset < len) {
-		if (pBleClient == nullptr || pBleCharacteristic == nullptr || !pBleClient->isConnected()) {
+		if (localClient == nullptr || localCharacteristic == nullptr || !localClient->isConnected()) {
 			success = false;
 			break;
 		}
 
 		const size_t chunk = min(BLE_CHUNK_SIZE, len - offset);
-		const bool writeOk = pBleCharacteristic->writeValue(
+		const bool writeOk = localCharacteristic->writeValue(
 			reinterpret_cast<const uint8_t*>(data + offset),
 			chunk,
-			false
+			true
 		);
 		if (!writeOk) {
 			success = false;
 			break;
 		}
 		offset += chunk;
-		delay(10);
+		// Give BLE server callback time to append each chunk into its line buffer.
+		delay(30);
 	}
 
-	bleUnlock();
+	bleTxUnlock();
 
 	if (!success) {
 		bleRequestReconnect();
 	}
 
 	return success;
+}
+
+bool bleSendBillCommand(const String &cmd, uint32_t ackTimeoutMs, uint8_t maxAttempts) {
+	if (maxAttempts == 0) {
+		maxAttempts = 1;
+	}
+
+	for (uint8_t attempt = 1; attempt <= maxAttempts; ++attempt) {
+		if (bleLock()) {
+			g_bleSlave.billAckStatus = -1;
+			bleUnlock();
+		}
+
+		if (!bleSend(cmd)) {
+			Serial.print(F("[BLE] Bill send failed (attempt "));
+			Serial.print(attempt);
+			Serial.println(F(")"));
+			delay(120);
+			continue;
+		}
+
+		const uint32_t startMs = millis();
+		while ((millis() - startMs) < ackTimeoutMs) {
+			int8_t ack = -1;
+			if (bleLock()) {
+				ack = g_bleSlave.billAckStatus;
+				bleUnlock();
+			}
+
+			if (ack == 1) {
+				return true;
+			}
+
+			if (ack == 0) {
+				Serial.print(F("[BLE] Bill NACK from slave (attempt "));
+				Serial.print(attempt);
+				Serial.println(F(")"));
+				break;
+			}
+
+			delay(20);
+		}
+
+		Serial.print(F("[BLE] Bill ACK timeout (attempt "));
+		Serial.print(attempt);
+		Serial.println(F(")"));
+		delay(120);
+	}
+
+	return false;
 }
 
 bool blePrepareForPrint(uint32_t timeoutMs) {
@@ -874,7 +973,12 @@ bool bleCheckPaperPresent(uint32_t timeoutMs) {
 			}
 
 			if (status == 0) {
-				Serial.println(F("[BLE] Paper check: OUT"));
+				if (attempt == 0) {
+					// Some printers briefly report OUT while waking; confirm once more.
+					Serial.println(F("[BLE] Paper check: OUT (first read), confirming..."));
+					break;
+				}
+				Serial.println(F("[BLE] Paper check: OUT (confirmed)"));
 				return false;
 			}
 
@@ -882,8 +986,8 @@ bool bleCheckPaperPresent(uint32_t timeoutMs) {
 		}
 
 		if (attempt == 0) {
-			Serial.println(F("[BLE] Paper check timeout/unknown; retrying..."));
-			delay(180);
+			Serial.println(F("[BLE] Paper check retrying..."));
+			delay(220);
 		}
 	}
 

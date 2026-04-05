@@ -10,6 +10,41 @@ extern TFT_eSPI tft;
 extern Customer* currentCustomer;
 extern unsigned long correctPreviousReading;
 
+#ifndef WS_SHORT_MONTH_NAME_DEFINED
+#define WS_SHORT_MONTH_NAME_DEFINED
+static const char* shortMonthName(int month) {
+  static const char* months[] = {
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+  };
+  if (month < 1 || month > 12) return "";
+  return months[month - 1];
+}
+#endif
+
+static String getPeriodCoveredText() {
+  String nowStr = getCurrentDateTimeString();
+  if (nowStr.length() < 7) {
+    return String("Period: N/A");
+  }
+
+  int year = nowStr.substring(0, 4).toInt();
+  int month = nowStr.substring(5, 7).toInt();
+  if (month < 1 || month > 12) {
+    return String("Period: N/A");
+  }
+
+  int prevMonth = month - 1;
+  int prevYear = year;
+  if (prevMonth == 0) {
+    prevMonth = 12;
+    prevYear--;
+  }
+
+  return String("Period: ") + shortMonthName(prevMonth) + " " + String(prevYear)
+       + " - " + shortMonthName(month) + " " + String(year);
+}
+
 static String truncateText(const String& s, int maxLen) {
   if ((int)s.length() <= maxLen) return s;
   if (maxLen <= 3) return s.substring(0, maxLen);
@@ -74,15 +109,23 @@ void displayCustomerInfo() {
   tft.setTextColor(COLOR_TEXT);
   tft.println(truncateText(cust->address, 20));
 
+  // Row 4: Period
+  y += lineH;
+  tft.setTextColor(COLOR_LABEL);
+  tft.setCursor(leftX, y);
+  tft.println(getPeriodCoveredText());
+
   // Divider
-  int afterInfoY = y + lineH;
+  int afterInfoY = y + 12;
   tft.drawLine(0, afterInfoY, 320, afterInfoY, COLOR_LINE);
   
   // Check if customer has existing reading and show correct previous reading
   unsigned long displayPrevReading = cust->previous_reading;
+  unsigned long existingPrev = 0;
+  unsigned long existingCurr = 0;
+  unsigned long existingUsage = 0;
   bool hasReading = hasReadingThisMonth(cust->customer_id);
   if (hasReading) {
-    unsigned long existingPrev = 0, existingCurr = 0, existingUsage = 0;
     if (getExistingReadingDataThisMonth(cust->customer_id, existingPrev, existingCurr, existingUsage)) {
       displayPrevReading = existingPrev;
     }
@@ -91,27 +134,39 @@ void displayCustomerInfo() {
   correctPreviousReading = displayPrevReading;
 
   // Reading block
-  int readingY = afterInfoY + 30;
-  tft.setTextColor(COLOR_LABEL);
-  tft.setCursor(leftX, readingY);
-  tft.print(F("Previous Reading: "));
-  tft.setTextColor(COLOR_AMOUNT);
-  tft.println(displayPrevReading);
+  int readingY = afterInfoY + 20;
+  if (hasReading) {
+    tft.setTextColor(COLOR_LABEL);
+    tft.setCursor(leftX, readingY);
+    tft.print(F("Previous:"));
+    tft.setTextColor(COLOR_AMOUNT);
+    tft.print(displayPrevReading);
+    tft.setTextColor(COLOR_LABEL);
+    tft.print(F("  Present:"));
+    tft.setTextColor(COLOR_AMOUNT);
+    tft.print(existingCurr);
+  } else {
+    tft.setTextColor(COLOR_LABEL);
+    tft.setCursor(leftX, readingY);
+    tft.print(F("Previous Reading: "));
+    tft.setTextColor(COLOR_AMOUNT);
+    tft.println(displayPrevReading);
+  }
 
   if (hasReading) {
     tft.setTextColor(TFT_RED);
-    tft.setCursor(leftX, readingY + 22);
+    tft.setCursor(leftX, readingY + 20);
     tft.println(F("Reading already done this month"));
   }
 
   // Footer hints (aligned like payment summary)
   tft.setFreeFont(&FreeSans9pt7b);
   tft.setTextColor(COLOR_LABEL);
-  tft.setCursor(20, 220);
+  tft.setCursor(8, 220);
   if (hasReading) {
-    tft.println(F("Press D to Continue   C to Cancel"));
+    tft.println(F("D-Continue  A-Reprint  C-Cancel"));
   } else {
-    tft.println(F("Press D for Reading   C to Cancel"));
+    tft.println(F("D-Enter Reading   C-Cancel"));
   }
 }
 

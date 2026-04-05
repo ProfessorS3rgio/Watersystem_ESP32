@@ -168,7 +168,7 @@ void setup() {
   
   // Initialize TFT
   tft.begin();  // For 320x240 ILI9341
-  tft.setRotation(1);          // Landscape mode (240x320)
+  tft.setRotation(3);          // Landscape mode (240x320)
   tft.fillScreen(COLOR_BG);
 
   // Ensure shared SPI CS pins are in a safe state before SD init

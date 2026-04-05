@@ -155,7 +155,10 @@ void printBill() {
   printer.print(F("Water Charge : PHP "));
   printer.println(currentBill.subtotal, 2);
   if (currentBill.deductions > 0) {
-    printer.print(currentBill.deductionName);
+    const String deductionLabel = (currentBill.deductionName.length() > 0)
+                                  ? currentBill.deductionName
+                                  : String("Deduction");
+    printer.print(deductionLabel);
     printer.print(F(" : PHP -"));
     printer.println(currentBill.deductions, 2);
   }

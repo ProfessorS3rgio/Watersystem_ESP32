@@ -122,6 +122,26 @@ void processReadingEntry() {
     delay(2000);
     displayEnterReadingScreen();
   } else {
+    if (currentCustomer != nullptr && hasReadingThisMonth(currentCustomer->customer_id)) {
+      unsigned long existingPrev = 0;
+      unsigned long existingCurr = 0;
+      unsigned long existingUsage = 0;
+      if (getExistingReadingDataThisMonth(currentCustomer->customer_id, existingPrev, existingCurr, existingUsage)) {
+        if (currentReading == existingCurr) {
+          Serial.println(F("Bill generation blocked: same as existing current reading this month"));
+          displayWarningScreen(F("READING NOT CHANGED"),
+                               String("Current reading is same"),
+                               String("as saved this month."),
+                               F("Enter new reading or C"));
+          inputBuffer = "";
+          delay(1800);
+          currentState = STATE_ACCOUNT_FOUND;
+          displayCustomerInfo();
+          return;
+        }
+      }
+    }
+
     // Valid reading - calculate bill
     currentState = STATE_BILL_CALCULATED;
     inputBuffer = "";

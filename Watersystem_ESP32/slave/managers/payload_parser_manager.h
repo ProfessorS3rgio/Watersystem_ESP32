@@ -43,11 +43,28 @@ void parseBillPayload(const String &payload) {
 
     // Default values
     currentBill.deductions = 0;
+    currentBill.deductionName = "";
     currentBill.penalty = 0;
     currentBill.total = currentBill.subtotal;
     currentBill.billDate = "";
     g_billDueDayOfMonth = 5;
     g_disconnectionDayOfMonth = 8;
+
+    // New payload from master (includes deduction label):
+    // ...|rate|subtotal|deductionName|deductions|penalty|total|billDate|dueDay|disconnectDay
+    if (c >= 18) {
+        currentBill.deductionName = p[11];
+        currentBill.deductions = p[12].toFloat();
+        currentBill.penalty = p[13].toFloat();
+        currentBill.total = p[14].toFloat();
+        currentBill.billDate = p[15];
+
+        int dueDay = p[16].toInt();
+        int disDay = p[17].toInt();
+        if (dueDay >= 1 && dueDay <= 31) g_billDueDayOfMonth = dueDay;
+        if (disDay >= 1 && disDay <= 31) g_disconnectionDayOfMonth = disDay;
+        return;
+    }
 
     // Preferred payload from master:
     // ...|rate|subtotal|deductions|penalty|total|billDate|dueDay|disconnectDay

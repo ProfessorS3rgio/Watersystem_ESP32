@@ -12,6 +12,7 @@
 
 // fuel gauge object (defaults to MAX17043)
 SFE_MAX1704X lipo;
+bool g_lipoDetected = false;
 
 // prototype used by bill_printer.h (defined later in this file)
 String getCurrentDateTimeString();
@@ -30,18 +31,21 @@ int g_billDueDayOfMonth = 5;
 int g_disconnectionDayOfMonth = 8;
 
 // serial objects used by printer helpers
-HardwareSerial printerSerial = Serial2;   // matches ThermalPrinter printer(Serial2)
+#if defined(CONFIG_IDF_TARGET_ESP32C3)
+HardwareSerial printerSerial = Serial1;
+ThermalPrinter printer(Serial1);
+#else
+HardwareSerial printerSerial = Serial2;
+ThermalPrinter printer(Serial2);
+#endif
 
 int getBillDueDaysSetting() { return g_billDueDayOfMonth; }
 int getDisconnectionDaysSetting() { return g_disconnectionDayOfMonth; }
 
-ThermalPrinter printer(Serial2);      // corresponds to HW UART2
-
 #include "managers/printer_power_manager.h"
 
 // ---------- charger detection ----------
-// GPIO 23: NPN transistor collector, low when charger active (inverted logic)
-#define CHARGER_PIN 23
+// NPN transistor collector, low when charger active (inverted logic)
 bool g_lastChargingState = false;
 unsigned long g_nextBatteryPrintMs = 0;
 
@@ -177,6 +181,11 @@ void handleCommand(const String &cmd) {
     }
 
     if (cmd.equalsIgnoreCase("BATTERY")) {
+        if (!g_lipoDetected) {
+            sendNotificationLine("BATTERY_UNAVAILABLE");
+            Serial.println("BATTERY_UNAVAILABLE (MAX17043 not detected)");
+            return;
+        }
         double voltage = lipo.getVoltage();
         double soc = lipo.getSOC();
         bool alert = lipo.getAlert();
@@ -195,9 +204,14 @@ void handleCommand(const String &cmd) {
     }
 
     if (cmd.equalsIgnoreCase("STATUS")) {
-        double voltage = lipo.getVoltage();
-        double soc = lipo.getSOC();
-        bool alert = lipo.getAlert();
+        double voltage = 0.0;
+        double soc = 0.0;
+        bool alert = false;
+        if (g_lipoDetected) {
+            voltage = lipo.getVoltage();
+            soc = lipo.getSOC();
+            alert = lipo.getAlert();
+        }
         bool charging = !digitalRead(CHARGER_PIN);  // low = charging
 
         int paper = -1;
@@ -209,13 +223,17 @@ void handleCommand(const String &cmd) {
         }
 
         // Keep status notifications short (<20 bytes) to avoid BLE notify truncation.
-        char socBuf[16];
-        snprintf(socBuf, sizeof(socBuf), "SOC=%.1f", soc);
-        sendNotificationLine(String(socBuf));
+        if (g_lipoDetected) {
+            char socBuf[16];
+            snprintf(socBuf, sizeof(socBuf), "SOC=%.1f", soc);
+            sendNotificationLine(String(socBuf));
 
-        char voltBuf[16];
-        snprintf(voltBuf, sizeof(voltBuf), "VOLT=%.2f", voltage);
-        sendNotificationLine(String(voltBuf));
+            char voltBuf[16];
+            snprintf(voltBuf, sizeof(voltBuf), "VOLT=%.2f", voltage);
+            sendNotificationLine(String(voltBuf));
+        } else {
+            sendNotificationLine("BATTERY_UNAVAILABLE");
+        }
 
         if (charging) {
             sendNotificationLine("CHARGING");
@@ -232,11 +250,23 @@ void handleCommand(const String &cmd) {
         }
 
         Serial.print("STATUS SOC=");
-        Serial.print(soc, 1);
+        if (g_lipoDetected) {
+            Serial.print(soc, 1);
+        } else {
+            Serial.print("N/A");
+        }
         Serial.print(" VOLT=");
-        Serial.print(voltage, 2);
+        if (g_lipoDetected) {
+            Serial.print(voltage, 2);
+        } else {
+            Serial.print("N/A");
+        }
         Serial.print(" ALERT=");
-        Serial.print(alert ? 1 : 0);
+        if (g_lipoDetected) {
+            Serial.print(alert ? 1 : 0);
+        } else {
+            Serial.print("N/A");
+        }
         Serial.print(" CHG=");
         Serial.print(charging ? 1 : 0);
         Serial.print(" PAPER=");
@@ -270,10 +300,25 @@ void handleCommand(const String &cmd) {
     // fall back to legacy pipe-delimited format
     if (cmd.startsWith("PRINT_BILL")) {
         String payload = cmd.substring(strlen("PRINT_BILL") + 1);
+
+        // Require a minimum field count to avoid printing stale data on truncated frames.
+        int fieldCount = 1;
+        for (int i = 0; i < payload.length(); ++i) {
+            if (payload[i] == '|') {
+                fieldCount++;
+            }
+        }
+        if (fieldCount < 11) {
+            sendNotificationLine("NACK_PRINT_BILL");
+            Serial.println("NACK_PRINT_BILL (truncated payload)");
+            return;
+        }
+
         parseBillPayload(payload);
         beginPrintJob();
         printBill();
         endPrintJob();
+        sendNotificationLine("ACK_PRINT_BILL");
         Serial.println("printed bill");
     } else if (cmd.startsWith("PRINT_RECEIPT")) {
         String payload = cmd.substring(strlen("PRINT_RECEIPT") + 1);
@@ -283,6 +328,9 @@ void handleCommand(const String &cmd) {
         endPrintJob();
         Serial.println("printed receipt");
     } else {
+        if (cmd.startsWith("|")) {
+            sendNotificationLine("NACK_PRINT_BILL");
+        }
         Serial.print("unknown command: ");
         Serial.println(cmd);
     }
@@ -301,11 +349,13 @@ void setup() {
     Serial.print(CPU_IDLE_MHZ);
     Serial.println(")");
 
-    // initialize I2C and fuel gauge (SDA=GPIO26, SCL=GPIO27 on this board)
-    Wire.begin(26, 27);
+    // initialize I2C and fuel gauge
+    Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);
     if (!lipo.begin()) {
-        Serial.println("MAX17043 not detected. Check I2C wiring (SDA=26, SCL=27) or power.");
+        g_lipoDetected = false;
+        Serial.printf("MAX17043 not detected. Check I2C wiring (SDA=%d, SCL=%d) or power.\n", I2C_SDA_PIN, I2C_SCL_PIN);
     } else {
+        g_lipoDetected = true;
         Serial.println("MAX17043 detected");
         lipo.quickStart();
         lipo.setThreshold(20); // alert at 20% SOC, not currently read
@@ -359,7 +409,7 @@ void setup() {
     g_pAdvertising->start();
     Serial.println("Waiting for client to connect...");
 
-    printer.begin();                 // init UART2 for printer
+    printer.begin();                 // init printer UART
     g_nextPaperPollMs = millis() + 1000;
     setCpuPowerMode(false);
     // …other init (RTC, database, etc.)
@@ -397,15 +447,19 @@ void loop() {
     // periodically print battery status every 5 seconds
     if (static_cast<long>(millis() - g_nextBatteryPrintMs) >= 0) {
         g_nextBatteryPrintMs = millis() + 5000;
-        double voltage = lipo.getVoltage();
-        double soc = lipo.getSOC();
-        bool alert = lipo.getAlert();
-        Serial.print("Battery: ");
-        Serial.print(voltage, 2);
-        Serial.print("V, ");
-        Serial.print(soc, 1);
-        Serial.print("%, Alert: ");
-        Serial.println(alert ? "YES" : "NO");
+        if (g_lipoDetected) {
+            double voltage = lipo.getVoltage();
+            double soc = lipo.getSOC();
+            bool alert = lipo.getAlert();
+            Serial.print("Battery: ");
+            Serial.print(voltage, 2);
+            Serial.print("V, ");
+            Serial.print(soc, 1);
+            Serial.print("%, Alert: ");
+            Serial.println(alert ? "YES" : "NO");
+        } else {
+            Serial.println("Battery: UNAVAILABLE (MAX17043 not detected)");
+        }
     }
 
     // handle serial monitor commands (must send newline/CR+LF from terminal)
@@ -457,15 +511,19 @@ void loop() {
                 Serial.println("Paper status: UNKNOWN (no reply from printer)");
             }
         } else if (line.equalsIgnoreCase("BATTERY")) {
-            double voltage = lipo.getVoltage();
-            double soc = lipo.getSOC();
-            bool alert = lipo.getAlert();
-            Serial.print("Battery: ");
-            Serial.print(voltage, 2);
-            Serial.print("V, ");
-            Serial.print(soc, 1);
-            Serial.print("%, Alert: ");
-            Serial.println(alert ? "YES" : "NO");
+            if (g_lipoDetected) {
+                double voltage = lipo.getVoltage();
+                double soc = lipo.getSOC();
+                bool alert = lipo.getAlert();
+                Serial.print("Battery: ");
+                Serial.print(voltage, 2);
+                Serial.print("V, ");
+                Serial.print(soc, 1);
+                Serial.print("%, Alert: ");
+                Serial.println(alert ? "YES" : "NO");
+            } else {
+                Serial.println("Battery: UNAVAILABLE (MAX17043 not detected)");
+            }
         }
     }
 
