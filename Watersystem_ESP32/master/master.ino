@@ -94,11 +94,9 @@ bool isIdleWorkflowState() {
 
 String readSerialCommand() {
   static String serialBuffer;
-  static unsigned long lastByteMs = 0;
 
   while (Serial.available()) {
     char ch = static_cast<char>(Serial.read());
-    lastByteMs = millis();
 
     if (ch == '\r' || ch == '\n') {
       if (serialBuffer.length() == 0) {
@@ -114,19 +112,17 @@ String readSerialCommand() {
     serialBuffer += ch;
   }
 
-  if (serialBuffer.length() > 0 && (millis() - lastByteMs) > 120) {
-    String cmd = serialBuffer;
-    serialBuffer = "";
-    cmd.trim();
-    return cmd;
-  }
-
   return "";
 }
 
 void setup() {
+  const bool rxBufferConfigured = Serial.setRxBufferSize(8192);
   Serial.begin(SERIAL_BAUD);
-  Serial.setRxBufferSize(262144); // 256KB for large JSON payloads
+  if (rxBufferConfigured) {
+    Serial.println(F("[SYNC] Serial RX buffer set to 8192"));
+  } else {
+    Serial.println(F("[SYNC] Warning: failed to set Serial RX buffer to 8192"));
+  }
   Serial.setTimeout(30000); // 30 seconds timeout for long transmissions
 
   if (BLE_SLAVE_LINK_ENABLED) {

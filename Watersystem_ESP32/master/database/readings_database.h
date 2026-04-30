@@ -74,16 +74,25 @@ void saveReadingToDB(int customer_id, unsigned long previous_reading, unsigned l
 }
 
 bool hasReadingForCustomerInYearMonth(int customer_id, int year, int month) {
+  if (!db) return false;
+
   char sql[256];
-  sprintf(sql, "SELECT COUNT(*) FROM readings WHERE customer_id = %d AND strftime('%%Y', datetime(reading_at, 'unixepoch')) = '%04d' AND strftime('%%m', datetime(reading_at, 'unixepoch')) = '%02d';", customer_id, year, month);
-  // For simplicity, assume no reading if not loaded, but since we load all, check vector
-  for (const auto& r : readings) {
-    if (r.customer_id == customer_id) {
-      // Parse reading_at for year month
-      // For now, return false to allow new reading
-    }
+  sprintf(sql,
+          "SELECT COUNT(*) FROM readings WHERE customer_id = %d "
+          "AND strftime('%%Y', datetime(reading_at, 'unixepoch')) = '%04d' "
+          "AND strftime('%%m', datetime(reading_at, 'unixepoch')) = '%02d';",
+          customer_id, year, month);
+
+  sqlite3_stmt *stmt = nullptr;
+  int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+  if (rc != SQLITE_OK) return false;
+
+  bool hasReading = false;
+  if (sqlite3_step(stmt) == SQLITE_ROW) {
+    hasReading = sqlite3_column_int(stmt, 0) > 0;
   }
-  return false; // Placeholder
+  sqlite3_finalize(stmt);
+  return hasReading;
 }
 
 // For time offset, keep SD for now or migrate to settings

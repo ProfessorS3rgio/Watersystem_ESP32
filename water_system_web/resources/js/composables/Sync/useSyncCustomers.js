@@ -28,8 +28,8 @@ export function useSyncCustomers() {
     // Sequentially send chunks; automatically reduce chunk size if line becomes
     // too large for the device.  This keeps us under any hidden String limits
     // while still attempting to maximise throughput.
-    let chunkSize = 10
-    const maxLineLen = 12000
+    let chunkSize = 6
+    const maxLineLen = 1200
     const maxRetries = 3
     const deviceCustomers = customers.map(sanitizeCustomerForDevice)
 
@@ -41,6 +41,9 @@ export function useSyncCustomers() {
 
       const rawJson = JSON.stringify(chunk)
       const customersJson = btoa(rawJson)
+      if ((customersJson.length % 4) !== 0) {
+        console.warn(`base64 length not aligned (${customersJson.length}) for ${type} chunk ${chunkIndex}`)
+      }
       const line = `UPSERT_${type}_CUSTOMER_JSON_CHUNK|${chunkIndex}|${totalChunks}|${customersJson}`
 
       // If the generated line is too big, halve the chunk size and retry
