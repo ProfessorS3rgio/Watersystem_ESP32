@@ -32,6 +32,11 @@ class Customer extends Model
         'last_sync' => 'datetime',
     ];
 
+    public function getRouteKeyName()
+    {
+        return 'customer_id';
+    }
+
     public function deductions()
     {
         return $this->belongsToMany(Deduction::class, 'customer_deduction', 'customer_id', 'deduction_id');

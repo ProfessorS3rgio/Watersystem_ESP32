@@ -31,6 +31,9 @@
       <div class="px-6 py-4 border-b flex items-center justify-between" :class="isDark ? 'border-gray-700' : 'border-gray-200'">
         <h2 class="text-lg font-semibold" :class="isDark ? 'text-white' : 'text-gray-900'">Client List</h2>
         <div class="flex items-center space-x-4">
+          <span class="text-sm" :class="isDark ? 'text-gray-300' : 'text-gray-600'">
+            {{ filteredCustomers.length }} found
+          </span>
           <input
             type="search"
             placeholder="Search clients..."
@@ -38,6 +41,26 @@
             class="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
             :class="isDark ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'"
           />
+          <select
+            v-model="statusFilter"
+            class="px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            :class="isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'"
+          >
+            <option value="all">All Status</option>
+            <option value="active">Active</option>
+            <option value="disconnected">Disconnected</option>
+          </select>
+          <select
+            v-model="billFilter"
+            class="px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            :class="isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'"
+          >
+            <option value="all">All Bills</option>
+            <option value="pending">Pending</option>
+            <option value="due">Due</option>
+            <option value="paid">Paid</option>
+            <option value="none">No Bill</option>
+          </select>
         </div>
       </div>
       <div class="overflow-x-auto">
@@ -254,7 +277,7 @@
 </template>
 
 <script>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import AppSidebar from '../components/AppSidebar.vue'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
 import SuccessModal from '../components/SuccessModal.vue'
@@ -285,10 +308,19 @@ export default {
     const viewingCustomer = ref(null)
     const selectedBarangay = ref(null)
 
+    const statusFilter = ref('all')
+    const billFilter = ref('all')
+
     const filteredCustomers = computed(() => {
       let filtered = customersComposable.filteredCustomers.value
       if (selectedBarangay.value !== null) {
         filtered = filtered.filter(customer => customer.brgy_id === selectedBarangay.value)
+      }
+      if (statusFilter.value !== 'all') {
+        filtered = filtered.filter(customer => customer.status === statusFilter.value)
+      }
+      if (billFilter.value !== 'all') {
+        filtered = filtered.filter(customer => (customer.latest_bill_state || 'none') === billFilter.value)
       }
       return filtered
     })
@@ -569,8 +601,26 @@ export default {
       return `${brgy.prefix}-${num}`
     })
 
+    const fetchCustomersWithFilters = () => {
+      customersComposable.fetchCustomers({
+        search: customersComposable.search.value,
+        status: statusFilter.value,
+        bill_state: billFilter.value,
+        brgy_id: selectedBarangay.value,
+      })
+    }
+
+    let fetchTimer = null
+    watch(
+      [customersComposable.search, statusFilter, billFilter, selectedBarangay],
+      () => {
+        if (fetchTimer) clearTimeout(fetchTimer)
+        fetchTimer = setTimeout(fetchCustomersWithFilters, 250)
+      },
+      { immediate: true }
+    )
+
     // Initialize data
-    customersComposable.fetchCustomers()
     customersComposable.fetchCustomerTypes()
     customersComposable.fetchBarangays()
     customersComposable.fetchDeductions()
@@ -614,6 +664,8 @@ export default {
       isViewModalOpen,
       viewingCustomer,
       selectedBarangay,
+      statusFilter,
+      billFilter,
       filteredCustomers,
     }
   }

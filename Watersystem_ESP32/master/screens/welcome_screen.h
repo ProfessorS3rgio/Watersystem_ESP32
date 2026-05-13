@@ -7,10 +7,12 @@
 
 // ===== EXTERNAL OBJECTS =====
 extern TFT_eSPI tft;
-extern BatteryMonitor batteryMonitor;
+extern int g_batteryPercent;
+extern bool g_batteryCharging;
+extern bool g_lipoDetected;
 extern RTC_DS3231 rtc;  // real-time clock
 
-void updateWelcomeBatteryStatus(int batteryPct) {
+void updateWelcomeBatteryStatus(int batteryPct, bool isCharging) {
 
   // ===== CLEAR HEADER AREA (TIME + BATTERY ICON) =====
   tft.fillRect(0, 5, 320, 25, TFT_BLACK);
@@ -52,7 +54,7 @@ void updateWelcomeBatteryStatus(int batteryPct) {
   tft.println(timeBuf);
 
   // ===== KEEP BATTERY ICON ON TOP RIGHT =====
-  drawBattery(258, 20, batteryMonitor);
+  drawBattery(258, 20, batteryPct, isCharging);
 }
 
 
@@ -82,7 +84,7 @@ void showWelcomeScreen() {
 
 
   // ===== BATTERY + TIME =====
-  updateWelcomeBatteryStatus(batteryMonitor.getPercentage());
+  updateWelcomeBatteryStatus(g_batteryPercent, g_batteryCharging);
 
   // ===== INSTRUCTIONS =====
   tft.setFreeFont(&FreeSans9pt7b);

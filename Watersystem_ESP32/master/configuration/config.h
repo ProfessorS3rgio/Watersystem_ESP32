@@ -6,7 +6,6 @@
 
 // forward declarations for types used in externs
 #include <RTClib.h>        // provides RTC_DS3231 and DateTime
-class BatteryMonitor;
 
 // ===== SERIAL LOGGING =====
 // 0 = minimal serial prints (recommended for Web Serial sync UI)
@@ -42,8 +41,8 @@ class BatteryMonitor;
 // ===== POWER SAVING =====
 #define POWER_SAVE_TIMEOUT 35000  // 35 seconds in milliseconds
 
-// ===== BATTERY MONITOR =====
-#define BATTERY_PIN 35  // ADC pin for battery voltage measurement
+// ===== BATTERY MONITOR (MAX17043 via I2C shared with RTC) =====
+#define MAX17043_I2C_ADDR 0x36
 #define CHARGING_PIN_MCP 8  // MCP23017 GPB0 for charging state
 
 // ===== 4x4 KEYPAD PINS (via MCP23017) =====
@@ -90,7 +89,9 @@ extern Adafruit_MCP23X17 mcp;
 extern bool g_mcpReady;
 extern RTC_DS3231 rtc;
 extern float paymentAmount;
-extern BatteryMonitor batteryMonitor;
+extern int g_batteryPercent;
+extern bool g_batteryCharging;
+extern bool g_lipoDetected;
 
 static bool isPlausibleDateTime(const DateTime& dt) {
   return dt.year() >= 2000 && dt.year() <= 2099

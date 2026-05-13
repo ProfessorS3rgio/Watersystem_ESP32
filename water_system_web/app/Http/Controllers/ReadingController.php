@@ -23,12 +23,12 @@ class ReadingController extends Controller
             : 50;
 
         $readings = DB::table('reading')
-            ->leftJoin('bill as b', 'b.reading_id', '=', 'reading.id')
-            ->where('reading.customer_id', $customer->id)
+            ->leftJoin('bill as b', 'b.reading_id', '=', 'reading.reading_id')
+            ->where('reading.customer_id', $customer->customer_id)
             ->orderByDesc('reading.reading_at')
             ->limit($limit)
             ->get([
-                'reading.id',
+                DB::raw('reading.reading_id as id'),
                 'reading.customer_id',
                 'reading.previous_reading',
                 'reading.current_reading',
@@ -37,7 +37,7 @@ class ReadingController extends Controller
                 'reading.read_by_user_id',
                 'reading.created_at',
                 'reading.updated_at',
-                DB::raw('b.id as bill_id'),
+                DB::raw('b.bill_id as bill_id'),
                 DB::raw('b.reference_number as reference_number'),
                 DB::raw('b.bill_date as bill_date'),
                 DB::raw('b.due_date as due_date'),

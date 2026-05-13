@@ -17,10 +17,15 @@ class CustomerController extends Controller
     {
         $accountNo = $request->query('account_no');
         $name = $request->query('name');
+        $search = trim((string) $request->query('search', ''));
+        $status = $request->query('status');
+        $billState = $request->query('bill_state');
         $brgyId = $request->query('brgy_id');
         $updatedAfter = $request->query('updated_after');
 
-        $query = DB::table('customer');
+        $query = DB::table('customer')
+            ->leftJoin('customer_type as ct', 'ct.type_id', '=', 'customer.type_id')
+            ->leftJoin('deduction as d', 'd.deduction_id', '=', 'customer.deduction_id');
 
         if ($accountNo) {
             $query->where('account_no', $accountNo);
@@ -28,6 +33,21 @@ class CustomerController extends Controller
 
         if ($name) {
             $query->where('customer_name', 'like', '%' . $name . '%');
+        }
+
+        if ($search !== '') {
+            $like = '%' . $search . '%';
+            $query->where(function ($sub) use ($like) {
+                $sub->where('customer.account_no', 'like', $like)
+                    ->orWhere('customer.customer_name', 'like', $like)
+                    ->orWhere('customer.address', 'like', $like)
+                    ->orWhere('ct.type_name', 'like', $like)
+                    ->orWhere('d.name', 'like', $like);
+            });
+        }
+
+        if ($status && in_array($status, ['active', 'disconnected'], true)) {
+            $query->where('customer.status', $status);
         }
 
         if ($brgyId) {
@@ -104,6 +124,12 @@ class CustomerController extends Controller
             $c->latest_bill_state = $state;
             return $c;
         });
+
+        if ($billState && in_array($billState, ['pending', 'due', 'paid', 'none'], true)) {
+            $customers = $customers
+                ->filter(fn ($c) => $c->latest_bill_state === $billState)
+                ->values();
+        }
 
         return response()->json([
             'data' => $customers,
@@ -190,6 +216,7 @@ class CustomerController extends Controller
         $processed = 0;
 
         foreach ($customers as $row) {
+            $deductionId = $row['deduction_id'] ?? null;
             $customer = Customer::updateOrCreate(
                 ['account_no' => $row['account_no']],
                 [
@@ -198,7 +225,7 @@ class CustomerController extends Controller
                     'previous_reading' => array_key_exists('previous_reading', $row) && $row['previous_reading'] !== null ? (int) $row['previous_reading'] : 0,
                     'status' => array_key_exists('is_active', $row) ? ($row['is_active'] ? 'active' : 'disconnected') : 'active',
                     'type_id' => $row['type_id'] ?? null,
-                    'deduction_id' => $row['deduction_id'] ?? null,
+                    'deduction_id' => $deductionId,
                     'brgy_id' => $row['brgy_id'] ?? null,
                     'Synced' => true,
                     'last_sync' => now(),
@@ -206,8 +233,8 @@ class CustomerController extends Controller
             );
 
             // Sync deductions in customer_deduction table
-            if ($row['deduction_id']) {
-                $customer->deductions()->sync([$row['deduction_id']]);
+            if ($deductionId) {
+                $customer->deductions()->sync([$deductionId]);
             } else {
                 $customer->deductions()->detach();
             }
@@ -254,12 +281,14 @@ class CustomerController extends Controller
             'deduction_id' => ['nullable', 'integer', 'exists:deduction,deduction_id'],
         ]);
 
-        DB::transaction(function () use ($customer, $validated) {
+        $deductionId = $validated['deduction_id'] ?? null;
+
+        DB::transaction(function () use ($customer, $validated, $deductionId) {
             $customer->update([
                 'account_no' => $validated['account_no'],
                 'customer_name' => $validated['customer_name'],
                 'type_id' => $validated['type_id'],
-                'deduction_id' => $validated['deduction_id'] ?? null,
+                'deduction_id' => $deductionId,
                 'brgy_id' => $validated['brgy_id'],
                 'address' => $validated['address'],
                 'previous_reading' => array_key_exists('previous_reading', $validated) && $validated['previous_reading'] !== null
@@ -271,8 +300,8 @@ class CustomerController extends Controller
             ]);
 
             // Sync deductions in customer_deduction table
-            if ($validated['deduction_id']) {
-                $customer->deductions()->sync([$validated['deduction_id']]);
+            if ($deductionId) {
+                $customer->deductions()->sync([$deductionId]);
             } else {
                 $customer->deductions()->detach();
             }

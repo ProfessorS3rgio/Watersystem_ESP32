@@ -142,6 +142,22 @@ void processReadingEntry() {
       }
     }
 
+    if (currentCustomer != nullptr) {
+      bool hasReading = hasReadingThisMonth(currentCustomer->customer_id);
+      bool hasPendingPrev = hasPendingBillForCustomerPrevMonth(currentCustomer->customer_id);
+      if (!hasReading && hasPendingPrev) {
+        displayWarningScreen(F("PENDING BILL"),
+                             String("Previous month bill"),
+                             String("is still pending."),
+                             F("Press C to cancel"));
+        inputBuffer = "";
+        delay(1800);
+        currentState = STATE_ACCOUNT_FOUND;
+        displayCustomerInfo();
+        return;
+      }
+    }
+
     // Valid reading - calculate bill
     currentState = STATE_BILL_CALCULATED;
     inputBuffer = "";

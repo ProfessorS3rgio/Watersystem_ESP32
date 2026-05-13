@@ -3,12 +3,9 @@
 
 #include <Adafruit_GFX.h>
 #include <Adafruit_ST7735.h>
-// #include "battery_monitor.h"  // Already included in main .ino
 
 // Function to draw battery indicator on TFT
-void drawBattery(int x, int y, BatteryMonitor& batteryMonitor) {
-  int level = batteryMonitor.getPercentage();
-  bool isCharging = batteryMonitor.isCharging();
+void drawBattery(int x, int y, int level, bool isCharging) {
   // Clamp level
   level = constrain(level, 0, 100);
 

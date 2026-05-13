@@ -31,6 +31,7 @@ int getLastReadingIdForCustomer(int customerId);
 void updateCustomerPreviousReading(int customerId, unsigned long newPreviousReading);
 bool hasReadingThisMonth(int customerId);
 void updateExistingReading(int readingId, unsigned long currentReading, unsigned long usage);
+bool hasPendingBillForCustomerPrevMonth(int customerId);
 
 static int getBuildYear() {
   // __DATE__ format: "Mmm dd yyyy"
@@ -473,6 +474,41 @@ bool hasReadingThisMonth(int customerId) {
   }
   sqlite3_finalize(stmt);
   return hasReading;
+}
+
+// ===== CHECK IF CUSTOMER HAS PENDING BILL FOR PREVIOUS MONTH =====
+bool hasPendingBillForCustomerPrevMonth(int customerId) {
+  time_t now = time(NULL);
+  struct tm *t = localtime(&now);
+  int year = (t != nullptr) ? (t->tm_year + 1900) : 0;
+  int month = (t != nullptr) ? (t->tm_mon + 1) : 0;
+  if (year <= 0 || month <= 0) return false;
+
+  if (month == 1) {
+    month = 12;
+    year -= 1;
+  } else {
+    month -= 1;
+  }
+
+  char ym[8];
+  sprintf(ym, "%04d-%02d", year, month);
+  String query = "SELECT COUNT(*) FROM bills WHERE customer_id = " + String(customerId)
+    + " AND status = 'Pending' AND strftime('%Y-%m', bill_date) = '" + String(ym) + "';";
+
+  sqlite3_stmt *stmt = nullptr;
+  int rc = sqlite3_prepare_v2(db, query.c_str(), -1, &stmt, NULL);
+  if (rc != SQLITE_OK) {
+    Serial.printf("SQL error: %s\n", sqlite3_errmsg(db));
+    return false;
+  }
+
+  bool hasPending = false;
+  if (sqlite3_step(stmt) == SQLITE_ROW) {
+    hasPending = sqlite3_column_int(stmt, 0) > 0;
+  }
+  sqlite3_finalize(stmt);
+  return hasPending;
 }
 
 // ===== UPDATE EXISTING READING =====

@@ -140,6 +140,171 @@ void initReadingsDatabase() {
   loadDeviceTimeOffsetFromDB(); // Load from DB
 }
 
+// ===== NORMALIZE DATES TO YYYY-MM-DD =====
+static bool parseYmdDate(const char *ymd, int &year, int &month, int &day) {
+  if (!ymd || strlen(ymd) != 10) return false;
+  year = String(ymd).substring(0, 4).toInt();
+  month = String(ymd).substring(5, 7).toInt();
+  day = String(ymd).substring(8, 10).toInt();
+  if (year < 2000 || year > 2099) return false;
+  if (month < 1 || month > 12) return false;
+  if (day < 1 || day > 31) return false;
+  return true;
+}
+
+bool normalizeAllReadingAndBillDatesToDate(const char *ymd) {
+  if (!db) return false;
+  int targetYear = 0;
+  int targetMonth = 0;
+  int targetDay = 0;
+  if (!parseYmdDate(ymd, targetYear, targetMonth, targetDay)) {
+    Serial.println(F("Date normalize failed: invalid date"));
+    return false;
+  }
+  auto execOrLog = [](const char *sql) -> bool {
+    char *errMsg = nullptr;
+    int rc = sqlite3_exec(db, sql, nullptr, nullptr, &errMsg);
+    if (rc != SQLITE_OK) {
+      if (errMsg) {
+        Serial.print(F("Date normalize failed: "));
+        Serial.println(errMsg);
+        sqlite3_free(errMsg);
+      }
+      return false;
+    }
+    return true;
+  };
+
+  auto buildTargetDateTime = [targetYear, targetMonth, targetDay](const char *src, char *dst, size_t dstSize) {
+    char timeBuf[9] = "00:00:00";
+    if (src) {
+      size_t len = strlen(src);
+      if (len >= 19) {
+        memcpy(timeBuf, src + 11, 8);
+        timeBuf[8] = '\0';
+      }
+    }
+    snprintf(dst, dstSize, "%04d-%02d-%02d %s", targetYear, targetMonth, targetDay, timeBuf);
+  };
+
+  if (!execOrLog("BEGIN;")) return false;
+
+  sqlite3_stmt *selectReadings = nullptr;
+  sqlite3_stmt *updateReadings = nullptr;
+  const char *selReadingsSql = "SELECT reading_id, reading_at, created_at, updated_at FROM readings;";
+  const char *updReadingsSql =
+    "UPDATE readings SET reading_at = ?, created_at = ?, updated_at = ? WHERE reading_id = ?;";
+
+  int rc = sqlite3_prepare_v2(db, selReadingsSql, -1, &selectReadings, nullptr);
+  if (rc != SQLITE_OK) {
+    execOrLog("ROLLBACK;");
+    return false;
+  }
+  rc = sqlite3_prepare_v2(db, updReadingsSql, -1, &updateReadings, nullptr);
+  if (rc != SQLITE_OK) {
+    sqlite3_finalize(selectReadings);
+    execOrLog("ROLLBACK;");
+    return false;
+  }
+
+  int updatedReadings = 0;
+  while ((rc = sqlite3_step(selectReadings)) == SQLITE_ROW) {
+    int readingId = sqlite3_column_int(selectReadings, 0);
+    const char *readingAt = (const char*)sqlite3_column_text(selectReadings, 1);
+    const char *createdAt = (const char*)sqlite3_column_text(selectReadings, 2);
+    const char *updatedAt = (const char*)sqlite3_column_text(selectReadings, 3);
+
+    time_t epoch = (time_t)atol(readingAt ? readingAt : "0");
+    struct tm *t = localtime(&epoch);
+    if (t) {
+      t->tm_year = targetYear - 1900;
+      t->tm_mon = targetMonth - 1;
+      t->tm_mday = targetDay;
+      epoch = mktime(t);
+    }
+
+    char readingAtBuf[16];
+    snprintf(readingAtBuf, sizeof(readingAtBuf), "%ld", (long)epoch);
+
+    char createdBuf[20];
+    char updatedBuf[20];
+    buildTargetDateTime(createdAt, createdBuf, sizeof(createdBuf));
+    buildTargetDateTime(updatedAt, updatedBuf, sizeof(updatedBuf));
+
+    sqlite3_reset(updateReadings);
+    sqlite3_bind_text(updateReadings, 1, readingAtBuf, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(updateReadings, 2, createdBuf, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(updateReadings, 3, updatedBuf, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int(updateReadings, 4, readingId);
+
+    if (sqlite3_step(updateReadings) != SQLITE_DONE) {
+      sqlite3_finalize(selectReadings);
+      sqlite3_finalize(updateReadings);
+      execOrLog("ROLLBACK;");
+      return false;
+    }
+    updatedReadings++;
+  }
+
+  sqlite3_finalize(selectReadings);
+  sqlite3_finalize(updateReadings);
+
+  sqlite3_stmt *selectBills = nullptr;
+  sqlite3_stmt *updateBills = nullptr;
+  const char *selBillsSql = "SELECT bill_id, created_at, updated_at FROM bills;";
+  const char *updBillsSql =
+    "UPDATE bills SET bill_date = ?, created_at = ?, updated_at = ? WHERE bill_id = ?;";
+
+  rc = sqlite3_prepare_v2(db, selBillsSql, -1, &selectBills, nullptr);
+  if (rc != SQLITE_OK) {
+    execOrLog("ROLLBACK;");
+    return false;
+  }
+  rc = sqlite3_prepare_v2(db, updBillsSql, -1, &updateBills, nullptr);
+  if (rc != SQLITE_OK) {
+    sqlite3_finalize(selectBills);
+    execOrLog("ROLLBACK;");
+    return false;
+  }
+
+  int updatedBills = 0;
+  while ((rc = sqlite3_step(selectBills)) == SQLITE_ROW) {
+    int billId = sqlite3_column_int(selectBills, 0);
+    const char *createdAt = (const char*)sqlite3_column_text(selectBills, 1);
+    const char *updatedAt = (const char*)sqlite3_column_text(selectBills, 2);
+
+    char createdBuf[20];
+    char updatedBuf[20];
+    buildTargetDateTime(createdAt, createdBuf, sizeof(createdBuf));
+    buildTargetDateTime(updatedAt, updatedBuf, sizeof(updatedBuf));
+
+    sqlite3_reset(updateBills);
+    sqlite3_bind_text(updateBills, 1, ymd, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(updateBills, 2, createdBuf, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(updateBills, 3, updatedBuf, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int(updateBills, 4, billId);
+
+    if (sqlite3_step(updateBills) != SQLITE_DONE) {
+      sqlite3_finalize(selectBills);
+      sqlite3_finalize(updateBills);
+      execOrLog("ROLLBACK;");
+      return false;
+    }
+    updatedBills++;
+  }
+
+  sqlite3_finalize(selectBills);
+  sqlite3_finalize(updateBills);
+
+  if (!execOrLog("COMMIT;")) return false;
+
+  Serial.print(F("Date normalize complete. Readings updated: "));
+  Serial.print(updatedReadings);
+  Serial.print(F(", Bills updated: "));
+  Serial.println(updatedBills);
+  return true;
+}
+
 // ===== HAS READING FOR ACCOUNT THIS MONTH =====
 bool hasReadingForAccountThisMonth(String accountNo) {
   // Find customer_id by account

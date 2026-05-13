@@ -6,6 +6,7 @@
 #include "../database/readings_database.h"
 #include "../database/customers_database.h"
 #include "../database/barangay_database.h"
+#include "../database/bill_database.h"
 #include "../database/bill_transactions_database.h"
 #include "../database/test_data_generator.h"
 #include "../printer/ble_printer_test.h"
@@ -286,6 +287,20 @@ void handleKeypadInput(char key) {
   else if (currentState == STATE_ACCOUNT_FOUND) {
     // Customer info displayed
     if (key == 'D') {  // Proceed to reading
+      if (currentCustomer != nullptr) {
+        bool hasReading = hasReadingThisMonth(currentCustomer->customer_id);
+        bool hasPendingPrev = hasPendingBillForCustomerPrevMonth(currentCustomer->customer_id);
+        if (!hasReading && hasPendingPrev) {
+          displayWarningScreen(F("PENDING BILL"),
+                               String("Previous month bill"),
+                               String("is still pending."),
+                               F("Press C to cancel"));
+          delay(1800);
+          displayCustomerInfo();
+          return;
+        }
+      }
+
       if (currentCustomer != nullptr && hasReadingThisMonth(currentCustomer->customer_id)) {
         bool billRetrieved = getBillForCustomer(currentCustomer->account_no);
         if (billRetrieved && currentBill.status.equalsIgnoreCase("paid")) {

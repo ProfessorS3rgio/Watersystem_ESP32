@@ -13,23 +13,25 @@ export function useCustomers() {
   const inactiveCount = computed(() => customers.value.filter(c => c.status === 'disconnected').length)
   const newCount = computed(() => customers.value.filter(c => Number(c.previous_reading) === 0).length)
 
-  const filteredCustomers = computed(() => {
-    const q = (search.value || '').trim().toLowerCase()
-    if (!q) return customers.value
-    return customers.value.filter(c => {
-      return (
-        String(c.account_no || '').toLowerCase().includes(q) ||
-        String(c.customer_name || '').toLowerCase().includes(q) ||
-        String(c.address || '').toLowerCase().includes(q)
-      )
-    })
-  })
+  const filteredCustomers = computed(() => customers.value)
 
-  const fetchCustomers = async () => {
+  const fetchCustomers = async (params = {}) => {
     isLoading.value = true
     errorMessage.value = ''
     try {
-      const res = await fetch('/customers', {
+      const query = new URLSearchParams()
+      const searchValue = (params.search ?? search.value ?? '').trim()
+
+      if (searchValue) query.set('search', searchValue)
+      if (params.status && params.status !== 'all') query.set('status', params.status)
+      if (params.bill_state && params.bill_state !== 'all') query.set('bill_state', params.bill_state)
+      if (params.brgy_id !== null && params.brgy_id !== undefined && params.brgy_id !== '') {
+        query.set('brgy_id', params.brgy_id)
+      }
+
+      const url = query.toString() ? `/customers?${query.toString()}` : '/customers'
+
+      const res = await fetch(url, {
         headers: { 'Accept': 'application/json' },
         credentials: 'same-origin',
       })

@@ -4,6 +4,7 @@
 #include "../configuration/config.h"
 #include "../database/customers_database.h"
 #include "../database/readings_database.h"
+#include "../database/bill_database.h"
 
 // ===== EXTERNAL OBJECTS =====
 extern TFT_eSPI tft;
@@ -125,6 +126,7 @@ void displayCustomerInfo() {
   unsigned long existingCurr = 0;
   unsigned long existingUsage = 0;
   bool hasReading = hasReadingThisMonth(cust->customer_id);
+  bool hasPendingPrev = (!hasReading) && hasPendingBillForCustomerPrevMonth(cust->customer_id);
   if (hasReading) {
     if (getExistingReadingDataThisMonth(cust->customer_id, existingPrev, existingCurr, existingUsage)) {
       displayPrevReading = existingPrev;
@@ -157,6 +159,10 @@ void displayCustomerInfo() {
     tft.setTextColor(TFT_RED);
     tft.setCursor(leftX, readingY + 20);
     tft.println(F("Reading already done this month"));
+  } else if (hasPendingPrev) {
+    tft.setTextColor(TFT_RED);
+    tft.setCursor(leftX, readingY + 20);
+    tft.println(F("Previous month bill pending"));
   }
 
   // Footer hints (aligned like payment summary)
@@ -165,6 +171,8 @@ void displayCustomerInfo() {
   tft.setCursor(8, 220);
   if (hasReading) {
     tft.println(F("D-Continue  A-Reprint  C-Cancel"));
+  } else if (hasPendingPrev) {
+    tft.println(F("C-Cancel"));
   } else {
     tft.println(F("D-Enter Reading   C-Cancel"));
   }
