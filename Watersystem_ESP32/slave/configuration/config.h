@@ -2,18 +2,9 @@
 // Override these in build flags if your wiring differs.
 
 // Thermal printer UART pins
-#define PRINTER_RX  7    // ESP32-C3 RX <- Printer TX
-#define PRINTER_TX  6    // ESP32-C3 TX -> Printer RX
+#define PRINTER_RX  6    // ESP32-C3 RX <- Printer TX
+#define PRINTER_TX  7    // ESP32-C3 TX -> Printer RX
 #define PRINTER_BAUD 9600
-
-// I2C pins for MAX17043 fuel gauge
-#ifndef I2C_SDA_PIN
-#define I2C_SDA_PIN 4
-#endif
-
-#ifndef I2C_SCL_PIN
-#define I2C_SCL_PIN 5
-#endif
 
 // Charger detection input pin (inverted logic in code: LOW = charging)
 #ifndef CHARGER_PIN

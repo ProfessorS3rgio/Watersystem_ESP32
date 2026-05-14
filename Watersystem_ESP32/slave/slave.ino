@@ -7,12 +7,6 @@
 #include <BLE2902.h>
 #include "printer/printer_serial.h"
 
-#include <Wire.h> // I2C for fuel gauge
-#include <SparkFun_MAX1704x_Fuel_Gauge_Arduino_Library.h> // MAX17043
-
-// fuel gauge object (defaults to MAX17043)
-SFE_MAX1704X lipo;
-bool g_lipoDetected = false;
 
 // prototype used by bill_printer.h (defined later in this file)
 String getCurrentDateTimeString();
@@ -47,7 +41,6 @@ int getDisconnectionDaysSetting() { return g_disconnectionDayOfMonth; }
 // ---------- charger detection ----------
 // NPN transistor collector, low when charger active (inverted logic)
 bool g_lastChargingState = false;
-unsigned long g_nextBatteryPrintMs = 0;
 
 // --------------------------------------------------
 
@@ -180,22 +173,6 @@ void handleCommand(const String &cmd) {
         return;
     }
 
-    if (cmd.equalsIgnoreCase("BATTERY")) {
-        if (!g_lipoDetected) {
-            sendNotificationLine("BATTERY_UNAVAILABLE");
-            Serial.println("BATTERY_UNAVAILABLE (MAX17043 not detected)");
-            return;
-        }
-        double voltage = lipo.getVoltage();
-        double soc = lipo.getSOC();
-        bool alert = lipo.getAlert();
-        char buf[64];
-        snprintf(buf, sizeof(buf), "BATTERY V=%.2fV SOC=%.1f%% ALERT=%d", voltage, soc, alert ? 1 : 0);
-        sendNotificationLine(String(buf));
-        Serial.println(buf);
-        return;
-    }
-
     if (cmd.equalsIgnoreCase("CHARGING_STATUS")) {
         bool charging = !digitalRead(CHARGER_PIN);  // low = charging
         sendNotificationLine(charging ? "CHARGING" : "NOT_CHARGING");
@@ -204,35 +181,13 @@ void handleCommand(const String &cmd) {
     }
 
     if (cmd.equalsIgnoreCase("STATUS")) {
-        double voltage = 0.0;
-        double soc = 0.0;
-        bool alert = false;
-        if (g_lipoDetected) {
-            voltage = lipo.getVoltage();
-            soc = lipo.getSOC();
-            alert = lipo.getAlert();
-        }
         bool charging = !digitalRead(CHARGER_PIN);  // low = charging
-
         int paper = -1;
         ThermalPrinter::PaperStatus paperStatus = readPaperStatus(true);
         if (paperStatus == ThermalPrinter::PAPER_PRESENT) {
             paper = 1;
         } else if (paperStatus == ThermalPrinter::PAPER_OUT) {
             paper = 0;
-        }
-
-        // Keep status notifications short (<20 bytes) to avoid BLE notify truncation.
-        if (g_lipoDetected) {
-            char socBuf[16];
-            snprintf(socBuf, sizeof(socBuf), "SOC=%.1f", soc);
-            sendNotificationLine(String(socBuf));
-
-            char voltBuf[16];
-            snprintf(voltBuf, sizeof(voltBuf), "VOLT=%.2f", voltage);
-            sendNotificationLine(String(voltBuf));
-        } else {
-            sendNotificationLine("BATTERY_UNAVAILABLE");
         }
 
         if (charging) {
@@ -249,25 +204,7 @@ void handleCommand(const String &cmd) {
             sendNotificationLine("PAPER_UNKNOWN");
         }
 
-        Serial.print("STATUS SOC=");
-        if (g_lipoDetected) {
-            Serial.print(soc, 1);
-        } else {
-            Serial.print("N/A");
-        }
-        Serial.print(" VOLT=");
-        if (g_lipoDetected) {
-            Serial.print(voltage, 2);
-        } else {
-            Serial.print("N/A");
-        }
-        Serial.print(" ALERT=");
-        if (g_lipoDetected) {
-            Serial.print(alert ? 1 : 0);
-        } else {
-            Serial.print("N/A");
-        }
-        Serial.print(" CHG=");
+        Serial.print("STATUS CHG=");
         Serial.print(charging ? 1 : 0);
         Serial.print(" PAPER=");
         Serial.println(paper);
@@ -339,7 +276,7 @@ void handleCommand(const String &cmd) {
 void setup() {
     Serial.begin(115200);
     Serial.println("ESP32 Slave BLE Server starting...");
-    Serial.println("Serial commands: RESTART, PRN_SLEEP, PRN_WAKE, PRN_TEST, PRINT_LOGO, PAPER_STATUS, BATTERY");
+    Serial.println("Serial commands: RESTART, PRN_SLEEP, PRN_WAKE, PRN_TEST, PRINT_LOGO, PAPER_STATUS");
     Serial.print("           (printer automatically powers off after ");
     Serial.print(PRINTER_IDLE_TIMEOUT_MINUTES);
     Serial.println(" minutes idle)");
@@ -348,18 +285,6 @@ void setup() {
     Serial.print("/");
     Serial.print(CPU_IDLE_MHZ);
     Serial.println(")");
-
-    // initialize I2C and fuel gauge
-    Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);
-    if (!lipo.begin()) {
-        g_lipoDetected = false;
-        Serial.printf("MAX17043 not detected. Check I2C wiring (SDA=%d, SCL=%d) or power.\n", I2C_SDA_PIN, I2C_SCL_PIN);
-    } else {
-        g_lipoDetected = true;
-        Serial.println("MAX17043 detected");
-        lipo.quickStart();
-        lipo.setThreshold(20); // alert at 20% SOC, not currently read
-    }
 
     // initialize MOSFET gate pin and keep printer powered off initially
     pinMode(PRINTER_ENABLE_PIN, OUTPUT);
@@ -444,24 +369,6 @@ void loop() {
         Serial.println(currentCharging ? "CHARGING" : "NOT CHARGING");
     }
 
-    // periodically print battery status every 5 seconds
-    if (static_cast<long>(millis() - g_nextBatteryPrintMs) >= 0) {
-        g_nextBatteryPrintMs = millis() + 5000;
-        if (g_lipoDetected) {
-            double voltage = lipo.getVoltage();
-            double soc = lipo.getSOC();
-            bool alert = lipo.getAlert();
-            Serial.print("Battery: ");
-            Serial.print(voltage, 2);
-            Serial.print("V, ");
-            Serial.print(soc, 1);
-            Serial.print("%, Alert: ");
-            Serial.println(alert ? "YES" : "NO");
-        } else {
-            Serial.println("Battery: UNAVAILABLE (MAX17043 not detected)");
-        }
-    }
-
     // handle serial monitor commands (must send newline/CR+LF from terminal)
     if (Serial.available()) {
         String line = Serial.readStringUntil('\n');
@@ -485,8 +392,24 @@ void loop() {
         } else if (line.equalsIgnoreCase("PRN_TEST")) {
             // perform test print and restart idle countdown once complete
             beginPrintJob();          // this updates g_printerLastActiveMs
-            printer.println("[PRN_TEST] slave printer is awake");
-            printer.feed(2);
+            currentBill.refNumber = "PRN-TEST-0001";
+            currentBill.readingDateTime = getCurrentDateTimeString();
+            currentBill.customerName = "JUAN DELA CRUZ";
+            currentBill.accountNo = "ACC-000123";
+            currentBill.customerType = "Residential";
+            currentBill.address = "Purok 1, Makilas";
+            currentBill.collector = "TEST COLLECTOR";
+            currentBill.prevReading = 1234;
+            currentBill.currReading = 1256;
+            currentBill.rate = 15.50f;
+            currentBill.subtotal = 341.00f; // 22 * 15.50
+            currentBill.deductions = 50.00f;
+            currentBill.deductionName = "Senior";
+            currentBill.penalty = 10.00f;
+            currentBill.total = 301.00f;
+            currentBill.billDate = getCurrentDateTimeString();
+
+            printBill();
             endPrintJob();
             // also refresh timer explicitly in case enablePrinter was skipped
             g_printerLastActiveMs = millis();
@@ -509,20 +432,6 @@ void loop() {
                 Serial.println(")");
             } else {
                 Serial.println("Paper status: UNKNOWN (no reply from printer)");
-            }
-        } else if (line.equalsIgnoreCase("BATTERY")) {
-            if (g_lipoDetected) {
-                double voltage = lipo.getVoltage();
-                double soc = lipo.getSOC();
-                bool alert = lipo.getAlert();
-                Serial.print("Battery: ");
-                Serial.print(voltage, 2);
-                Serial.print("V, ");
-                Serial.print(soc, 1);
-                Serial.print("%, Alert: ");
-                Serial.println(alert ? "YES" : "NO");
-            } else {
-                Serial.println("Battery: UNAVAILABLE (MAX17043 not detected)");
             }
         }
     }
