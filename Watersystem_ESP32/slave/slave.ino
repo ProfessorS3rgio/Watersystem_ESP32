@@ -6,6 +6,7 @@
 #include <BLEUtils.h>
 #include <BLE2902.h>
 #include "printer/printer_serial.h"
+#include "battery_monitor.h"
 
 
 // prototype used by bill_printer.h (defined later in this file)
@@ -41,6 +42,26 @@ int getDisconnectionDaysSetting() { return g_disconnectionDayOfMonth; }
 // ---------- charger detection ----------
 // NPN transistor collector, low when charger active (inverted logic)
 bool g_lastChargingState = false;
+
+static int getBatteryFactorPerMille() {
+    const long top = BATTERY_DIVIDER_TOP_OHMS;
+    const long bottom = BATTERY_DIVIDER_BOTTOM_OHMS;
+    if (bottom <= 0) {
+        return 1000;
+    }
+    return (int)(((top + bottom) * 1000L) / bottom);
+}
+
+BatteryMonitor g_batteryMonitor(
+    BATTERY_ADC_PIN,
+    getBatteryFactorPerMille(),
+    BATTERY_VOLTAGE_BIAS_MV,
+    10,
+    BATTERY_MIN_MV,
+    BATTERY_MAX_MV,
+    CHARGER_PIN,
+    true
+);
 
 // --------------------------------------------------
 
@@ -148,7 +169,14 @@ void handleCommand(const String &cmd) {
 
     if (cmd.equalsIgnoreCase("PAPER_STATUS") || cmd.equalsIgnoreCase("CHECK_PAPER")) {
         // Keep printer awake after paper check because print command usually follows immediately.
-        ThermalPrinter::PaperStatus status = readPaperStatus(true, true);
+        ThermalPrinter::PaperStatus status = ThermalPrinter::PAPER_UNKNOWN;
+        for (int attempt = 0; attempt < 3; ++attempt) {
+            status = readPaperStatus(true, true);
+            if (status == ThermalPrinter::PAPER_PRESENT || status == ThermalPrinter::PAPER_OUT) {
+                break;
+            }
+            delay(60);
+        }
         if (status == ThermalPrinter::PAPER_PRESENT) {
             sendNotificationLine("PAPER_PRESENT");
             Serial.println("PAPER_PRESENT sent to master");
@@ -182,6 +210,9 @@ void handleCommand(const String &cmd) {
 
     if (cmd.equalsIgnoreCase("STATUS")) {
         bool charging = !digitalRead(CHARGER_PIN);  // low = charging
+        int batteryPercent = g_batteryMonitor.getPercentage();
+        const int batteryVoltage_mV = g_batteryMonitor.getVoltage_mV();
+        const float batteryVoltage_V = batteryVoltage_mV / 1000.0f;
         int paper = -1;
         ThermalPrinter::PaperStatus paperStatus = readPaperStatus(true);
         if (paperStatus == ThermalPrinter::PAPER_PRESENT) {
@@ -204,8 +235,15 @@ void handleCommand(const String &cmd) {
             sendNotificationLine("PAPER_UNKNOWN");
         }
 
+        sendNotificationLine("BATTERY SOC=" + String(batteryPercent)
+                     + " V=" + String(batteryVoltage_V, 2));
+
         Serial.print("STATUS CHG=");
         Serial.print(charging ? 1 : 0);
+        Serial.print(" BAT=");
+        Serial.print(batteryPercent);
+        Serial.print(" V=");
+        Serial.print(batteryVoltage_V, 2);
         Serial.print(" PAPER=");
         Serial.println(paper);
         return;
@@ -276,7 +314,7 @@ void handleCommand(const String &cmd) {
 void setup() {
     Serial.begin(115200);
     Serial.println("ESP32 Slave BLE Server starting...");
-    Serial.println("Serial commands: RESTART, PRN_SLEEP, PRN_WAKE, PRN_TEST, PRINT_LOGO, PAPER_STATUS");
+    Serial.println("Serial commands: RESTART, PRN_SLEEP, PRN_WAKE, PRN_TEST, PRINT_LOGO, PAPER_STATUS, BATTERY_STATUS");
     Serial.print("           (printer automatically powers off after ");
     Serial.print(PRINTER_IDLE_TIMEOUT_MINUTES);
     Serial.println(" minutes idle)");
@@ -295,6 +333,8 @@ void setup() {
     // initialize charger detection pin
     pinMode(CHARGER_PIN, INPUT);
     g_lastChargingState = digitalRead(CHARGER_PIN);
+
+    pinMode(BATTERY_ADC_PIN, INPUT);
 
     BLEDevice::init("ESP32_Slave");
     BLESecurity::setAuthenticationMode(false, false, false);
@@ -367,6 +407,11 @@ void loop() {
         g_lastChargingState = currentCharging;
         Serial.print("Charger state changed: ");
         Serial.println(currentCharging ? "CHARGING" : "NOT CHARGING");
+        const int rawLevel = digitalRead(CHARGER_PIN);
+        Serial.print("[CHG] GPIO ");
+        Serial.print(CHARGER_PIN);
+        Serial.print(" raw level: ");
+        Serial.println(rawLevel ? "HIGH" : "LOW");
     }
 
     // handle serial monitor commands (must send newline/CR+LF from terminal)
@@ -433,6 +478,17 @@ void loop() {
             } else {
                 Serial.println("Paper status: UNKNOWN (no reply from printer)");
             }
+        } else if (line.equalsIgnoreCase("BATTERY_STATUS")) {
+            const int percent = g_batteryMonitor.getPercentage();
+            const int voltage_mV = g_batteryMonitor.getVoltage_mV();
+            const int adc_mV = g_batteryMonitor.getAdc_mV();
+            Serial.print("Battery: ");
+            Serial.print(percent);
+            Serial.print("% (pack=");
+            Serial.print(voltage_mV);
+            Serial.print(" mV, adc=");
+            Serial.print(adc_mV);
+            Serial.println(" mV)");
         }
     }
 

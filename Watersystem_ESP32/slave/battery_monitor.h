@@ -8,14 +8,13 @@
 #ifndef BATTERY_MONITOR_H
 #define BATTERY_MONITOR_H
 
-
 // ***************************************************************************
 
 /**
  * Battery Monitor
- * 
+ *
  * This class uses a built-in ADC for battery voltage measurement.
- * It can be configured for a simple linear calibration curve with slope and 
+ * It can be configured for a simple linear calibration curve with slope and
  * offset to consider a voltage divider and for calibration.
  */
 class BatteryMonitor
@@ -23,20 +22,21 @@ class BatteryMonitor
 public:
     /**
      * BatteryMonitor Constructor
-     * 
+     *
      * @param pin ADC capable pin used for voltage measurement
      * @param voltageFactor_perMille Factor in 1/1000 to multiply the measured voltage with for calibration
      * @param voltageBias_mV Voltage bias to add to measured voltage for calibration (after applying voltageFactor_perMille)
      * @param noOfMeasurements Number of measurements to improve accuracy through averaging, defaults to 1
      * @param minVoltage_mV Minimum voltage for an empty battery (0 %), defaults to a conservative 3.4 V
      * @param maxVoltage_mV Maximum voltage for a full battery (100 %), defaults to 4.2 V
-     * @param chargingPin_mcp MCP23017 pin for charging state detection (optional, -1 if not used)
+     * @param chargingPin_gpio GPIO pin for charging state detection (optional, -1 if not used)
+     * @param chargingActiveLow true if LOW means charging, false if HIGH means charging
      */
     BatteryMonitor(int pin,
-        int voltageFactor_perMille = 1000, int voltageBias_mV = 0, 
-        int noOfMeasurements = 10, 
+        int voltageFactor_perMille = 1000, int voltageBias_mV = 0,
+        int noOfMeasurements = 10,
         int minVoltage_mV = 3400, int maxVoltage_mV = 4200,
-        int chargingPin_mcp = -1);
+        int chargingPin_gpio = -1, bool chargingActiveLow = true);
 
     /**
      * Measure the battery voltage.
@@ -47,9 +47,9 @@ public:
 
     /**
      * Get the battery voltage.
-     * If the voltage has not been not measured before, this function also 
+     * If the voltage has not been not measured before, this function also
      * triggers a measurement.
-     * 
+     *
      * @return Battery voltage in mV
      */
     int getVoltage_mV();
@@ -61,21 +61,21 @@ public:
      * nonlinearities needed for a more accurate determination.
      * If the voltage has not been not measured before, this function also
      * triggers a measurement.
-     * 
+     *
      * @return Remaining battery capacity in percent
      */
     int getPercentage();
 
     /**
      * Get the charging state.
-     * 
+     *
      * @return true if charging, false otherwise
      */
     bool isCharging();
 
     /**
      * Get the raw ADC voltage reading.
-     * 
+     *
      * @return Raw ADC voltage in mV
      */
     int getAdc_mV();
@@ -92,7 +92,8 @@ private:
     int _maxVoltage_mV;
     int _voltage_mV;
     int _adc_mV;
-    int _chargingPin_mcp;
+    int _chargingPin_gpio;
+    bool _chargingActiveLow;
     int _lastPercentage;
     bool _hasLastPercentage;
     int _notChargingCount;

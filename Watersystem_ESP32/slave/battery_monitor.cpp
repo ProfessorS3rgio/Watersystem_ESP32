@@ -3,23 +3,20 @@
  * Copyright (c) 2021 clausgf@github. See LICENSE.md for legal information.
  */
 
+#include <Arduino.h>
 #include <esp32-hal-adc.h>
-#include <Adafruit_MCP23X17.h>
 #include <math.h>
 
-#include "components/battery_monitor.h"
-
-extern Adafruit_MCP23X17 mcp;
-extern bool g_mcpReady;
+#include "battery_monitor.h"
 
 
 // ***************************************************************************
 
 BatteryMonitor::BatteryMonitor(int pin,
-    int voltageFactor_perMille, int voltageBias_mV, 
-    int noOfMeasurements, 
+    int voltageFactor_perMille, int voltageBias_mV,
+    int noOfMeasurements,
     int minVoltage_mV, int maxVoltage_mV,
-    int chargingPin_mcp)
+    int chargingPin_gpio, bool chargingActiveLow)
 {
     _pin = pin;
     _voltageFactor_perMille = voltageFactor_perMille;
@@ -27,13 +24,14 @@ BatteryMonitor::BatteryMonitor(int pin,
     _noOfMeasurements = noOfMeasurements;
     _minVoltage_mV = minVoltage_mV;
     _maxVoltage_mV = maxVoltage_mV;
-    _chargingPin_mcp = chargingPin_mcp;
+    _chargingPin_gpio = chargingPin_gpio;
+    _chargingActiveLow = chargingActiveLow;
     _voltage_mV = -1;
     _adc_mV = -1;
     _lastPercentage = 0;
     _hasLastPercentage = false;
     _notChargingCount = 0;
-};
+}
 
 BatteryMonitor& BatteryMonitor::measure()
 {
@@ -41,7 +39,7 @@ BatteryMonitor& BatteryMonitor::measure()
     analogSetAttenuation(ADC_11db);
 
     uint64_t sum = 0;
-    for (int i=0; i<_noOfMeasurements; i++)
+    for (int i = 0; i < _noOfMeasurements; i++)
     {
         sum += analogReadMilliVolts(_pin);  // requires a newer IDF/Arduino (tested with espressif32@3.2)
     }
@@ -197,11 +195,18 @@ int BatteryMonitor::mapVoltageToSocCurve(int voltage_mV) const
 
 bool BatteryMonitor::isCharging()
 {
-    if (_chargingPin_mcp == -1 || !g_mcpReady) {
+    if (_chargingPin_gpio < 0)
+    {
         return false;  // Not configured
     }
-    // Active low: LOW = charging, HIGH = not charging
-    return mcp.digitalRead(_chargingPin_mcp) == LOW;
+
+    const int level = digitalRead(_chargingPin_gpio);
+    if (_chargingActiveLow)
+    {
+        return level == LOW;
+    }
+
+    return level == HIGH;
 }
 
 int BatteryMonitor::getAdc_mV()

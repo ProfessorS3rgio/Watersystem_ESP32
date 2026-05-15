@@ -14,6 +14,31 @@
 // gate pin for IRLZ44N MOSFET controlling printer 5V supply
 #define PRINTER_ENABLE_PIN 1  // drive high to power the printer, low to cut power
 
+// battery monitor (3S divider midpoint -> ADC)
+#ifndef BATTERY_ADC_PIN
+#define BATTERY_ADC_PIN 4
+#endif
+
+#ifndef BATTERY_DIVIDER_TOP_OHMS
+#define BATTERY_DIVIDER_TOP_OHMS 330000
+#endif
+
+#ifndef BATTERY_DIVIDER_BOTTOM_OHMS
+#define BATTERY_DIVIDER_BOTTOM_OHMS 100000
+#endif
+
+#ifndef BATTERY_MIN_MV
+#define BATTERY_MIN_MV 9600
+#endif
+
+#ifndef BATTERY_MAX_MV
+#define BATTERY_MAX_MV 12600
+#endif
+
+#ifndef BATTERY_VOLTAGE_BIAS_MV
+#define BATTERY_VOLTAGE_BIAS_MV -296
+#endif
+
 // printer auto-sleep timeout (minutes)
 // Set to 3 minutes for testing; increase for production use.
 #ifndef PRINTER_IDLE_TIMEOUT_MINUTES
