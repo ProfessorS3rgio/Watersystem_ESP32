@@ -154,6 +154,18 @@ void refreshBleAdvertising() {
     Serial.println("BLE advertising restarted");
 }
 
+static bool allowPrintWithPaperCheck() {
+#if PRE_PRINT_PAPER_CHECK
+    ThermalPrinter::PaperStatus status = readPaperStatus(true, true);
+    if (status == ThermalPrinter::PAPER_OUT) {
+        sendNotificationLine("PAPER_OUT");
+        Serial.println("Print blocked: PAPER_OUT");
+        return false;
+    }
+#endif
+    return true;
+}
+
 // --------------------------------------------------
 // command handler
 // --------------------------------------------------
@@ -169,6 +181,7 @@ void handleCommand(const String &cmd) {
 
     if (cmd.equalsIgnoreCase("PAPER_STATUS") || cmd.equalsIgnoreCase("CHECK_PAPER")) {
         // Keep printer awake after paper check because print command usually follows immediately.
+#if PRE_PRINT_PAPER_CHECK
         ThermalPrinter::PaperStatus status = ThermalPrinter::PAPER_UNKNOWN;
         for (int attempt = 0; attempt < 3; ++attempt) {
             status = readPaperStatus(true, true);
@@ -177,6 +190,9 @@ void handleCommand(const String &cmd) {
             }
             delay(60);
         }
+#else
+        ThermalPrinter::PaperStatus status = ThermalPrinter::PAPER_PRESENT;
+#endif
         if (status == ThermalPrinter::PAPER_PRESENT) {
             sendNotificationLine("PAPER_PRESENT");
             Serial.println("PAPER_PRESENT sent to master");
@@ -214,7 +230,11 @@ void handleCommand(const String &cmd) {
         const int batteryVoltage_mV = g_batteryMonitor.getVoltage_mV();
         const float batteryVoltage_V = batteryVoltage_mV / 1000.0f;
         int paper = -1;
+#if PRE_PRINT_PAPER_CHECK
         ThermalPrinter::PaperStatus paperStatus = readPaperStatus(true);
+#else
+        ThermalPrinter::PaperStatus paperStatus = ThermalPrinter::PAPER_PRESENT;
+#endif
         if (paperStatus == ThermalPrinter::PAPER_PRESENT) {
             paper = 1;
         } else if (paperStatus == ThermalPrinter::PAPER_OUT) {
@@ -257,6 +277,9 @@ void handleCommand(const String &cmd) {
         if (c != nullptr) {
             if (strcmp(c, "PRINT_BILL") == 0) {
                 // TODO: copy additional fields from JSON into currentBill
+                if (!allowPrintWithPaperCheck()) {
+                    return;
+                }
                 beginPrintJob();
                 printBill();
                 endPrintJob();
@@ -264,6 +287,9 @@ void handleCommand(const String &cmd) {
                 return;
             }
             if (strcmp(c, "PRINT_RECEIPT") == 0) {
+                if (!allowPrintWithPaperCheck()) {
+                    return;
+                }
                 beginPrintJob();
                 printReceipt();
                 endPrintJob();
@@ -290,6 +316,9 @@ void handleCommand(const String &cmd) {
         }
 
         parseBillPayload(payload);
+        if (!allowPrintWithPaperCheck()) {
+            return;
+        }
         beginPrintJob();
         printBill();
         endPrintJob();
@@ -298,6 +327,9 @@ void handleCommand(const String &cmd) {
     } else if (cmd.startsWith("PRINT_RECEIPT")) {
         String payload = cmd.substring(strlen("PRINT_RECEIPT") + 1);
         parseReceiptPayload(payload);
+        if (!allowPrintWithPaperCheck()) {
+            return;
+        }
         beginPrintJob();
         printReceipt();
         endPrintJob();
