@@ -14,3 +14,4 @@ arduino-cli compile --upload -p COM8 --fqbn esp32:esp32:esp32:PartitionScheme=hu
 
 constexpr char BLE_SLAVE_KNOWN_MAC[] = "ac:a7:04:d7:5d:0e"; -- first device
 constexpr char BLE_SLAVE_KNOWN_MAC[] = "e0:72:a1:6e:3f:ba";
+AC:A7:04:D7:5D:0E

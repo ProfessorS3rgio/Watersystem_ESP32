@@ -7,6 +7,7 @@ use App\Models\BarangaySequence;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class CustomerController extends Controller
 {
@@ -310,6 +311,79 @@ class CustomerController extends Controller
         return response()->json([
             'data' => $customer,
         ]);
+    }
+
+    /**
+     * Swap account numbers between two customers.
+     */
+    public function swapAccountNo(Request $request)
+    {
+        $validated = $request->validate([
+            'source_customer_id' => ['required', 'integer', 'exists:customer,customer_id'],
+            'target_customer_id' => ['required', 'integer', 'different:source_customer_id', 'exists:customer,customer_id'],
+        ]);
+
+        return DB::transaction(function () use ($validated) {
+            $customers = Customer::whereIn('customer_id', [
+                $validated['source_customer_id'],
+                $validated['target_customer_id'],
+            ])->lockForUpdate()->get()->keyBy('customer_id');
+
+            $source = $customers->get($validated['source_customer_id']);
+            $target = $customers->get($validated['target_customer_id']);
+
+            if (!$source || !$target) {
+                return response()->json(['message' => 'Customer not found.'], 404);
+            }
+
+            $sourceAccount = $source->account_no;
+            $targetAccount = $target->account_no;
+
+            if ($sourceAccount === $targetAccount) {
+                return response()->json(['message' => 'Account numbers are already the same.'], 422);
+            }
+
+            $tempAccount = $this->generateTempAccountNo($sourceAccount, $source->customer_id);
+            while (Customer::where('account_no', $tempAccount)->exists()) {
+                $tempAccount = $this->generateTempAccountNo($sourceAccount, $source->customer_id);
+            }
+
+            $source->update([
+                'account_no' => $tempAccount,
+                'Synced' => false,
+            ]);
+
+            $target->update([
+                'account_no' => $sourceAccount,
+                'Synced' => false,
+            ]);
+
+            $source->update([
+                'account_no' => $targetAccount,
+                'Synced' => false,
+            ]);
+
+            return response()->json([
+                'data' => [
+                    'source_customer_id' => $source->customer_id,
+                    'target_customer_id' => $target->customer_id,
+                    'source_account_no' => $targetAccount,
+                    'target_account_no' => $sourceAccount,
+                ],
+            ]);
+        });
+    }
+
+    private function generateTempAccountNo(string $accountNo, int $customerId): string
+    {
+        $suffix = 'TMP-' . $customerId . '-' . Str::random(6);
+        $temp = $accountNo . '-' . $suffix;
+
+        if (strlen($temp) > 255) {
+            return 'TMP-' . $customerId . '-' . Str::random(10);
+        }
+
+        return $temp;
     }
 
     /**

@@ -106,6 +106,22 @@ export function useCustomers() {
     }
   }
 
+  const swapAccountNo = async (sourceCustomerId, targetCustomerId) => {
+    try {
+      await window.axios.post('/customers/swap-account-no', {
+        source_customer_id: sourceCustomerId,
+        target_customer_id: targetCustomerId,
+      })
+
+      await fetchCustomers()
+    } catch (error) {
+      if (error.response?.status === 422) {
+        throw new Error('Validation error: ' + Object.values(error.response.data.errors || {}).flat().join(', '))
+      }
+      throw new Error(error.response?.data?.message || 'Failed to swap account numbers')
+    }
+  }
+
   const fetchCustomerTypes = async () => {
     try {
       const res = await fetch('/customer-types', {
@@ -169,6 +185,7 @@ export function useCustomers() {
     fetchDeductions,
     updateCustomer,
     createCustomer,
-    deleteCustomer
+    deleteCustomer,
+    swapAccountNo
   }
 }

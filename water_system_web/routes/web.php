@@ -42,6 +42,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/customers', [CustomerController::class, 'store']);
     Route::put('/customers/{customer}', [CustomerController::class, 'update']);
     Route::delete('/customers/{customer}', [CustomerController::class, 'destroy']);
+    Route::post('/customers/swap-account-no', [CustomerController::class, 'swapAccountNo']);
     Route::post('/customers/sync', [CustomerController::class, 'sync']);
     Route::post('/customers/mark-synced', [CustomerController::class, 'markSynced']);
 

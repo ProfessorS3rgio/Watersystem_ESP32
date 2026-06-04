@@ -14,6 +14,7 @@ extern bool bleSendBillCommand(const String &cmd, uint32_t ackTimeoutMs, uint8_t
 extern bool blePrepareForPrint(uint32_t timeoutMs);
 extern bool bleCheckPaperPresent(uint32_t timeoutMs);
 extern void bleShutdownAfterPrint();
+extern bool bleWaitForPrintDone(uint32_t timeoutMs);
 
 void printBill();
 
@@ -105,8 +106,10 @@ void printBill() {
     Serial.print(F("[BLE] PRINT_BILL payload len="));
     Serial.println(msg.length());
     msg += "\n";
+    bleClearPrintDone();
     if (bleSendBillCommand(msg, 4500, 3)) {
       Serial.println(F("Bill forwarded to BLE slave for printing"));
+      bleWaitForPrintDone(60000);
       // Give slave a short window to process the last BLE chunk before disconnect.
       delay(120);
       bleShutdownAfterPrint();

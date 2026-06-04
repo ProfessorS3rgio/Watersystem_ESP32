@@ -13,6 +13,7 @@ extern bool bleSend(const String &cmd);
 extern bool blePrepareForPrint(uint32_t timeoutMs);
 extern bool bleCheckPaperPresent(uint32_t timeoutMs);
 extern void bleShutdownAfterPrint();
+extern bool bleWaitForPrintDone(uint32_t timeoutMs);
 
 void printReceipt() {
   blePrepareForPrint(6000);
@@ -35,8 +36,10 @@ void printReceipt() {
                  + "|" + String(receipt.penalty, 2) + "|" + String(receipt.total, 2)
                  + "|" + String(receipt.amountPaid, 2) + "|" + String(receipt.change, 2)
                  + "\n";
+    bleClearPrintDone();
     if (bleSend(msg)) {
       Serial.println(F("Receipt forwarded to BLE slave for printing"));
+      bleWaitForPrintDone(60000);
       bleShutdownAfterPrint();
       return;
     }

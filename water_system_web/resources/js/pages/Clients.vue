@@ -141,6 +141,9 @@
                   <button @click="openEditModal(customer)" class="text-white box-border border border-transparent hover:bg-blue-700 focus:ring-4 focus:ring-blue-300 shadow-xs font-medium leading-5 rounded-full text-xs px-2.5 py-1 focus:outline-none bg-blue-600">
                     Edit
                   </button>
+                  <button @click="openSwapModal(customer)" class="text-white box-border border border-transparent hover:bg-amber-700 focus:ring-4 focus:ring-amber-300 shadow-xs font-medium leading-5 rounded-full text-xs px-2.5 py-1 focus:outline-none bg-amber-600">
+                    Swap No
+                  </button>
                   <button @click="openDeleteModal(customer)" class="text-white box-border border border-transparent hover:bg-red-700 focus:ring-4 focus:ring-red-300 shadow-xs font-medium leading-5 rounded-full text-xs px-2.5 py-1 focus:outline-none bg-red-600">
                     Remove
                   </button>
@@ -264,6 +267,70 @@
       @cancel="closeDeleteModal"
     />
 
+    <!-- Swap Account Number Modal -->
+    <div v-if="isSwapModalOpen" class="fixed inset-0 z-50">
+      <div class="absolute inset-0 bg-black/50" @click="closeSwapModal"></div>
+      <div class="absolute inset-0 flex items-center justify-center p-4">
+        <div class="w-full max-w-xl rounded-lg shadow-lg" :class="isDark ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'">
+          <div class="px-6 py-4 border-b" :class="isDark ? 'border-gray-800' : 'border-gray-200'">
+            <div class="flex items-center justify-between">
+              <h3 class="text-lg font-semibold">Swap Account Numbers</h3>
+              <button class="text-sm" :class="isDark ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'" @click="closeSwapModal">
+                Close
+              </button>
+            </div>
+          </div>
+
+          <div class="px-6 py-5 space-y-4">
+            <div class="rounded-lg p-3" :class="isDark ? 'bg-gray-800/80' : 'bg-gray-50'">
+              <p class="text-xs uppercase tracking-wide" :class="isDark ? 'text-gray-400' : 'text-gray-500'">From</p>
+              <p class="text-sm font-medium mt-1">
+                {{ swapSourceCustomer?.customer_name || '-' }}
+                <span class="ml-2 text-xs font-semibold" :class="isDark ? 'text-purple-300' : 'text-purple-600'">
+                  {{ swapSourceCustomer?.account_no || '-' }}
+                </span>
+              </p>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium mb-1">Swap With</label>
+              <select
+                v-model="swapTargetCustomerId"
+                class="w-full px-4 py-2 rounded-lg border"
+                :class="inputClass(isDark)"
+              >
+                <option :value="null">Select customer</option>
+                <option v-for="customer in swapTargets" :key="customer.id" :value="customer.id">
+                  {{ customer.customer_name }} ({{ customer.account_no }})
+                </option>
+              </select>
+            </div>
+
+            <p v-if="swapError" class="text-sm text-red-600">{{ swapError }}</p>
+          </div>
+
+          <div class="px-6 py-4 border-t flex items-center justify-end gap-3" :class="isDark ? 'border-gray-800' : 'border-gray-200'">
+            <button
+              type="button"
+              @click="closeSwapModal"
+              class="px-4 py-2 rounded-lg"
+              :class="isDark ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-900'"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              @click="submitSwapAccountNo"
+              :disabled="swapLoading"
+              class="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg font-medium disabled:opacity-50"
+            >
+              {{ swapLoading ? 'Swapping...' : 'Swap Account No' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Success Modal -->
     <SuccessModal
       :is-open="isSuccessModalOpen"
@@ -307,6 +374,11 @@ export default {
     const isViewModalOpen = ref(false)
     const viewingCustomer = ref(null)
     const selectedBarangay = ref(null)
+    const isSwapModalOpen = ref(false)
+    const swapSourceCustomer = ref(null)
+    const swapTargetCustomerId = ref(null)
+    const swapError = ref('')
+    const swapLoading = ref(false)
 
     const statusFilter = ref('all')
     const billFilter = ref('all')
@@ -323,6 +395,11 @@ export default {
         filtered = filtered.filter(customer => (customer.latest_bill_state || 'none') === billFilter.value)
       }
       return filtered
+    })
+
+    const swapTargets = computed(() => {
+      const sourceId = swapSourceCustomer.value?.id
+      return customersComposable.customers.value.filter(customer => customer.id !== sourceId)
     })
 
     const openViewModal = (customer) => {
@@ -373,6 +450,21 @@ export default {
     const closeDeleteModal = () => {
       if (formComposable.isSubmitting.value) return
       modalsComposable.closeDeleteModal()
+    }
+
+    const openSwapModal = (customer) => {
+      swapSourceCustomer.value = customer
+      swapTargetCustomerId.value = null
+      swapError.value = ''
+      isSwapModalOpen.value = true
+    }
+
+    const closeSwapModal = () => {
+      if (swapLoading.value) return
+      isSwapModalOpen.value = false
+      swapSourceCustomer.value = null
+      swapTargetCustomerId.value = null
+      swapError.value = ''
     }
 
     const openUsageModal = async (customer) => {
@@ -526,6 +618,34 @@ export default {
       }
     }
 
+    const submitSwapAccountNo = async () => {
+      const targetId = Number(swapTargetCustomerId.value)
+      if (!swapSourceCustomer.value || !swapTargetCustomerId.value || Number.isNaN(targetId)) {
+        swapError.value = 'Select a customer to swap with.'
+        return
+      }
+
+      swapLoading.value = true
+      swapError.value = ''
+      const source = swapSourceCustomer.value
+      const target = customersComposable.customers.value.find(c => c.id === targetId)
+
+      try {
+        await customersComposable.swapAccountNo(source.id, targetId)
+
+        swapLoading.value = false
+        closeSwapModal()
+        modalsComposable.showSuccess(
+          'Account Numbers Swapped',
+          `Account numbers for <strong>${source.customer_name}</strong> and <strong>${target?.customer_name || 'selected customer'}</strong> have been swapped.`
+        )
+      } catch (e) {
+        swapError.value = e?.message || 'Failed to swap account numbers'
+      } finally {
+        swapLoading.value = false
+      }
+    }
+
     const markBillPaid = async (readingRow) => {
       if (!readingRow?.bill_id) return
       const ok = window.confirm('Confirm payment? This will mark the bill as PAID.')
@@ -649,11 +769,14 @@ export default {
       closeUsageModal,
       openViewModal,
       closeViewModal,
+      openSwapModal,
+      closeSwapModal,
       disconnectCustomer,
       reconnectCustomer,
       confirmDelete,
       submitEditCustomer,
       submitNewCustomer,
+      submitSwapAccountNo,
       markBillPaid,
       voidBill,
       inputClass,
@@ -664,6 +787,12 @@ export default {
       isViewModalOpen,
       viewingCustomer,
       selectedBarangay,
+      isSwapModalOpen,
+      swapSourceCustomer,
+      swapTargetCustomerId,
+      swapTargets,
+      swapError,
+      swapLoading,
       statusFilter,
       billFilter,
       filteredCustomers,

@@ -283,6 +283,7 @@ void handleCommand(const String &cmd) {
                 beginPrintJob();
                 printBill();
                 endPrintJob();
+                sendNotificationLine("PRINT_DONE");
                 Serial.println("printed bill (json)");
                 return;
             }
@@ -293,6 +294,7 @@ void handleCommand(const String &cmd) {
                 beginPrintJob();
                 printReceipt();
                 endPrintJob();
+                sendNotificationLine("PRINT_DONE");
                 Serial.println("printed receipt (json)");
                 return;
             }
@@ -322,6 +324,7 @@ void handleCommand(const String &cmd) {
         beginPrintJob();
         printBill();
         endPrintJob();
+        sendNotificationLine("PRINT_DONE");
         sendNotificationLine("ACK_PRINT_BILL");
         Serial.println("printed bill");
     } else if (cmd.startsWith("PRINT_RECEIPT")) {
@@ -333,6 +336,7 @@ void handleCommand(const String &cmd) {
         beginPrintJob();
         printReceipt();
         endPrintJob();
+        sendNotificationLine("PRINT_DONE");
         Serial.println("printed receipt");
     } else {
         if (cmd.startsWith("|")) {

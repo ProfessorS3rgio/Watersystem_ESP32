@@ -27,12 +27,13 @@ String bleSlaveChargingStatusText();
 String bleSlavePaperStatusText();
 void bleShutdownAfterPrint();
 bool bleWaitForReady(uint32_t timeoutMs = 3000);
+bool bleWaitForPrintDone(uint32_t timeoutMs = 60000);
 String bleConnectionStatusText();
 
 namespace {
 constexpr char BLE_MASTER_DEVICE_NAME[] = "WaterSystem";
 constexpr bool BLE_DIRECT_CONNECT_ENABLED = true;
-constexpr char BLE_SLAVE_KNOWN_MAC[] = "e0:72:a1:6e:3f:ba";
+constexpr char BLE_SLAVE_KNOWN_MAC[] = "AC:A7:04:D7:5D:0E";
 constexpr uint32_t BLE_SCAN_SECONDS = 5;
 constexpr uint32_t BLE_RETRY_DELAY_MS = 1200;
 constexpr uint32_t BLE_STATUS_POLL_MS = 1000;
@@ -74,6 +75,7 @@ struct BleSlaveManagerState {
 	volatile int8_t chargingStatus;
 	volatile int8_t paperStatus;
 	volatile int8_t billAckStatus;
+	volatile bool printDone;
 };
 
 BleSlaveManagerState g_bleSlave = {
@@ -99,7 +101,8 @@ BleSlaveManagerState g_bleSlave = {
 	-1,
 	-1,
 	-1,
-	-1
+	-1,
+	false
 };
 
 String g_bleIncomingBuffer;
@@ -154,6 +157,14 @@ void bleClearConnectionState() {
 		g_bleSlave.chargingStatus = -1;
 		g_bleSlave.paperStatus = -1;
 		g_bleSlave.billAckStatus = -1;
+		g_bleSlave.printDone = false;
+		bleUnlock();
+	}
+}
+
+void bleClearPrintDone() {
+	if (bleLock()) {
+		g_bleSlave.printDone = false;
 		bleUnlock();
 	}
 }
@@ -258,6 +269,16 @@ void bleHandleIncomingLine(const String& line) {
 	if (line.equalsIgnoreCase("PONG")) {
 		g_bleSlave.handshakeComplete = true;
 		g_bleSlave.awaitingPong = false;
+		return;
+	}
+
+	if (line.equalsIgnoreCase("PRINT_DONE")) {
+		if (bleLock()) {
+			g_bleSlave.printDone = true;
+			g_bleSlave.statusSeq++;
+			bleUnlock();
+		}
+		Serial.println(F("[BLE] Slave print complete"));
 		return;
 	}
 
@@ -941,6 +962,33 @@ bool bleWaitForReady(uint32_t timeoutMs) {
 	}
 
 	return bleIsReady();
+}
+
+bool bleWaitForPrintDone(uint32_t timeoutMs) {
+	if (!bleIsReady()) {
+		return false;
+	}
+
+	const uint32_t startMs = millis();
+	while ((millis() - startMs) < timeoutMs) {
+		bool doneNow = false;
+		if (bleLock()) {
+			doneNow = g_bleSlave.printDone;
+			bleUnlock();
+		}
+
+		if (doneNow) {
+			return true;
+		}
+
+		if (!bleIsConnected()) {
+			return false;
+		}
+
+		delay(30);
+	}
+
+	return false;
 }
 
 bool bleCheckPaperPresent(uint32_t timeoutMs) {
