@@ -315,6 +315,7 @@ void loop() {
         const char* dropTables[] = {
           "DROP TABLE IF EXISTS bill_transactions;",
           "DROP TABLE IF EXISTS bills;",
+          "DROP TABLE IF EXISTS bill_reference_sequence;",
           "DROP TABLE IF EXISTS readings;",
           "DROP TABLE IF EXISTS customers;",
           "DROP TABLE IF EXISTS customer_types;",

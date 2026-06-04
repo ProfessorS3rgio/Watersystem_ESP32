@@ -97,7 +97,7 @@ void printBill() {
 
   // Customer info
   printer.print(F("Customer : "));
-  printer.println(currentBill.customerName);
+  printer.println(fitAddressForPrint(currentBill.customerName));
   printer.print(F("Account  : "));
   printer.println(currentBill.accountNo);
   printer.print(F("Class    : "));
@@ -111,7 +111,7 @@ void printBill() {
 
   // Collector
   printer.justify('C');
-  printer.println(F("Collector"));
+  printer.println(F("Temp Collector"));
   printer.println(currentBill.collector);
 //   printer.println(F(""));
   YIELD_WDT();

@@ -449,18 +449,24 @@ void updateCustomerPreviousReading(int customerId, unsigned long newPreviousRead
   sqlite3_exec(db, query.c_str(), NULL, NULL, NULL);
 }
 
+static bool getCurrentYearMonthFromRtc(int &year, int &month) {
+  String nowStr = getCurrentDateTimeString();
+  if (nowStr.length() < 7) return false;
+  year = nowStr.substring(0, 4).toInt();
+  month = nowStr.substring(5, 7).toInt();
+  return (year > 0 && month >= 1 && month <= 12);
+}
+
 // ===== CHECK IF CUSTOMER HAS READING THIS MONTH =====
 bool hasReadingThisMonth(int customerId) {
-  time_t now = time(NULL);
-  struct tm *t = localtime(&now);
-  int year = (t != nullptr) ? (t->tm_year + 1900) : 0;
-  int month = (t != nullptr) ? (t->tm_mon + 1) : 0;
-  if (year <= 0 || month <= 0) return false;
+  int year = 0;
+  int month = 0;
+  if (!getCurrentYearMonthFromRtc(year, month)) return false;
 
   char ym[8];
   sprintf(ym, "%04d-%02d", year, month);
   String query = "SELECT COUNT(*) FROM readings WHERE customer_id = " + String(customerId)
-    + " AND strftime('%Y-%m', datetime(reading_at, 'unixepoch')) = '" + String(ym) + "';";
+    + " AND strftime('%Y-%m', created_at) = '" + String(ym) + "';";
   sqlite3_stmt *stmt;
   int rc = sqlite3_prepare_v2(db, query.c_str(), -1, &stmt, NULL);
   if (rc != SQLITE_OK) {
@@ -478,11 +484,9 @@ bool hasReadingThisMonth(int customerId) {
 
 // ===== CHECK IF CUSTOMER HAS PENDING BILL FOR PREVIOUS MONTH =====
 bool hasPendingBillForCustomerPrevMonth(int customerId) {
-  time_t now = time(NULL);
-  struct tm *t = localtime(&now);
-  int year = (t != nullptr) ? (t->tm_year + 1900) : 0;
-  int month = (t != nullptr) ? (t->tm_mon + 1) : 0;
-  if (year <= 0 || month <= 0) return false;
+  int year = 0;
+  int month = 0;
+  if (!getCurrentYearMonthFromRtc(year, month)) return false;
 
   if (month == 1) {
     month = 12;
@@ -520,16 +524,14 @@ void updateExistingReading(int readingId, unsigned long currentReading, unsigned
 
 // ===== GET EXISTING READING ID THIS MONTH =====
 int getExistingReadingIdThisMonth(int customerId) {
-  time_t now = time(NULL);
-  struct tm *t = localtime(&now);
-  int year = (t != nullptr) ? (t->tm_year + 1900) : 0;
-  int month = (t != nullptr) ? (t->tm_mon + 1) : 0;
-  if (year <= 0 || month <= 0) return 0;
+  int year = 0;
+  int month = 0;
+  if (!getCurrentYearMonthFromRtc(year, month)) return 0;
 
   char ym[8];
   sprintf(ym, "%04d-%02d", year, month);
   String query = "SELECT reading_id FROM readings WHERE customer_id = " + String(customerId)
-    + " AND strftime('%Y-%m', datetime(reading_at, 'unixepoch')) = '" + String(ym)
+    + " AND strftime('%Y-%m', created_at) = '" + String(ym)
     + "' ORDER BY reading_id DESC LIMIT 1;";
   sqlite3_stmt *stmt;
   int rc = sqlite3_prepare_v2(db, query.c_str(), -1, &stmt, NULL);
@@ -548,16 +550,14 @@ int getExistingReadingIdThisMonth(int customerId) {
 
 // ===== GET EXISTING READING DATA THIS MONTH =====
 bool getExistingReadingDataThisMonth(int customerId, unsigned long& prevReading, unsigned long& currReading, unsigned long& usage) {
-  time_t now = time(NULL);
-  struct tm *t = localtime(&now);
-  int year = (t != nullptr) ? (t->tm_year + 1900) : 0;
-  int month = (t != nullptr) ? (t->tm_mon + 1) : 0;
-  if (year <= 0 || month <= 0) return false;
+  int year = 0;
+  int month = 0;
+  if (!getCurrentYearMonthFromRtc(year, month)) return false;
 
   char ym[8];
   sprintf(ym, "%04d-%02d", year, month);
   String query = "SELECT previous_reading, current_reading, usage_m3 FROM readings WHERE customer_id = " + String(customerId)
-    + " AND strftime('%Y-%m', datetime(reading_at, 'unixepoch')) = '" + String(ym)
+    + " AND strftime('%Y-%m', created_at) = '" + String(ym)
     + "' ORDER BY reading_id DESC LIMIT 1;";
   sqlite3_stmt *stmt;
   int rc = sqlite3_prepare_v2(db, query.c_str(), -1, &stmt, NULL);

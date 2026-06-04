@@ -57,7 +57,7 @@ static void printOfficeCopyBarcodeSection(const ReceiptData& receipt) {
   float change = receipt.change;
 
   printer.print(F("Customer    : "));
-  printer.println(receipt.customerName);
+  printer.println(limitPrintChars(receipt.customerName, 18));
   printer.print(F("Account     : "));
   printer.println(receipt.accountNo);
 
@@ -77,7 +77,7 @@ static void printOfficeCopyBarcodeSection(const ReceiptData& receipt) {
     printer.boldOn();
   }
   printer.println(F("Payment Method : Cash"));
-  printer.print(F("Collector: "));
+  printer.print(F("Temp Collector: "));
   printer.println(receipt.collector);
   printer.boldOff();
   printer.println();
@@ -127,7 +127,7 @@ void printReceipt() {
 
   // Customer info
   printer.print(F("Customer : "));
-  printer.println(receipt.customerName);
+  printer.println(limitPrintChars(receipt.customerName, 21));
   printer.print(F("Account  : "));
   printer.println(receipt.accountNo);
   printer.print(F("Class    : "));

@@ -44,7 +44,7 @@ static inline String formatBillingPeriod(const String& billDate, const String& r
   };
 
   const char* monthStr = months[month - 1];
-  return String(monthStr) + " 1, " + String(year) + " - " + monthStr + " " + String(day) + ", " + String(year);
+  return String(monthStr) + " 1-" + String(day) + ", " + String(year);
 }
 
 #endif  // BILLING_PERIOD_FORMAT_H

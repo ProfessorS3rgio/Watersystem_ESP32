@@ -493,7 +493,7 @@ void handleKeypadInput(char key) {
         BillTransaction latestTxn;
         if (getLatestTransactionForBill(currentBill.refNumber, latestTxn)) {
           // Populate receipt data from current bill + transaction
-          currentReceipt.receiptNumber = String("OR-") + currentBill.refNumber;
+          currentReceipt.receiptNumber = currentBill.refNumber;
           currentReceipt.paymentDateTime = latestTxn.transaction_date;
           currentReceipt.billRefNumber = currentBill.refNumber;
 
@@ -570,7 +570,7 @@ void handleKeypadInput(char key) {
       }
 
       // Populate receipt data from current bill + payment
-      currentReceipt.receiptNumber = String("OR-") + currentBill.refNumber;
+      currentReceipt.receiptNumber = currentBill.refNumber;
       currentReceipt.paymentDateTime = getCurrentDateTimeString();
       currentReceipt.billRefNumber = currentBill.refNumber;
 
