@@ -25,25 +25,30 @@ static const char* shortMonthName(int month) {
 
 static String getPeriodCoveredText() {
   String nowStr = getCurrentDateTimeString();
-  if (nowStr.length() < 7) {
+  if (nowStr.length() < 10) {
     return String("Period: N/A");
   }
 
   int year = nowStr.substring(0, 4).toInt();
   int month = nowStr.substring(5, 7).toInt();
+  int day = nowStr.substring(8, 10).toInt();
+
   if (month < 1 || month > 12) {
     return String("Period: N/A");
   }
 
-  int prevMonth = month - 1;
-  int prevYear = year;
-  if (prevMonth == 0) {
-    prevMonth = 12;
-    prevYear--;
+  int daysInMonth[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+  if (month == 2 && ((year % 4 == 0 && year % 100 != 0) || year % 400 == 0)) {
+    daysInMonth[1] = 29;
   }
 
-  return String("Period: ") + shortMonthName(prevMonth) + " " + String(prevYear)
-       + " - " + shortMonthName(month) + " " + String(year);
+  if (day < 1 || day > daysInMonth[month - 1]) {
+    return String("Period: N/A");
+  }
+
+  const char* monthStr = shortMonthName(month);
+  return String("Period: ") + monthStr + " 1, " + String(year)
+       + " - " + monthStr + " " + String(day) + ", " + String(year);
 }
 
 static String truncateText(const String& s, int maxLen) {

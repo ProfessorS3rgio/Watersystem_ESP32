@@ -5,6 +5,7 @@
 #include "../database/customers_database.h"
 #include "../database/bill_database.h"
 #include "../database/bill_transactions_database.h"
+#include "billing_period_format.h"
 #include <SD.h>
 #include <RTClib.h>
 
@@ -18,18 +19,6 @@ extern RTC_DS3231 rtc;
 bool getBillForCustomer(String accountNo);
 bool isSDCardReady();
 void deselectTftSelectSd();
-
-#ifndef WS_SHORT_MONTH_NAME_DEFINED
-#define WS_SHORT_MONTH_NAME_DEFINED
-static const char* shortMonthName(int month) {
-  static const char* months[] = {
-    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
-  };
-  if (month < 1 || month > 12) return "";
-  return months[month - 1];
-}
-#endif
 
 void displayVoidPaymentScreen() {
   tft.fillScreen(COLOR_BG);
@@ -138,20 +127,12 @@ void displayVoidPaymentScreen() {
     tft.print(dateStr.substring(2,4)); // YY
   }
 
-  // Line 4: Billing Period + Usage
-  int startMonth = now.month() - 1;
-  if (startMonth <= 0) startMonth = 12;
-
   y += lineH;
   tft.setTextColor(COLOR_LABEL);
   tft.setCursor(leftX, y);
   tft.print(F("Billing Period: "));
   tft.setTextColor(COLOR_TEXT);
-  tft.print(shortMonthName(startMonth));
-  tft.print(F(" - "));
-  tft.print(shortMonthName(now.month()));
-  tft.print(F(" "));
-  tft.println(now.year());
+  tft.println(formatBillingPeriod(currentBill.billDate, currentBill.readingDateTime, now));
 
   tft.setTextColor(COLOR_LABEL);
   tft.setCursor(rightX, y);

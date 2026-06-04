@@ -140,7 +140,7 @@ void printReceipt() {
 
   // Collector
   printer.justify('L');
-  printer.print(F("Collector : "));
+  printer.print(F("Temp Collector : "));
   printer.println(receipt.collector);
   printer.println(F("--------------------------------"));
 
@@ -149,7 +149,7 @@ void printReceipt() {
   printer.boldOn();
   printer.println(F("Billing Period"));
   printer.boldOff();
-  printer.println(getPeriodCovered());
+  printer.println(getPeriodCoveredFromDate(receipt.paymentDateTime));
   printer.println();
   printer.println(F("--------------------------------"));
 

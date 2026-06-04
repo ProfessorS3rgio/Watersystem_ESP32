@@ -227,39 +227,46 @@ void printBill() {
   vTaskDelay(pdMS_TO_TICKS(500)); // ✅ replace delay()
 }
 
-String getPeriodCovered() {
-  // Prefer date carried by the incoming bill payload.
+String getPeriodCoveredFromDate(const String& dateTimeStr) {
   String currentDate = "";
-
-  if (currentBill.billDate.length() >= 10) {
-    currentDate = currentBill.billDate.substring(0, 10);
-  } else if (currentBill.readingDateTime.length() >= 10) {
-    currentDate = currentBill.readingDateTime.substring(0, 10);
+  if (dateTimeStr.length() >= 10) {
+    currentDate = dateTimeStr.substring(0, 10);
   } else {
     currentDate = getCurrentDateTimeString().substring(0, 10);  // fallback
   }
 
   int year = currentDate.substring(0,4).toInt();
   int month = currentDate.substring(5,7).toInt();
+  int day = currentDate.substring(8,10).toInt();
 
   if (month < 1 || month > 12) {
     return String("Invalid Date");
   }
-  
-  // Previous month
-  int prevMonth = month - 1;
-  int prevYear = year;
-  if (prevMonth == 0) {
-    prevMonth = 12;
-    prevYear = year - 1;
+
+  int daysInMonth[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+  if (month == 2 && ((year % 4 == 0 && year % 100 != 0) || year % 400 == 0)) {
+    daysInMonth[1] = 29;
   }
-  
+
+  if (day < 1 || day > daysInMonth[month - 1]) {
+    return String("Invalid Date");
+  }
+
   String months[13] = {"", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
-  
-  String prevMonthStr = months[prevMonth];
-  String currMonthStr = months[month];
-  
-  return prevMonthStr + " " + String(prevYear) + " - " + currMonthStr + " " + String(year);
+  String monthStr = months[month];
+
+  return monthStr + " 1, " + String(year) + " - " + monthStr + " " + String(day) + ", " + String(year);
+}
+
+String getPeriodCovered() {
+  // Prefer date carried by the incoming bill payload.
+  if (currentBill.billDate.length() >= 10) {
+    return getPeriodCoveredFromDate(currentBill.billDate);
+  }
+  if (currentBill.readingDateTime.length() >= 10) {
+    return getPeriodCoveredFromDate(currentBill.readingDateTime);
+  }
+  return getPeriodCoveredFromDate("");
 }
 
 void customFeed(int lines) {
