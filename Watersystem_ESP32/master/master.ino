@@ -9,7 +9,6 @@ SPIClass SPI_SD(VSPI);
 #include <Adafruit_MCP23X17.h>
 #include <time.h>
 #include <Wire.h>
-#include <SparkFun_MAX1704x_Fuel_Gauge_Arduino_Library.h>
 #include <RTClib.h>
 #include <esp_heap_caps.h>
 #include <esp_sleep.h>
@@ -26,6 +25,7 @@ SPIClass SPI_SD(VSPI);
 #include <TFT_eSPI.h>
 
 // ===== REFACTORED HEADER FILES =====
+#include "components/battery_monitor.h"
 #include "configuration/config.h"
 #include "database/customers_database.h"
 #include "database/readings_database.h"
@@ -64,11 +64,10 @@ RTC_DS3231 rtc;
 Adafruit_MCP23X17 mcp;
 bool g_mcpReady = false;
 
-// ===== BATTERY MONITOR (MAX17043) =====
-SFE_MAX1704X g_lipo;
-bool g_lipoDetected = false;
-int g_batteryPercent = 0;
-bool g_batteryCharging = false;
+// ===== BATTERY MONITOR =====
+// 47k/47k divider is ~0.5x, measured 1.86V midpoint at 3.98V battery.
+// Scale factor = 3.98 / 1.86 = 2.1398 -> 2140 per-mille.
+BatteryMonitor batteryMonitor(BATTERY_PIN, 2140, 0, 10, 3400, 4200, CHARGING_PIN_MCP);
 
 constexpr bool BLE_SLAVE_LINK_ENABLED = true;
 
@@ -132,7 +131,7 @@ void setup() {
     Serial.println(F("[BLE] Slave link disabled for heap comparison"));
   }
   
-  // Initialize I2C for RTC and MAX17043
+  // Initialize I2C for RTC
   Wire.begin(RTC_SDA, RTC_SCL);
   if (! rtc.begin()) {
     Serial.println(F("Couldn't find RTC"));
@@ -144,16 +143,6 @@ void setup() {
     } else {
       Serial.println(F("RTC time preserved"));
     }
-  }
-
-  if (!g_lipo.begin()) {
-    g_lipoDetected = false;
-    Serial.printf("MAX17043 not detected. Check I2C wiring (SDA=%d, SCL=%d) or power.\n", RTC_SDA, RTC_SCL);
-  } else {
-    g_lipoDetected = true;
-    Serial.println(F("MAX17043 detected"));
-    g_lipo.quickStart();
-    g_lipo.setThreshold(20); // alert at 20% SOC
   }
   
   // Initialize MCP23017 (used for keypad, etc.)
@@ -175,8 +164,7 @@ void setup() {
   
   // Initialize TFT
   tft.begin();  // For 320x240 ILI9341
-  tft.setRotation(3);          // Landscape mode (flipped, 240x320)
-    // tft.setRotation(1);          // Landscape mode (240x320)
+  tft.setRotation(1);          // Landscape mode (240x320)
   tft.fillScreen(COLOR_BG);
 
   // Ensure shared SPI CS pins are in a safe state before SD init
@@ -216,7 +204,6 @@ void setup() {
   // Initialize Bills Database
   initBillsDatabase();
 
-
 #if WS_SERIAL_VERBOSE
   Serial.println(F("Watersystem ESP32 ready."));
   Serial.println(F("Use keypad or serial commands:"));
@@ -239,18 +226,10 @@ void loop() {
   static unsigned long lastMeasure = 0;
   static int lastChargingState = -1;
   if (millis() - lastMeasure > 1000) {  // Measure every 1 second
-    if (g_lipoDetected) {
-      g_batteryPercent = static_cast<int>(g_lipo.getSOC() + 0.5f);
-      if (g_batteryPercent < 0) g_batteryPercent = 0;
-      if (g_batteryPercent > 100) g_batteryPercent = 100;
-    } else {
-      g_batteryPercent = 0;
-    }
+    batteryMonitor.measure();  // Force a new ADC sample each cycle (no cached reading)
 
-    const bool chargingNow = g_mcpReady
-      ? (mcp.digitalRead(CHARGING_PIN_MCP) == LOW)
-      : false;
-    g_batteryCharging = chargingNow;
+    const int battery_pct = batteryMonitor.getPercentage();
+    const bool chargingNow = batteryMonitor.isCharging();
 
     if (lastChargingState != (chargingNow ? 1 : 0)) {
       lastChargingState = chargingNow ? 1 : 0;
@@ -270,7 +249,7 @@ void loop() {
     }
 
     if (currentState == STATE_WELCOME) {
-      updateWelcomeBatteryStatus(g_batteryPercent, g_batteryCharging);
+      updateWelcomeBatteryStatus(battery_pct);
     }
 
     lastMeasure = millis();
@@ -315,7 +294,6 @@ void loop() {
         const char* dropTables[] = {
           "DROP TABLE IF EXISTS bill_transactions;",
           "DROP TABLE IF EXISTS bills;",
-          "DROP TABLE IF EXISTS bill_reference_sequence;",
           "DROP TABLE IF EXISTS readings;",
           "DROP TABLE IF EXISTS customers;",
           "DROP TABLE IF EXISTS customer_types;",
@@ -549,23 +527,10 @@ void loop() {
       rtc.adjust(DateTime(year, month, day, hour, minute, second));
       Serial.println(F("RTC time set"));
     }
-    else if (cmd.startsWith("NORMALIZE_DATES ") || cmd.startsWith("NORMALITE_DATES ")) {
-      String payload = cmd.startsWith("NORMALIZE_DATES ")
-        ? cmd.substring(String("NORMALIZE_DATES ").length())
-        : cmd.substring(String("NORMALITE_DATES ").length());
-      payload.trim();
-      if (payload.length() != 10) {
-        Serial.println(F("Usage: NORMALIZE_DATES YYYY-MM-DD"));
-      } else if (normalizeAllReadingAndBillDatesToDate(payload.c_str())) {
-        Serial.println(F("Date normalize done."));
-      } else {
-        Serial.println(F("Date normalize failed."));
-      }
-    }
     else if (cmd.length() > 0) {
       Serial.print(F("Unknown: "));
       Serial.println(cmd);
-      Serial.println(F("Commands: P, D, S, L, DD, CT, B, BT, DB, DB_ALL, DROPDB, DROPR, DROPB, DROPBT, DROPC, RESET, RESET_BILL_TRANSACTION, START, TIME, HEAP, SET_TIME <YYYY-MM-DD HH:MM:SS>, NORMALIZE_DATES <YYYY-MM-DD>"));
+      Serial.println(F("Commands: P, D, S, L, DD, CT, B, BT, DB, DB_ALL, DROPDB, DROPR, DROPB, DROPBT, DROPC, RESET, RESET_BILL_TRANSACTION, START, TIME, HEAP, SET_TIME <YYYY-MM-DD HH:MM:SS>"));
     }
   }
   

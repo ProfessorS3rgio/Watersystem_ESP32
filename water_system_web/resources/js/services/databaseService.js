@@ -81,7 +81,12 @@ export const databaseService = {
   async upsertReadingsToDatabase(readings) {
     try {
       const res = await window.axios.post('/readings/sync', { readings })
-      return Number(res.data?.processed || 0)
+      return {
+        processed: Number(res.data?.processed || 0),
+        inserted: Number(res.data?.inserted || 0),
+        updated: Number(res.data?.updated || 0),
+        skipped: Number(res.data?.skipped || 0),
+      }
     } catch (error) {
       if (error.response?.status === 401) throw new Error('Unauthorized (login required)')
       throw new Error('Readings sync failed: ' + (error.response?.data?.message || error.message))

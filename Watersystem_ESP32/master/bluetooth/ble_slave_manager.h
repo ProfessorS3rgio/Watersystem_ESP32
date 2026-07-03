@@ -33,7 +33,7 @@ String bleConnectionStatusText();
 namespace {
 constexpr char BLE_MASTER_DEVICE_NAME[] = "WaterSystem";
 constexpr bool BLE_DIRECT_CONNECT_ENABLED = true;
-constexpr char BLE_SLAVE_KNOWN_MAC[] = "AC:A7:04:D7:5D:0E";
+constexpr char BLE_SLAVE_KNOWN_MAC[] = "e0:72:a1:6e:3f:ba";
 constexpr uint32_t BLE_SCAN_SECONDS = 5;
 constexpr uint32_t BLE_RETRY_DELAY_MS = 1200;
 constexpr uint32_t BLE_STATUS_POLL_MS = 1000;

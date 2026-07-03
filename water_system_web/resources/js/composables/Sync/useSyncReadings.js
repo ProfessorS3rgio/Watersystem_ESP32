@@ -133,12 +133,21 @@ export function useSyncReadings() {
     }
 
     console.log('Readings exported from device (count):', deviceReadings.length)
-    let processed = 0
+    let syncResult = { processed: 0, inserted: 0, updated: 0, skipped: 0 }
     try {
-      processed = await databaseService.upsertReadingsToDatabase(deviceReadings)
-      console.log('Readings synced to database, processed:', processed)
-      if (Number(processed) !== Number(deviceReadings.length)) {
-        throw new Error('Upserted readings count does not match device export count')
+      syncResult = await databaseService.upsertReadingsToDatabase(deviceReadings)
+      console.log('Readings synced to database:', syncResult)
+
+      const processed = Number(syncResult.processed || 0)
+      const skipped = Number(syncResult.skipped || 0)
+      const totalHandled = processed + skipped
+
+      if (skipped > 0) {
+        console.warn('Some exported readings were skipped because the matching customer was missing in the web database:', skipped)
+      }
+
+      if (totalHandled !== Number(deviceReadings.length)) {
+        throw new Error(`Reading export mismatch: device exported ${deviceReadings.length}, handled ${totalHandled}`)
       }
 
       // Mark readings as synced in web database
@@ -153,7 +162,7 @@ export function useSyncReadings() {
     // Mark device readings as synced (so next export is incremental)
     await sendLine('READINGS_SYNCED')
 
-    return processed
+    return syncResult.processed
   }
 
   const handleDeviceLine = (line) => {

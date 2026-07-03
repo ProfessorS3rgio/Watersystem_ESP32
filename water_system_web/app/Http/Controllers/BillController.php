@@ -303,7 +303,7 @@ class BillController extends Controller
             'bills' => ['required', 'array', 'max:2000'],
             'bills.*.bill_id' => ['nullable', 'integer'],
             'bills.*.reference_number' => ['required', 'string', 'max:255'],
-            'bills.*.customer_id' => ['required', 'integer', 'exists:customer,customer_id'],
+                'bills.*.customer_id' => ['nullable', 'integer'],
             'bills.*.reading_id' => ['nullable', 'integer'],
             'bills.*.device_uid' => ['nullable', 'string', 'max:255'],
             'bills.*.bill_date' => ['nullable', 'string'],
@@ -319,14 +319,30 @@ class BillController extends Controller
 
         $bills = $validated['bills'];
         $processed = 0;
+        $skipped = 0;
 
         \Log::info('Syncing bills', ['count' => count($bills)]);
 
         foreach ($bills as $row) {
+            $customer = null;
+
+            if (!empty($row['customer_account_number'])) {
+                $customer = Customer::where('account_no', $row['customer_account_number'])->first();
+            }
+
+            if (!$customer && !empty($row['customer_id'])) {
+                $customer = Customer::where('customer_id', (int) $row['customer_id'])->first();
+            }
+
+            if (!$customer) {
+                $skipped++;
+                continue;
+            }
+
             Bill::updateOrCreate(
                 ['reference_number' => $row['reference_number']],
                 [
-                    'customer_id' => $row['customer_id'],
+                    'customer_id' => $customer->customer_id,
                     'reading_id' => $row['reading_id'] ?? null,
                     'device_uid' => $row['device_uid'] ?? null,
                     'bill_date' => $row['bill_date'] ?? null,
@@ -344,10 +360,11 @@ class BillController extends Controller
             $processed++;
         }
 
-        \Log::info('Bills synced', ['processed' => $processed]);
+        \Log::info('Bills synced', ['processed' => $processed, 'skipped' => $skipped]);
 
         return response()->json([
             'processed' => $processed,
+            'skipped' => $skipped,
         ]);
     }
 
