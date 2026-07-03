@@ -19,6 +19,16 @@ export function useSyncReadings() {
     await serialService.sendLine(text)
   }
 
+  const parseCreatedAtToEpoch = (createdAt) => {
+    const value = String(createdAt || '').trim()
+    if (!value) return 0
+    // Device sends local datetime without timezone: YYYY-MM-DD HH:mm:ss
+    const normalized = value.replace(' ', 'T')
+    const ts = Date.parse(normalized)
+    if (Number.isNaN(ts)) return 0
+    return Math.floor(ts / 1000)
+  }
+
   const exportReadingsFromDevice = async () => {
     if (exportInProgress.value) {
       throw new Error('Export already in progress')
@@ -101,6 +111,8 @@ export function useSyncReadings() {
         try {
           const chunkReadings = JSON.parse(chunkBuffer)
           for (const reading of chunkReadings) {
+            const createdAtEpoch = parseCreatedAtToEpoch(reading.created_at)
+            const readingAtEpoch = Number(reading.reading_at || 0)
             readings.push({
               reading_id: Number(reading.reading_id || 0),
               customer_id: Number(reading.customer_id || 0),
@@ -108,7 +120,7 @@ export function useSyncReadings() {
               previous_reading: Number(reading.previous_reading || 0),
               current_reading: Number(reading.current_reading || 0),
               usage_m3: Number(reading.usage_m3 || 0),
-              reading_at: Number(reading.reading_at || 0),
+              reading_at: createdAtEpoch > 0 ? createdAtEpoch : readingAtEpoch,
               customer_account_number: reading.customer_account_number || '',
             })
           }
