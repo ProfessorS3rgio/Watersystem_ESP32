@@ -94,6 +94,87 @@ static bool markBillPendingById(int billId) {
   return rc == SQLITE_DONE;
 }
 
+static bool purgeBillsAndTransactionsByCreatedDate(const char* ymd, int& deletedBills, int& deletedTransactions, int& deletedReadings) {
+  deletedBills = 0;
+  deletedTransactions = 0;
+  deletedReadings = 0;
+
+  if (!db || !ymd || strlen(ymd) != 10) {
+    return false;
+  }
+
+  String datePrefix = String(ymd) + "%";
+  char* errMsg = nullptr;
+  int rc = sqlite3_exec(db, "BEGIN;", nullptr, nullptr, &errMsg);
+  if (rc != SQLITE_OK) {
+    if (errMsg) sqlite3_free(errMsg);
+    return false;
+  }
+
+  const char* deleteTransactionsSql = "DELETE FROM bill_transactions WHERE created_at LIKE ?;";
+  sqlite3_stmt* txnStmt = nullptr;
+  rc = sqlite3_prepare_v2(db, deleteTransactionsSql, -1, &txnStmt, NULL);
+  if (rc != SQLITE_OK) {
+    sqlite3_exec(db, "ROLLBACK;", nullptr, nullptr, nullptr);
+    return false;
+  }
+  sqlite3_bind_text(txnStmt, 1, datePrefix.c_str(), -1, SQLITE_TRANSIENT);
+  rc = sqlite3_step(txnStmt);
+  if (rc == SQLITE_DONE) {
+    deletedTransactions = sqlite3_changes(db);
+  } else {
+    sqlite3_finalize(txnStmt);
+    sqlite3_exec(db, "ROLLBACK;", nullptr, nullptr, nullptr);
+    return false;
+  }
+  sqlite3_finalize(txnStmt);
+
+  const char* deleteBillsSql = "DELETE FROM bills WHERE created_at LIKE ?;";
+  sqlite3_stmt* billStmt = nullptr;
+  rc = sqlite3_prepare_v2(db, deleteBillsSql, -1, &billStmt, NULL);
+  if (rc != SQLITE_OK) {
+    sqlite3_exec(db, "ROLLBACK;", nullptr, nullptr, nullptr);
+    return false;
+  }
+  sqlite3_bind_text(billStmt, 1, datePrefix.c_str(), -1, SQLITE_TRANSIENT);
+  rc = sqlite3_step(billStmt);
+  if (rc == SQLITE_DONE) {
+    deletedBills = sqlite3_changes(db);
+  } else {
+    sqlite3_finalize(billStmt);
+    sqlite3_exec(db, "ROLLBACK;", nullptr, nullptr, nullptr);
+    return false;
+  }
+  sqlite3_finalize(billStmt);
+
+  const char* deleteReadingsSql = "DELETE FROM readings WHERE created_at LIKE ?;";
+  sqlite3_stmt* readingStmt = nullptr;
+  rc = sqlite3_prepare_v2(db, deleteReadingsSql, -1, &readingStmt, NULL);
+  if (rc != SQLITE_OK) {
+    sqlite3_exec(db, "ROLLBACK;", nullptr, nullptr, nullptr);
+    return false;
+  }
+  sqlite3_bind_text(readingStmt, 1, datePrefix.c_str(), -1, SQLITE_TRANSIENT);
+  rc = sqlite3_step(readingStmt);
+  if (rc == SQLITE_DONE) {
+    deletedReadings = sqlite3_changes(db);
+  } else {
+    sqlite3_finalize(readingStmt);
+    sqlite3_exec(db, "ROLLBACK;", nullptr, nullptr, nullptr);
+    return false;
+  }
+  sqlite3_finalize(readingStmt);
+
+  rc = sqlite3_exec(db, "COMMIT;", nullptr, nullptr, &errMsg);
+  if (rc != SQLITE_OK) {
+    if (errMsg) sqlite3_free(errMsg);
+    sqlite3_exec(db, "ROLLBACK;", nullptr, nullptr, nullptr);
+    return false;
+  }
+
+  return true;
+}
+
 // ===== BILL TRANSACTION DATA STRUCTURE =====
 struct BillTransaction {
   int bill_transaction_id;

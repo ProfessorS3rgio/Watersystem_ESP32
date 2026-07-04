@@ -8,7 +8,6 @@
 #include "../database/barangay_database.h"
 #include "../database/bill_database.h"
 #include "../database/bill_transactions_database.h"
-#include "../database/test_data_generator.h"
 #include "../printer/ble_printer_test.h"
 #include "../printer/receipt_printer.h"
 #include "../screens/warning_screen.h"
@@ -233,18 +232,6 @@ void handleKeypadInput(char key) {
       displayMenuScreen();
     }
     else if (key == '6') {
-      // Generate Test Data
-      tft.fillScreen(COLOR_BG);
-      tft.setTextColor(COLOR_HEADER);
-      tft.setCursor(20, 50);
-      tft.println(F("Generating test data..."));
-      generateTestReadingsAndBills(1000);
-      // Also generate transactions for existing bills if needed
-      generateTestBillTransactions(1000);
-      tft.setCursor(20, 70);
-      tft.println(F("Done!"));
-      delay(2000);
-      displayMenuScreen();
     }
     else if (key == 'C' || key == '#') {
       // Exit menu

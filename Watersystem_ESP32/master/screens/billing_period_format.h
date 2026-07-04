@@ -6,10 +6,12 @@
 
 static inline String formatBillingPeriod(const String& billDate, const String& readingDateTime, const DateTime& fallbackNow) {
   String dateStr = "";
-  if (billDate.length() >= 10) {
-    dateStr = billDate.substring(0, 10);
-  } else if (readingDateTime.length() >= 10) {
+  // Prefer the actual reading timestamp so delayed bill creation does not
+  // shift the displayed billing period to the day the bill was generated.
+  if (readingDateTime.length() >= 10) {
     dateStr = readingDateTime.substring(0, 10);
+  } else if (billDate.length() >= 10) {
+    dateStr = billDate.substring(0, 10);
   }
 
   int year = 0;

@@ -391,6 +391,38 @@ void loop() {
       return;
     }
 
+    if (raw.startsWith("PURGE_DATE ")) {
+      String payload = raw.substring(String("PURGE_DATE ").length());
+      payload.trim();
+      if (payload.length() != 10) {
+        Serial.println(F("Usage: PURGE_DATE YYYY-MM-DD"));
+        return;
+      }
+
+      int year = payload.substring(0, 4).toInt();
+      int month = payload.substring(5, 7).toInt();
+      int day = payload.substring(8, 10).toInt();
+      if (year < 2000 || month < 1 || month > 12 || day < 1 || day > 31) {
+        Serial.println(F("Invalid date."));
+        return;
+      }
+
+      int deletedBills = 0;
+      int deletedTransactions = 0;
+      int deletedReadings = 0;
+      if (purgeBillsAndTransactionsByCreatedDate(payload.c_str(), deletedBills, deletedTransactions, deletedReadings)) {
+        Serial.print(F("Purged bills: "));
+        Serial.print(deletedBills);
+        Serial.print(F(", readings: "));
+        Serial.print(deletedReadings);
+        Serial.print(F(", bill_transactions: "));
+        Serial.println(deletedTransactions);
+      } else {
+        Serial.println(F("PURGE_DATE failed."));
+      }
+      return;
+    }
+
     if (raw == "DROPC") {
       Serial.println(F("Deleting all customers..."));
       if (db) {
@@ -565,7 +597,7 @@ void loop() {
     else if (cmd.length() > 0) {
       Serial.print(F("Unknown: "));
       Serial.println(cmd);
-      Serial.println(F("Commands: P, D, S, L, DD, CT, B, BT, DB, DB_ALL, DROPDB, DROPR, DROPB, DROPBT, DROPC, RESET, RESET_BILL_TRANSACTION, START, TIME, HEAP, SET_TIME <YYYY-MM-DD HH:MM:SS>, NORMALIZE_DATES <YYYY-MM-DD>"));
+      Serial.println(F("Commands: P, D, S, L, DD, CT, B, BT, DB, DB_ALL, DROPDB, DROPR, DROPB, DROPBT, DROPC, RESET, RESET_BILL_TRANSACTION, START, TIME, HEAP, SET_TIME <YYYY-MM-DD HH:MM:SS>, NORMALIZE_DATES <YYYY-MM-DD>, PURGE_DATE <YYYY-MM-DD>"));
     }
   }
   
