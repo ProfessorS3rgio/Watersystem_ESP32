@@ -15,6 +15,7 @@ extern RTC_DS3231 rtc;
 #include "../screens/welcome_screen.h"
 #include "../screens/menu_screen.h"
 #include "../screens/enter_account_screen.h"
+#include "../screens/edit_previous_screen.h"
 #include "../screens/customer_info_screen.h"
 #include "../screens/enter_reading_screen.h"
 #include "../screens/bill_calculated_screen.h"
@@ -43,6 +44,7 @@ enum WorkflowState {
   STATE_ABOUT,             // About screen
   STATE_ENTER_ACCOUNT,     // Waiting for account number entry
   STATE_ACCOUNT_FOUND,     // Account found, showing customer info
+  STATE_EDIT_PREVIOUS,     // Editing the customer's previous reading
   STATE_ENTER_READING,     // Waiting for current meter reading entry
   STATE_BILL_CALCULATED,   // Bill calculated, ready to print
   STATE_PRINTING,          // Printing bill
@@ -62,6 +64,7 @@ unsigned long currentReading = 0; // Current meter reading from keypad
 unsigned long correctPreviousReading = 0; // Correct previous reading for validation
 bool isPaymentFlow = false;       // Flag to distinguish billing vs payment flow
 bool isVoidFlow = false;          // Flag for void payments flow
+bool isEditPreviousFlow = false;  // Flag for editing customer previous reading
 
 // ===== DISPLAY FUNCTIONS FOR WORKFLOW =====
 
@@ -79,6 +82,9 @@ void processAccountNumberEntry() {
     } else if (isPaymentFlow) {
       currentState = STATE_PAYMENT_SUMMARY;
       displayPaymentSummary();
+    } else if (isEditPreviousFlow) {
+      currentState = STATE_EDIT_PREVIOUS;
+      displayEditPreviousScreen();
     } else {
       currentState = STATE_ACCOUNT_FOUND;
       displayCustomerInfo();
@@ -177,6 +183,7 @@ void resetWorkflow() {
   currentReading = 0;
   isPaymentFlow = false;
   isVoidFlow = false;
+  isEditPreviousFlow = false;
   showWelcomeScreen();
 }
 

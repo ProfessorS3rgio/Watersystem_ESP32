@@ -175,10 +175,40 @@ Customer* getCustomerAt(int index) {
 
 // ===== UPSERT CUSTOMER FROM SYNC =====
 bool upsertCustomerFromSync(const String& accountNo, const String& name, const String& address, unsigned long prev, const String& status, unsigned long typeId, unsigned long deductionId, unsigned long brgyId) {
-  const char* sql = "INSERT OR REPLACE INTO customers (account_no, customer_name, address, previous_reading, status, type_id, deduction_id, brgy_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'));";
+  const char* updateSql = "UPDATE customers SET customer_name = ?, address = ?, previous_reading = ?, status = ?, type_id = ?, deduction_id = ?, brgy_id = ?, updated_at = datetime('now') WHERE account_no = ?;";
+  sqlite3_stmt* stmt = nullptr;
+  int rc = sqlite3_prepare_v2(db, updateSql, -1, &stmt, NULL);
+  if (rc != SQLITE_OK) {
+    Serial.print(F("SQLite prepare error: "));
+    Serial.println(sqlite3_errmsg(db));
+    return false;
+  }
 
-  sqlite3_stmt* stmt;
-  int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+  sqlite3_bind_text(stmt, 1, name.c_str(), -1, SQLITE_TRANSIENT);
+  sqlite3_bind_text(stmt, 2, address.c_str(), -1, SQLITE_TRANSIENT);
+  sqlite3_bind_int64(stmt, 3, prev);
+  sqlite3_bind_text(stmt, 4, status.c_str(), -1, SQLITE_TRANSIENT);
+  sqlite3_bind_int64(stmt, 5, typeId);
+
+  if (deductionId == 0) {
+    sqlite3_bind_null(stmt, 6);
+  } else {
+    sqlite3_bind_int64(stmt, 6, deductionId);
+  }
+
+  sqlite3_bind_int64(stmt, 7, brgyId);
+  sqlite3_bind_text(stmt, 8, accountNo.c_str(), -1, SQLITE_TRANSIENT);
+
+  rc = sqlite3_step(stmt);
+  int changes = sqlite3_changes(db);
+  sqlite3_finalize(stmt);
+
+  if (rc == SQLITE_DONE && changes > 0) {
+    return true;
+  }
+
+  const char* insertSql = "INSERT INTO customers (account_no, customer_name, address, previous_reading, status, type_id, deduction_id, brgy_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'));";
+  rc = sqlite3_prepare_v2(db, insertSql, -1, &stmt, NULL);
   if (rc != SQLITE_OK) {
     Serial.print(F("SQLite prepare error: "));
     Serial.println(sqlite3_errmsg(db));

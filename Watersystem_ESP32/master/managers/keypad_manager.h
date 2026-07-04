@@ -22,6 +22,7 @@ void displayBillOnTFT();
 void printBill();
 void showWelcomeScreen();
 void displayEnterAccountScreen();
+void displayEditPreviousScreen();
 void displayCustomerInfo();
 void displayEnterReadingScreen();
 void displayBillCalculated();
@@ -44,6 +45,7 @@ extern int selectedCustomerIndex;
 extern unsigned long currentReading;
 extern bool isPaymentFlow;
 extern bool isVoidFlow;
+extern bool isEditPreviousFlow;
 extern float paymentAmount;
 
 
@@ -232,6 +234,13 @@ void handleKeypadInput(char key) {
       displayMenuScreen();
     }
     else if (key == '6') {
+      // Edit Previous Reading
+      isPaymentFlow = false;
+      isVoidFlow = false;
+      isEditPreviousFlow = true;
+      currentState = STATE_ENTER_ACCOUNT;
+      inputBuffer = "";
+      displayEnterAccountScreen();
     }
     else if (key == 'C' || key == '#') {
       // Exit menu
@@ -344,6 +353,61 @@ void handleKeypadInput(char key) {
       resetWorkflow();
     }
     else if (key == 'C') {  // Cancel and go back
+      resetWorkflow();
+    }
+  }
+  else if (currentState == STATE_EDIT_PREVIOUS) {
+    if (key >= '0' && key <= '9') {
+      inputBuffer += key;
+      displayEditPreviousScreen();
+    }
+    else if (key == 'D') {
+      if (currentCustomer == nullptr) {
+        displayWarningScreen(F("NO CUSTOMER"), String("No customer loaded"), String("Try again."), F("Press C to cancel"));
+        delay(1200);
+        resetWorkflow();
+        return;
+      }
+
+      if (inputBuffer.length() == 0) {
+        displayWarningScreen(F("INVALID VALUE"), String("Enter new previous"), String("reading first."), F("Press B to clear"));
+        delay(1200);
+        displayEditPreviousScreen();
+        return;
+      }
+
+      unsigned long newPrevious = inputBuffer.toInt();
+      if (newPrevious == currentCustomer->previous_reading) {
+        displayWarningScreen(F("NO CHANGE"), String("Previous reading is"), String("already the same."), F("Press C to cancel"));
+        delay(1200);
+        displayEditPreviousScreen();
+        return;
+      }
+
+      updateCustomerPreviousReading(currentCustomer->customer_id, newPrevious);
+      currentCustomer->previous_reading = newPrevious;
+      correctPreviousReading = newPrevious;
+
+      tft.fillScreen(COLOR_BG);
+      tft.setTextColor(TFT_GREEN);
+      tft.setCursor(20, 50);
+      tft.println(F("Previous updated"));
+      tft.setTextColor(COLOR_TEXT);
+      tft.setCursor(20, 75);
+      tft.println(currentCustomer->account_no);
+      tft.setCursor(20, 95);
+      tft.println(currentCustomer->customer_name);
+      tft.setCursor(20, 120);
+      tft.print(F("New Previous: "));
+      tft.println(newPrevious);
+      delay(1600);
+      resetWorkflow();
+    }
+    else if (key == 'B') {
+      inputBuffer = "";
+      displayEditPreviousScreen();
+    }
+    else if (key == 'C') {
       resetWorkflow();
     }
   }

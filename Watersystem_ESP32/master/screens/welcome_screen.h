@@ -67,7 +67,7 @@ void showWelcomeScreen() {
   // ===== DISPLAY LOGO FROM SD CARD =====
   int logoX = 20;
   int logoY = 25;
-  drawBMP("/WATER_DB/ASSETS/dmbc_logo.bmp", logoX, logoY);
+  drawBMP("/WATER_DB/ASSETS/dmbc_loggo.bmp", logoX, logoY);
 
   // ===== SERVICE DESCRIPTION =====
   tft.setFreeFont(&FreeSansBold9pt7b);

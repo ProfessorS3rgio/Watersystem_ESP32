@@ -31,6 +31,8 @@ void displayMenuScreen() {
   tft.println(F("4. Restart"));
   tft.setCursor(20, 150);
   tft.println(F("5. Printer Test"));
+  tft.setCursor(20, 175);
+  tft.println(F("6. Edit Previous"));
   
   tft.drawLine(0, 200, 320, 200, COLOR_LINE);
   

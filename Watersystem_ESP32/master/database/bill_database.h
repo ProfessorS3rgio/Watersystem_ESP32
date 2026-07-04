@@ -445,7 +445,8 @@ int getLastReadingIdForCustomer(int customerId) {
 
 // ===== UPDATE CUSTOMER PREVIOUS READING =====
 void updateCustomerPreviousReading(int customerId, unsigned long newPreviousReading) {
-  String query = "UPDATE customers SET previous_reading = " + String(newPreviousReading) + " WHERE customer_id = " + String(customerId) + ";";
+  String nowStr = getCurrentDateTimeString();
+  String query = "UPDATE customers SET previous_reading = " + String(newPreviousReading) + ", updated_at = '" + nowStr + "' WHERE customer_id = " + String(customerId) + ";";
   sqlite3_exec(db, query.c_str(), NULL, NULL, NULL);
 }
 

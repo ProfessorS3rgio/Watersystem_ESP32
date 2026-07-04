@@ -103,20 +103,20 @@ export function useSyncData() {
         // Continue with sync even if device info sync fails
       }
 
-      // Get customers from web database, filtered by barangay and updated after last sync
+      // Get customers from web database for this barangay, then filter by sync state.
+      // This catches rows that were explicitly marked Synced = 0 even if their
+      // updated_at timestamp did not move.
       addLog('Fetching customers from database...')
-      let dbCustomers = await databaseService.fetchCustomersFromDatabase({ brgy_id: deviceBrgyId, updated_after: lastSyncEpoch })
-      addLog(`Database has ${dbCustomers.length} customers updated since last sync`)
+      const dbCustomers = await databaseService.fetchCustomersFromDatabase({ brgy_id: deviceBrgyId })
+      let pendingCustomers = dbCustomers.filter(c => !c.Synced || c.last_sync === null)
+      addLog(`Database has ${pendingCustomers.length} unsynced customers`)
 
       // If device has no customers, perform full sync
       if (deviceInfo.customer_count === 0) {
         addLog('Device has no customers, performing full customer sync...')
-        dbCustomers = await databaseService.fetchCustomersFromDatabase({ brgy_id: deviceBrgyId })
-        addLog(`Full sync: pushing ${dbCustomers.length} total customers to ESP32`)
+        pendingCustomers = dbCustomers
+        addLog(`Full sync: pushing ${pendingCustomers.length} total customers to ESP32`)
       }
-
-      // No need to filter further, API already filtered
-      const filteredDbCustomers = dbCustomers
 
       // Sync customer types from DB to device first (needed for customer references)
       addLog('Fetching customer types from database...')
@@ -219,7 +219,7 @@ export function useSyncData() {
       }
 
       // Separate customers into new and updated
-      const { newCustomers, updatedCustomers } = separateCustomersBySyncStatus(filteredDbCustomers)
+      const { newCustomers, updatedCustomers } = separateCustomersBySyncStatus(pendingCustomers)
 
       addLog(`New customers: ${newCustomers.length}, Updated customers: ${updatedCustomers.length}`)
 
@@ -235,9 +235,9 @@ export function useSyncData() {
       addLog('✓ Customer sync completed')
 
       // Mark customers as synced in web database
-      if (filteredDbCustomers.length > 0) {
+      if (pendingCustomers.length > 0) {
         addLog('Marking customers as synced in web database...')
-        const accountNumbers = filteredDbCustomers.map(c => c.account_no)
+        const accountNumbers = pendingCustomers.map(c => c.account_no)
         await databaseService.markCustomersSynced(accountNumbers)
         addLog(`✓ Marked ${accountNumbers.length} customers as synced`)
       }
