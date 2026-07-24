@@ -44,10 +44,12 @@
         :loadingAllBills="loadingAllBills"
         :allBills="allBills"
         :pagination="pagination"
+        :barangays="barangays"
         @filter-change="handleFilterChange"
         @pay-bill="payBill"
         @void-bill="voidBill"
         @print-bill="printBill"
+        @download-monthly-report="downloadMonthlyReport"
         @go-to-page="goToPage"
       />
     </div>
@@ -188,19 +190,21 @@ export default {
       router.replace('/billing/summary')
     }
 
-    // Destructure loadAllBills
-    const { loadAllBills } = billingComposable
+    // Destructure initial loaders used by this page.
+    const { loadAllBills, loadBarangays } = billingComposable
 
     // Watch for activeView changes to load data
     watch(activeView, (newView) => {
       if (newView === 'all-bills') {
         loadAllBills()
+        loadBarangays()
       }
     })
 
     // Load all bills initially if on all-bills view
     if (activeView.value === 'all-bills') {
       loadAllBills()
+      loadBarangays()
     }
 
     return {

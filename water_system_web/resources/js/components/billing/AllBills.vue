@@ -6,6 +6,33 @@
         <h3 class="text-lg font-semibold">All Bills</h3>
         <div class="flex gap-3">
           <div class="flex items-center gap-2">
+            <label class="text-sm font-medium" :class="isDark ? 'text-gray-200' : 'text-gray-700'">Report:</label>
+            <input
+              v-model="reportMonth"
+              type="month"
+              class="px-2 py-1 text-sm border rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              :class="isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'"
+            >
+            <select
+              v-model="reportBarangayId"
+              class="max-w-36 px-2 py-1 text-sm border rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              :class="isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'"
+            >
+              <option value="">All barangays</option>
+              <option v-for="barangay in barangays" :key="barangay.brgy_id" :value="String(barangay.brgy_id)">
+                {{ barangay.barangay }}
+              </option>
+            </select>
+            <button
+              type="button"
+              :disabled="!reportMonth"
+              class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1 rounded text-sm font-medium disabled:opacity-50 transition-colors duration-200"
+              @click="downloadMonthlyReport"
+            >
+              Export Excel
+            </button>
+          </div>
+          <div class="flex items-center gap-2">
             <label class="text-sm font-medium" :class="isDark ? 'text-gray-200' : 'text-gray-700'">Status:</label>
             <select
               v-model="localStatusFilter"
@@ -164,14 +191,20 @@ export default {
     pagination: {
       type: Object,
       default: null
+    },
+    barangays: {
+      type: Array,
+      default: () => []
     }
   },
-  emits: ['filter-change', 'pay-bill', 'void-bill', 'go-to-page', 'print-bill'],
+  emits: ['filter-change', 'pay-bill', 'void-bill', 'go-to-page', 'print-bill', 'download-monthly-report'],
   data() {
     return {
       localStatusFilter: this.statusFilter,
       localCustomerFilter: this.customerFilter,
-      localSearch: ''
+      localSearch: '',
+      reportMonth: new Date().toISOString().slice(0, 7),
+      reportBarangayId: ''
     }
   },
   computed: {
@@ -210,6 +243,12 @@ export default {
     },
     handlePrintBill(bill) {
       this.$emit('print-bill', bill)
+    },
+    downloadMonthlyReport() {
+      this.$emit('download-monthly-report', {
+        month: this.reportMonth,
+        barangayId: this.reportBarangayId
+      })
     },
     handleGoToPage(page) {
       this.$emit('go-to-page', page)

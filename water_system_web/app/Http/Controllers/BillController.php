@@ -41,6 +41,77 @@ class BillController extends Controller
         ]);
     }
 
+    /**
+     * Download a formatted monthly billing workbook for one barangay.
+     */
+    public function monthlyReport(Request $request)
+    {
+        $validated = $request->validate([
+            'month' => ['required', 'date_format:Y-m'],
+            'brgy_id' => ['nullable', 'integer', 'exists:barangay_sequence,brgy_id'],
+        ]);
+
+        $month = Carbon::createFromFormat('Y-m', $validated['month'])->startOfMonth();
+        $barangayId = $validated['brgy_id'] ?? null;
+        $query = Bill::with(['customer', 'reading'])
+            ->whereYear('bill_date', $month->year)
+            ->whereMonth('bill_date', $month->month)
+            ->orderBy('customer_account_number');
+
+        if ($barangayId) {
+            $query->whereHas('customer', fn ($customer) => $customer->where('brgy_id', $barangayId));
+        }
+
+        $barangay = $barangayId
+            ? \App\Models\BarangaySequence::find($barangayId)?->barangay
+            : 'All Barangays';
+        $filenameBarangay = preg_replace('/[^A-Za-z0-9_-]+/', '-', $barangay);
+        $filename = "monthly-billing-report-{$filenameBarangay}-{$month->format('Y-m')}.xlsx";
+        $temporaryBase = tempnam(sys_get_temp_dir(), 'monthly-billing-report-');
+        if ($temporaryBase === false) {
+            abort(500, 'Unable to create the monthly report file.');
+        }
+        @unlink($temporaryBase);
+        $temporaryFile = $temporaryBase . '.xlsx';
+        $writer = \Box\Spout\Writer\Common\Creator\WriterEntityFactory::createXLSXWriter();
+        $writer->openToFile($temporaryFile);
+
+        $titleStyle = (new \Box\Spout\Writer\Common\Creator\Style\StyleBuilder())
+            ->setFontBold()->setFontSize(16)->setFontColor('FFFFFF')->setBackgroundColor('0F3D5E')
+            ->setCellAlignment(\Box\Spout\Common\Entity\Style\CellAlignment::CENTER)->build();
+        $subtitleStyle = (new \Box\Spout\Writer\Common\Creator\Style\StyleBuilder())
+            ->setFontItalic()->setFontColor('475569')->setCellAlignment(\Box\Spout\Common\Entity\Style\CellAlignment::CENTER)->build();
+        $headerStyle = (new \Box\Spout\Writer\Common\Creator\Style\StyleBuilder())
+            ->setFontBold()->setFontColor('FFFFFF')->setBackgroundColor('0E7490')
+            ->setCellAlignment(\Box\Spout\Common\Entity\Style\CellAlignment::CENTER)->build();
+        $currencyStyle = (new \Box\Spout\Writer\Common\Creator\Style\StyleBuilder())
+            ->setFormat('₱#,##0.00')->setCellAlignment(\Box\Spout\Common\Entity\Style\CellAlignment::RIGHT)->build();
+
+        $writer->addRow(\Box\Spout\Writer\Common\Creator\WriterEntityFactory::createRowFromArray(['MONTHLY WATER BILLING REPORT'], $titleStyle));
+        $writer->addRow(\Box\Spout\Writer\Common\Creator\WriterEntityFactory::createRowFromArray(["Barangay: {$barangay} | Billing Month: {$month->format('F Y')}"], $subtitleStyle));
+        $writer->addRow(\Box\Spout\Writer\Common\Creator\WriterEntityFactory::createRowFromArray([]));
+        $writer->addRow(\Box\Spout\Writer\Common\Creator\WriterEntityFactory::createRowFromArray(['Account Number', 'Name', 'Previous', 'Present', 'Usage', 'Status', 'Total'], $headerStyle));
+
+        foreach ($query->lazy(500) as $bill) {
+            $reading = $bill->reading;
+            $writer->addRow(\Box\Spout\Writer\Common\Creator\WriterEntityFactory::createRow([
+                \Box\Spout\Writer\Common\Creator\WriterEntityFactory::createCell($bill->customer?->account_no ?? $bill->customer_account_number),
+                \Box\Spout\Writer\Common\Creator\WriterEntityFactory::createCell($bill->customer?->customer_name ?? ''),
+                \Box\Spout\Writer\Common\Creator\WriterEntityFactory::createCell($reading?->previous_reading),
+                \Box\Spout\Writer\Common\Creator\WriterEntityFactory::createCell($reading?->current_reading),
+                \Box\Spout\Writer\Common\Creator\WriterEntityFactory::createCell($reading?->usage_m3),
+                \Box\Spout\Writer\Common\Creator\WriterEntityFactory::createCell(ucfirst(strtolower($bill->status))),
+                \Box\Spout\Writer\Common\Creator\WriterEntityFactory::createCell((float) $bill->total_due, $currencyStyle),
+            ]));
+        }
+
+        $writer->close();
+
+        return response()->download($temporaryFile, $filename, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ])->deleteFileAfterSend(true);
+    }
+
     public function indexByCustomer(Request $request, Customer $customer)
     {
         $status = $request->query('status');
@@ -484,4 +555,3 @@ class BillController extends Controller
         ]);
     }
 }
-    

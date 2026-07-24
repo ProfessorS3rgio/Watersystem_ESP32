@@ -22,6 +22,7 @@ export function useBilling() {
     const loadingAllBills = ref(false)
     const allBills = ref([])
     const pagination = ref(null)
+    const barangays = ref([])
 
     // Payment processing
     const selectedBill = ref(null)
@@ -378,6 +379,29 @@ export function useBilling() {
       }
     }
 
+    const loadBarangays = async () => {
+      if (barangays.value.length) return
+
+      try {
+        const response = await fetch('/barangays', {
+          headers: { 'Accept': 'application/json' },
+          credentials: 'same-origin'
+        })
+        if (response.ok) {
+          const data = await response.json()
+          barangays.value = data.data || []
+        }
+      } catch (error) {
+        console.error('Failed to load barangays:', error)
+      }
+    }
+
+    const downloadMonthlyReport = ({ month, barangayId }) => {
+      const params = new URLSearchParams({ month })
+      if (barangayId) params.set('brgy_id', barangayId)
+      window.location.assign(`/bills/monthly-report?${params.toString()}`)
+    }
+
     const handleFilterChange = ({ statusFilter: newStatusFilter, customerFilter: newCustomerFilter }) => {
       statusFilter.value = newStatusFilter
       customerFilter.value = newCustomerFilter
@@ -558,6 +582,9 @@ export function useBilling() {
       allBills,
       pagination,
       loadAllBills,
+      barangays,
+      loadBarangays,
+      downloadMonthlyReport,
       handleFilterChange,
       payBill,
       voidBill,
