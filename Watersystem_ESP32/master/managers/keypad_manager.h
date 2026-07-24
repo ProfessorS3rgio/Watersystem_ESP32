@@ -547,6 +547,7 @@ void handleKeypadInput(char key) {
           currentReceipt.receiptNumber = currentBill.refNumber;
           currentReceipt.paymentDateTime = latestTxn.transaction_date;
           currentReceipt.billRefNumber = currentBill.refNumber;
+          currentReceipt.billDate = currentBill.billDate;
 
           currentReceipt.customerName = currentBill.customerName;
           currentReceipt.accountNo = currentBill.accountNo;
@@ -624,6 +625,7 @@ void handleKeypadInput(char key) {
       currentReceipt.receiptNumber = currentBill.refNumber;
       currentReceipt.paymentDateTime = getCurrentDateTimeString();
       currentReceipt.billRefNumber = currentBill.refNumber;
+      currentReceipt.billDate = currentBill.billDate;
 
       currentReceipt.customerName = currentBill.customerName;
       currentReceipt.accountNo = currentBill.accountNo;

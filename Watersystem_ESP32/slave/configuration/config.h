@@ -2,8 +2,8 @@
 // Override these in build flags if your wiring differs.
 
 // Thermal printer UART pins
-#define PRINTER_RX  7    // ESP32-C3 RX <- Printer TX
-#define PRINTER_TX  6    // ESP32-C3 TX -> Printer RX
+#define PRINTER_RX  6    // ESP32-C3 RX <- Printer TX
+#define PRINTER_TX  7    // ESP32-C3 TX -> Printer RX
 #define PRINTER_BAUD 9600
 
 // Charger detection input pin (inverted logic in code: LOW = charging)

@@ -6,6 +6,7 @@
 struct ReceiptData {
     String receiptNumber;
     String paymentDateTime;
+    String billDate;
     String customerName;
     String accountNo;
     String customerType;

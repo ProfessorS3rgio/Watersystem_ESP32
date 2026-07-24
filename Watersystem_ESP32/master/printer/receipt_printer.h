@@ -28,7 +28,7 @@ void printReceipt() {
 
     ReceiptData receipt = currentReceipt;
     String msg = String("PRINT_RECEIPT|") + receipt.receiptNumber + "|" + receipt.paymentDateTime
-                 + "|" + receipt.customerName + "|" + receipt.accountNo
+           + "|" + receipt.billDate + "|" + receipt.customerName + "|" + receipt.accountNo
                  + "|" + receipt.customerType + "|" + receipt.address
                  + "|" + receipt.collector + "|" + String(receipt.prevReading)
                  + "|" + String(receipt.currReading) + "|" + String(receipt.rate, 2)

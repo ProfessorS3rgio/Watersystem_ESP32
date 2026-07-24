@@ -149,7 +149,14 @@ void printReceipt() {
   printer.boldOn();
   printer.println(F("Billing Period"));
   printer.boldOff();
-  printer.println(getPeriodCoveredFromDate(receipt.paymentDateTime));
+  String billingPeriodSource = currentBill.billDate;
+  if (billingPeriodSource.length() < 10) {
+    billingPeriodSource = receipt.billDate;
+  }
+  if (billingPeriodSource.length() < 10) {
+    billingPeriodSource = receipt.paymentDateTime;
+  }
+  printer.println(getPeriodCoveredFromDate(billingPeriodSource));
   printer.println();
   printer.println(F("--------------------------------"));
 

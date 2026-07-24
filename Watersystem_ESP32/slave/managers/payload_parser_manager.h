@@ -111,21 +111,22 @@ void parseReceiptPayload(const String &payload) {
     if (c < 13) return;
     currentReceipt.receiptNumber   = p[0];
     currentReceipt.paymentDateTime = p[1];
-    currentReceipt.customerName    = p[2];
-    currentReceipt.accountNo       = p[3];
-    currentReceipt.customerType    = p[4];
-    currentReceipt.address         = p[5];
-    currentReceipt.collector       = p[6];
-    currentReceipt.prevReading     = p[7].toInt();
-    currentReceipt.currReading     = p[8].toInt();
-    currentReceipt.rate            = p[9].toFloat();
-    currentReceipt.subtotal        = p[10].toFloat();
-    currentReceipt.deductions      = p[11].toFloat();
-    currentReceipt.penalty         = p[12].toFloat();
-    currentReceipt.total           = (c > 13 ? p[13].toFloat()
+    currentReceipt.billDate        = p[2];
+    currentReceipt.customerName    = p[3];
+    currentReceipt.accountNo       = p[4];
+    currentReceipt.customerType    = p[5];
+    currentReceipt.address         = p[6];
+    currentReceipt.collector       = p[7];
+    currentReceipt.prevReading     = p[8].toInt();
+    currentReceipt.currReading     = p[9].toInt();
+    currentReceipt.rate            = p[10].toFloat();
+    currentReceipt.subtotal        = p[11].toFloat();
+    currentReceipt.deductions      = p[12].toFloat();
+    currentReceipt.penalty         = p[13].toFloat();
+    currentReceipt.total           = (c > 14 ? p[14].toFloat()
                                           : currentReceipt.subtotal - currentReceipt.deductions + currentReceipt.penalty);
-    currentReceipt.amountPaid      = (c > 14 ? p[14].toFloat() : currentReceipt.total);
-    currentReceipt.change          = (c > 15 ? p[15].toFloat() : 0);
+    currentReceipt.amountPaid      = (c > 15 ? p[15].toFloat() : currentReceipt.total);
+    currentReceipt.change          = (c > 16 ? p[16].toFloat() : 0);
 }
 
 #endif // PAYLOAD_PARSER_MANAGER_H

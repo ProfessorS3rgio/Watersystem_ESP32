@@ -64,6 +64,64 @@
         </div>
       </div>
 
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div class="rounded-lg shadow p-5 transition-all duration-200 hover:shadow-lg" :class="isDark ? 'bg-gray-800' : 'bg-white'">
+          <div class="flex items-center">
+            <div class="h-11 w-11 rounded-lg flex items-center justify-center bg-amber-500">
+              <svg class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+              </svg>
+            </div>
+            <div class="ml-4">
+              <p :class="isDark ? 'text-gray-400' : 'text-gray-600'" class="text-sm">Collectable (Last Month)</p>
+              <p :class="isDark ? 'text-white' : 'text-gray-900'" class="text-xl font-bold">{{ formatCurrency(animatedCollectableLastMonth) }}</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="rounded-lg shadow p-5 transition-all duration-200 hover:shadow-lg" :class="isDark ? 'bg-gray-800' : 'bg-white'">
+          <div class="flex items-center">
+            <div class="h-11 w-11 rounded-lg flex items-center justify-center bg-emerald-500">
+              <svg class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h2m4 0h6M5 6h14a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2z" />
+              </svg>
+            </div>
+            <div class="ml-4">
+              <p :class="isDark ? 'text-gray-400' : 'text-gray-600'" class="text-sm">Total Sales (This Year)</p>
+              <p :class="isDark ? 'text-white' : 'text-gray-900'" class="text-xl font-bold">{{ formatCurrency(animatedSalesThisYear) }}</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="rounded-lg shadow p-5 transition-all duration-200 hover:shadow-lg" :class="isDark ? 'bg-gray-800' : 'bg-white'">
+          <div class="flex items-center">
+            <div class="h-11 w-11 rounded-lg flex items-center justify-center bg-sky-500">
+              <svg class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 20a6 6 0 10-12 0m12 0H6m6-16a4 4 0 110 8 4 4 0 010-8z" />
+              </svg>
+            </div>
+            <div class="ml-4">
+              <p :class="isDark ? 'text-gray-400' : 'text-gray-600'" class="text-sm">New Customers (This Month)</p>
+              <p :class="isDark ? 'text-white' : 'text-gray-900'" class="text-xl font-bold">{{ animatedNewCustomers }}</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="rounded-lg shadow p-5 transition-all duration-200 hover:shadow-lg" :class="isDark ? 'bg-gray-800' : 'bg-white'">
+          <div class="flex items-center">
+            <div class="h-11 w-11 rounded-lg flex items-center justify-center bg-rose-500">
+              <svg class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8v1m0 7v1m-8-4h16" />
+              </svg>
+            </div>
+            <div class="ml-4">
+              <p :class="isDark ? 'text-gray-400' : 'text-gray-600'" class="text-sm">Customer All Balance</p>
+              <p :class="isDark ? 'text-white' : 'text-gray-900'" class="text-xl font-bold">{{ formatCurrency(animatedCustomerBalance) }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Barangay Stats Cards -->
       <StatsCards
         :customers="customers"
@@ -93,14 +151,22 @@ export default {
   data() {
     return {
       totalCollectableThisMonth: 0,
+      totalCollectableLastMonth: 0,
       numberOfDevices: 0,
       totalCustomers: 0,
       totalSalesThisMonth: 0,
+      newCustomersThisMonth: 0,
+      totalSalesThisYear: 0,
+      customerAllBalance: 0,
       // Animated values
       animatedCollectable: 0,
+      animatedCollectableLastMonth: 0,
       animatedDevices: 0,
       animatedCustomers: 0,
       animatedSales: 0,
+      animatedNewCustomers: 0,
+      animatedSalesThisYear: 0,
+      animatedCustomerBalance: 0,
       // StatsCards data
       customers: [],
       barangays: [],
@@ -134,15 +200,23 @@ export default {
         const data = await res.json()
         console.log('Dashboard data:', data)
         this.totalCollectableThisMonth = Number(data?.total_collectable_this_month || 0)
+        this.totalCollectableLastMonth = Number(data?.total_collectable_last_month || 0)
         this.numberOfDevices = Number(data?.number_of_devices || 0)
         this.totalCustomers = Number(data?.total_customers || 0)
         this.totalSalesThisMonth = Number(data?.total_sales_this_month || 0)
+        this.newCustomersThisMonth = Number(data?.new_customers_this_month || 0)
+        this.totalSalesThisYear = Number(data?.total_sales_this_year || 0)
+        this.customerAllBalance = Number(data?.customer_all_balance || 0)
 
         // Start animations
         this.animateValue('animatedCollectable', this.totalCollectableThisMonth)
+        this.animateValue('animatedCollectableLastMonth', this.totalCollectableLastMonth)
         this.animateValue('animatedDevices', this.numberOfDevices)
         this.animateValue('animatedCustomers', this.totalCustomers)
         this.animateValue('animatedSales', this.totalSalesThisMonth)
+        this.animateValue('animatedNewCustomers', this.newCustomersThisMonth)
+        this.animateValue('animatedSalesThisYear', this.totalSalesThisYear)
+        this.animateValue('animatedCustomerBalance', this.customerAllBalance)
       } catch (e) {
         console.error('Dashboard load error:', e)
         // keep defaults
@@ -151,13 +225,16 @@ export default {
     formatCurrency(value) {
       const n = Number(value || 0)
       if (!Number.isFinite(n)) return '₱0.00'
-      return '₱' + n.toFixed(2)
+      return '₱' + n.toLocaleString('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })
     },
     animateValue(property, target) {
       const duration = 1000 // 1 second
       const start = this[property]
       const increment = (target - start) / (duration / 50) // 50ms intervals
-      const isCurrency = property === 'animatedCollectable' || property === 'animatedSales'
+      const isCurrency = ['animatedCollectable', 'animatedCollectableLastMonth', 'animatedSales', 'animatedSalesThisYear', 'animatedCustomerBalance'].includes(property)
       let current = start
       const timer = setInterval(() => {
         current += increment
