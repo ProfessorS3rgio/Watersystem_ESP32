@@ -1,7 +1,7 @@
 <?php
 
 namespace App\Http\Controllers;
-
+use App\Models\Reading;
 use App\Models\Bill;
 use App\Models\Setting;
 use App\Models\Customer;
@@ -41,77 +41,144 @@ class BillController extends Controller
         ]);
     }
 
-    /**
-     * Download a formatted monthly billing workbook for one barangay.
-     */
-    public function monthlyReport(Request $request)
-    {
-        $validated = $request->validate([
-            'month' => ['required', 'date_format:Y-m'],
-            'brgy_id' => ['nullable', 'integer', 'exists:barangay_sequence,brgy_id'],
-        ]);
+  public function monthlyReport(Request $request)
+{
+    $validated = $request->validate([
+        'month' => ['required', 'date_format:Y-m'],
+        'brgy_id' => ['nullable', 'integer', 'exists:barangay_sequence,brgy_id'],
+    ]);
 
-        $month = Carbon::createFromFormat('Y-m', $validated['month'])->startOfMonth();
-        $barangayId = $validated['brgy_id'] ?? null;
-        $query = Bill::with(['customer', 'reading'])
-            ->whereYear('bill_date', $month->year)
-            ->whereMonth('bill_date', $month->month)
-            ->orderBy('customer_account_number');
+    $month = Carbon::createFromFormat('Y-m', $validated['month'])->startOfMonth();
+    $barangayId = $validated['brgy_id'] ?? null;
+    
+    // Get bills with their readings (existing query)
+    $billsQuery = Bill::with(['customer', 'reading'])
+        ->whereYear('bill_date', $month->year)
+        ->whereMonth('bill_date', $month->month)
+        ->orderBy('customer_account_number');
 
-        if ($barangayId) {
-            $query->whereHas('customer', fn ($customer) => $customer->where('brgy_id', $barangayId));
-        }
-
-        $barangay = $barangayId
-            ? \App\Models\BarangaySequence::find($barangayId)?->barangay
-            : 'All Barangays';
-        $filenameBarangay = preg_replace('/[^A-Za-z0-9_-]+/', '-', $barangay);
-        $filename = "monthly-billing-report-{$filenameBarangay}-{$month->format('Y-m')}.xlsx";
-        $temporaryBase = tempnam(sys_get_temp_dir(), 'monthly-billing-report-');
-        if ($temporaryBase === false) {
-            abort(500, 'Unable to create the monthly report file.');
-        }
-        @unlink($temporaryBase);
-        $temporaryFile = $temporaryBase . '.xlsx';
-        $writer = \Box\Spout\Writer\Common\Creator\WriterEntityFactory::createXLSXWriter();
-        $writer->openToFile($temporaryFile);
-
-        $titleStyle = (new \Box\Spout\Writer\Common\Creator\Style\StyleBuilder())
-            ->setFontBold()->setFontSize(16)->setFontColor('FFFFFF')->setBackgroundColor('0F3D5E')
-            ->setCellAlignment(\Box\Spout\Common\Entity\Style\CellAlignment::CENTER)->build();
-        $subtitleStyle = (new \Box\Spout\Writer\Common\Creator\Style\StyleBuilder())
-            ->setFontItalic()->setFontColor('475569')->setCellAlignment(\Box\Spout\Common\Entity\Style\CellAlignment::CENTER)->build();
-        $headerStyle = (new \Box\Spout\Writer\Common\Creator\Style\StyleBuilder())
-            ->setFontBold()->setFontColor('FFFFFF')->setBackgroundColor('0E7490')
-            ->setCellAlignment(\Box\Spout\Common\Entity\Style\CellAlignment::CENTER)->build();
-        $currencyStyle = (new \Box\Spout\Writer\Common\Creator\Style\StyleBuilder())
-            ->setFormat('₱#,##0.00')->setCellAlignment(\Box\Spout\Common\Entity\Style\CellAlignment::RIGHT)->build();
-
-        $writer->addRow(\Box\Spout\Writer\Common\Creator\WriterEntityFactory::createRowFromArray(['MONTHLY WATER BILLING REPORT'], $titleStyle));
-        $writer->addRow(\Box\Spout\Writer\Common\Creator\WriterEntityFactory::createRowFromArray(["Barangay: {$barangay} | Billing Month: {$month->format('F Y')}"], $subtitleStyle));
-        $writer->addRow(\Box\Spout\Writer\Common\Creator\WriterEntityFactory::createRowFromArray([]));
-        $writer->addRow(\Box\Spout\Writer\Common\Creator\WriterEntityFactory::createRowFromArray(['Account Number', 'Name', 'Previous', 'Present', 'Usage', 'Status', 'Total'], $headerStyle));
-
-        foreach ($query->lazy(500) as $bill) {
-            $reading = $bill->reading;
-            $writer->addRow(\Box\Spout\Writer\Common\Creator\WriterEntityFactory::createRow([
-                \Box\Spout\Writer\Common\Creator\WriterEntityFactory::createCell($bill->customer?->account_no ?? $bill->customer_account_number),
-                \Box\Spout\Writer\Common\Creator\WriterEntityFactory::createCell($bill->customer?->customer_name ?? ''),
-                \Box\Spout\Writer\Common\Creator\WriterEntityFactory::createCell($reading?->previous_reading),
-                \Box\Spout\Writer\Common\Creator\WriterEntityFactory::createCell($reading?->current_reading),
-                \Box\Spout\Writer\Common\Creator\WriterEntityFactory::createCell($reading?->usage_m3),
-                \Box\Spout\Writer\Common\Creator\WriterEntityFactory::createCell(ucfirst(strtolower($bill->status))),
-                \Box\Spout\Writer\Common\Creator\WriterEntityFactory::createCell((float) $bill->total_due, $currencyStyle),
-            ]));
-        }
-
-        $writer->close();
-
-        return response()->download($temporaryFile, $filename, [
-            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        ])->deleteFileAfterSend(true);
+    if ($barangayId) {
+        $billsQuery->whereHas('customer', fn ($customer) => $customer->where('brgy_id', $barangayId));
     }
 
+    $bills = $billsQuery->get();
+    
+    // Get all customers in the barangay (including disconnected)
+    $customersQuery = Customer::orderBy('account_no');
+    
+    if ($barangayId) {
+        $customersQuery->where('brgy_id', $barangayId);
+    }
+    
+    $allCustomers = $customersQuery->get()->keyBy('account_no');
+    
+    // Merge bills with customers
+    $reportData = [];
+    $processedAccounts = [];
+    
+    // First, add all bills
+    foreach ($bills as $bill) {
+        $accountNo = $bill->customer_account_number;
+        $processedAccounts[] = $accountNo;
+        
+        $reportData[] = [
+            'account_no' => $accountNo,
+            'customer_name' => $bill->customer->customer_name ?? 'Unknown',
+            'previous_reading' => $bill->reading->previous_reading ?? '',
+            'current_reading' => $bill->reading->current_reading ?? '',
+            'usage_m3' => $bill->reading->usage_m3 ?? '',
+            'status' => $bill->status,
+            'total_due' => (float) $bill->total_due,
+            'has_bill' => true,
+        ];
+    }
+    
+    // Add customers without bills (disconnected or no readings)
+    foreach ($allCustomers as $accountNo => $customer) {
+        if (!in_array($accountNo, $processedAccounts)) {
+            $reportData[] = [
+                'account_no' => $customer->account_no,
+                'customer_name' => $customer->customer_name,
+                'previous_reading' => '',
+                'current_reading' => '',
+                'usage_m3' => '',
+                'status' => $customer->status == 'disconnected' ? 'Disconnected' : 'No Bill',
+                'total_due' => 0,
+                'has_bill' => false,
+            ];
+        }
+    }
+    
+    // Sort by account number
+    usort($reportData, function($a, $b) {
+        return strcmp($a['account_no'], $b['account_no']);
+    });
+
+    $barangay = $barangayId
+        ? \App\Models\BarangaySequence::find($barangayId)?->barangay
+        : 'All Barangays';
+    $filenameBarangay = preg_replace('/[^A-Za-z0-9_-]+/', '-', $barangay);
+    $filename = "monthly-billing-report-{$filenameBarangay}-{$month->format('Y-m')}.xlsx";
+    $temporaryBase = tempnam(sys_get_temp_dir(), 'monthly-billing-report-');
+    if ($temporaryBase === false) {
+        abort(500, 'Unable to create the monthly report file.');
+    }
+    @unlink($temporaryBase);
+    $temporaryFile = $temporaryBase . '.xlsx';
+    $writer = \Box\Spout\Writer\Common\Creator\WriterEntityFactory::createXLSXWriter();
+    $writer->openToFile($temporaryFile);
+
+    $titleStyle = (new \Box\Spout\Writer\Common\Creator\Style\StyleBuilder())
+        ->setFontBold()->setFontSize(16)->setFontColor('FFFFFF')->setBackgroundColor('0F3D5E')
+        ->setCellAlignment(\Box\Spout\Common\Entity\Style\CellAlignment::CENTER)->build();
+    $subtitleStyle = (new \Box\Spout\Writer\Common\Creator\Style\StyleBuilder())
+        ->setFontItalic()->setFontColor('475569')->setCellAlignment(\Box\Spout\Common\Entity\Style\CellAlignment::CENTER)->build();
+    $headerStyle = (new \Box\Spout\Writer\Common\Creator\Style\StyleBuilder())
+        ->setFontBold()->setFontColor('FFFFFF')->setBackgroundColor('0E7490')
+        ->setCellAlignment(\Box\Spout\Common\Entity\Style\CellAlignment::CENTER)->build();
+    $currencyStyle = (new \Box\Spout\Writer\Common\Creator\Style\StyleBuilder())
+        ->setFormat('₱#,##0.00')->setCellAlignment(\Box\Spout\Common\Entity\Style\CellAlignment::RIGHT)->build();
+    $disconnectedStyle = (new \Box\Spout\Writer\Common\Creator\Style\StyleBuilder())
+        ->setFontColor('DC2626')->build(); // Red color for disconnected
+
+    // Title row
+    $writer->addRow(\Box\Spout\Writer\Common\Creator\WriterEntityFactory::createRowFromArray(['MONTHLY WATER BILLING REPORT'], $titleStyle));
+    
+    // Subtitle row
+    $writer->addRow(\Box\Spout\Writer\Common\Creator\WriterEntityFactory::createRowFromArray(["Barangay: {$barangay} | Billing Month: {$month->format('F Y')}"], $subtitleStyle));
+    
+    // Empty row
+    $writer->addRow(\Box\Spout\Writer\Common\Creator\WriterEntityFactory::createRowFromArray([]));
+    
+    // Header row
+    $writer->addRow(\Box\Spout\Writer\Common\Creator\WriterEntityFactory::createRowFromArray(['Account Number', 'Name', 'Previous', 'Present', 'Usage', 'Status', 'Total'], $headerStyle));
+
+    // Data rows
+    foreach ($reportData as $data) {
+        $statusStyle = ($data['status'] === 'Disconnected') ? $disconnectedStyle : null;
+        
+        $row = \Box\Spout\Writer\Common\Creator\WriterEntityFactory::createRow([
+            \Box\Spout\Writer\Common\Creator\WriterEntityFactory::createCell($data['account_no']),
+            \Box\Spout\Writer\Common\Creator\WriterEntityFactory::createCell($data['customer_name']),
+            \Box\Spout\Writer\Common\Creator\WriterEntityFactory::createCell($data['previous_reading']),
+            \Box\Spout\Writer\Common\Creator\WriterEntityFactory::createCell($data['current_reading']),
+            \Box\Spout\Writer\Common\Creator\WriterEntityFactory::createCell($data['usage_m3']),
+            \Box\Spout\Writer\Common\Creator\WriterEntityFactory::createCell(
+                $data['status'] === 'Disconnected' ? 'Disconnected' : ucfirst(strtolower($data['status'])),
+                $statusStyle
+            ),
+            \Box\Spout\Writer\Common\Creator\WriterEntityFactory::createCell((float) $data['total_due'], $currencyStyle),
+        ]);
+        
+        $writer->addRow($row);
+    }
+
+    $writer->close();
+
+    return response()->download($temporaryFile, $filename, [
+        'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    ])->deleteFileAfterSend(true);
+}
     public function indexByCustomer(Request $request, Customer $customer)
     {
         $status = $request->query('status');
@@ -368,77 +435,93 @@ class BillController extends Controller
      * Bulk upsert bills coming from the device.
      * Expects: { bills: [ {bill_id, reference_number, customer_id, reading_id, bill_date, rate_per_m3, charges, penalty, total_due, status, created_at, updated_at} ] }
      */
-    public function sync(Request $request)
-    {
-        $validated = $request->validate([
-            'bills' => ['required', 'array', 'max:2000'],
-            'bills.*.bill_id' => ['nullable', 'integer'],
-            'bills.*.reference_number' => ['required', 'string', 'max:255'],
-                'bills.*.customer_id' => ['nullable', 'integer'],
-            'bills.*.reading_id' => ['nullable', 'integer'],
-            'bills.*.device_uid' => ['nullable', 'string', 'max:255'],
-            'bills.*.bill_date' => ['nullable', 'string'],
-            'bills.*.rate_per_m3' => ['nullable', 'numeric'],
-            'bills.*.charges' => ['nullable', 'numeric'],
-            'bills.*.penalty' => ['nullable', 'numeric'],
-            'bills.*.total_due' => ['nullable', 'numeric'],
-            'bills.*.status' => ['nullable', 'string', 'max:255'],
-            'bills.*.customer_account_number' => ['required', 'string', 'max:255'],
-            'bills.*.created_at' => ['nullable', 'string'],
-            'bills.*.updated_at' => ['nullable', 'string'],
-        ]);
+ public function sync(Request $request)
+{
+    $validated = $request->validate([
+        'bills' => ['required', 'array', 'max:2000'],
+        'bills.*.reference_number' => ['required', 'string', 'max:255'],
+        'bills.*.customer_id' => ['nullable', 'integer'],
+        'bills.*.reading_id' => ['nullable', 'integer'],
+        'bills.*.device_uid' => ['nullable', 'string', 'max:255'],
+        'bills.*.bill_date' => ['nullable', 'string'],
+        'bills.*.rate_per_m3' => ['nullable', 'numeric'],
+        'bills.*.charges' => ['nullable', 'numeric'],
+        'bills.*.penalty' => ['nullable', 'numeric'],
+        'bills.*.total_due' => ['nullable', 'numeric'],
+        'bills.*.status' => ['nullable', 'string', 'max:255'],
+        'bills.*.customer_account_number' => ['required', 'string', 'max:255'],
+    ]);
 
-        $bills = $validated['bills'];
-        $processed = 0;
-        $skipped = 0;
+    $bills = $validated['bills'];
+    $processed = 0;
+    $skipped = 0;
 
-        \Log::info('Syncing bills', ['count' => count($bills)]);
-
-        foreach ($bills as $row) {
-            $customer = null;
-
-            if (!empty($row['customer_account_number'])) {
-                $customer = Customer::where('account_no', $row['customer_account_number'])->first();
-            }
-
-            if (!$customer && !empty($row['customer_id'])) {
-                $customer = Customer::where('customer_id', (int) $row['customer_id'])->first();
-            }
-
-            if (!$customer) {
-                $skipped++;
-                continue;
-            }
-
-            Bill::updateOrCreate(
-                ['reference_number' => $row['reference_number']],
-                [
-                    'customer_id' => $customer->customer_id,
-                    'reading_id' => $row['reading_id'] ?? null,
-                    'device_uid' => $row['device_uid'] ?? null,
-                    'bill_date' => $row['bill_date'] ?? null,
-                    'rate_per_m3' => $row['rate_per_m3'] ?? 0,
-                    'charges' => $row['charges'] ?? 0,
-                    'penalty' => $row['penalty'] ?? 0,
-                    'total_due' => $row['total_due'] ?? 0,
-                    'status' => $row['status'] ?? 'Pending',
-                    'customer_account_number' => $row['customer_account_number'],
-                    'created_at' => $row['created_at'] ?? now(),
-                    'updated_at' => $row['updated_at'] ?? now(),
-                ]
-            );
-
-            $processed++;
+    foreach ($bills as $row) {
+        // ONLY use account_no - NEVER trust customer_id from device!
+        $customer = Customer::where('account_no', $row['customer_account_number'])->first();
+        
+        if (!$customer) {
+            \Log::warning('Bill sync: Customer not found', [
+                'account_no' => $row['customer_account_number']
+            ]);
+            $skipped++;
+            continue;
         }
 
-        \Log::info('Bills synced', ['processed' => $processed, 'skipped' => $skipped]);
+        // Find correct reading_id from OUR database
+        $readingId = null;
+        if (!empty($row['bill_date'])) {
+            $billDate = Carbon::parse($row['bill_date']);
+            
+            // Try to find reading by customer_account_number and same month/year
+            $reading = Reading::where('customer_account_number', $row['customer_account_number'])
+                ->whereYear('reading_at', $billDate->year)
+                ->whereMonth('reading_at', $billDate->month)
+                ->orderBy('reading_at', 'desc')
+                ->first();
+            
+            if ($reading) {
+                $readingId = $reading->reading_id;
+            }
+        }
 
-        return response()->json([
-            'processed' => $processed,
-            'skipped' => $skipped,
-        ]);
+        // Skip if we can't find a reading_id
+        if (!$readingId) {
+            \Log::error('Bill sync: Cannot find reading_id', [
+                'account' => $row['customer_account_number'],
+                'bill_date' => $row['bill_date'] ?? 'null',
+                'reference' => $row['reference_number']
+            ]);
+            $skipped++;
+            continue;
+        }
+
+        Bill::updateOrCreate(
+            ['reference_number' => $row['reference_number']],
+            [
+                'customer_id' => $customer->customer_id,
+                'reading_id' => $readingId,
+                'device_uid' => $row['device_uid'] ?? null,
+                'bill_date' => $row['bill_date'] ?? null,
+                'rate_per_m3' => $row['rate_per_m3'] ?? 0,
+                'charges' => $row['charges'] ?? 0,
+                'penalty' => $row['penalty'] ?? 0,
+                'total_due' => $row['total_due'] ?? 0,
+                'status' => $row['status'] ?? 'Pending',
+                'customer_account_number' => $row['customer_account_number'],
+            ]
+        );
+
+        $processed++;
     }
 
+    \Log::info('Bills synced', ['processed' => $processed, 'skipped' => $skipped]);
+
+    return response()->json([
+        'processed' => $processed,
+        'skipped' => $skipped,
+    ]);
+}
     /**
      * Bulk upsert bill transactions coming from the device.
      * Expects: { bill_transactions: [ {...} ] }
