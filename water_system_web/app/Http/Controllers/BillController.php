@@ -8,6 +8,15 @@ use App\Models\Customer;
 use App\Models\BillTransaction;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Style\Font;
+use PhpOffice\PhpSpreadsheet\Style\NumberFormat;
+use PhpOffice\PhpSpreadsheet\Style\Color;
+
 
 class BillController extends Controller
 {
@@ -41,9 +50,9 @@ class BillController extends Controller
         ]);
     }
 
-  public function monthlyReport(Request $request)
+public function monthlyReport(Request $request)
 {
-    $validated = $request->validate([
+     $validated = $request->validate([
         'month' => ['required', 'date_format:Y-m'],
         'brgy_id' => ['nullable', 'integer', 'exists:barangay_sequence,brgy_id'],
     ]);
@@ -51,10 +60,12 @@ class BillController extends Controller
     $month = Carbon::createFromFormat('Y-m', $validated['month'])->startOfMonth();
     $barangayId = $validated['brgy_id'] ?? null;
     
-    // Get bills with their readings (existing query)
+    // Define the billing cycle: include first 5 days of next month as part of this month
+    $billingStart = $month->copy()->startOfMonth();
+    $billingEnd = $month->copy()->endOfMonth()->addDays(5); // Include up to 5th of next month
+    
     $billsQuery = Bill::with(['customer', 'reading'])
-        ->whereYear('bill_date', $month->year)
-        ->whereMonth('bill_date', $month->month)
+        ->whereBetween('bill_date', [$billingStart, $billingEnd])
         ->orderBy('customer_account_number');
 
     if ($barangayId) {
@@ -63,24 +74,18 @@ class BillController extends Controller
 
     $bills = $billsQuery->get();
     
-    // Get all customers in the barangay (including disconnected)
     $customersQuery = Customer::orderBy('account_no');
-    
     if ($barangayId) {
         $customersQuery->where('brgy_id', $barangayId);
     }
-    
     $allCustomers = $customersQuery->get()->keyBy('account_no');
     
-    // Merge bills with customers
     $reportData = [];
     $processedAccounts = [];
     
-    // First, add all bills
     foreach ($bills as $bill) {
         $accountNo = $bill->customer_account_number;
         $processedAccounts[] = $accountNo;
-        
         $reportData[] = [
             'account_no' => $accountNo,
             'customer_name' => $bill->customer->customer_name ?? 'Unknown',
@@ -93,7 +98,6 @@ class BillController extends Controller
         ];
     }
     
-    // Add customers without bills (disconnected or no readings)
     foreach ($allCustomers as $accountNo => $customer) {
         if (!in_array($accountNo, $processedAccounts)) {
             $reportData[] = [
@@ -109,7 +113,6 @@ class BillController extends Controller
         }
     }
     
-    // Sort by account number
     usort($reportData, function($a, $b) {
         return strcmp($a['account_no'], $b['account_no']);
     });
@@ -119,66 +122,168 @@ class BillController extends Controller
         : 'All Barangays';
     $filenameBarangay = preg_replace('/[^A-Za-z0-9_-]+/', '-', $barangay);
     $filename = "monthly-billing-report-{$filenameBarangay}-{$month->format('Y-m')}.xlsx";
-    $temporaryBase = tempnam(sys_get_temp_dir(), 'monthly-billing-report-');
-    if ($temporaryBase === false) {
-        abort(500, 'Unable to create the monthly report file.');
+
+    $spreadsheet = new Spreadsheet();
+    $sheet = $spreadsheet->getActiveSheet();
+    $sheet->setTitle("Billing {$month->format('M Y')}");
+    
+    $sheet->getColumnDimension('A')->setWidth(18);
+    $sheet->getColumnDimension('B')->setWidth(35);
+    $sheet->getColumnDimension('C')->setWidth(15);
+    $sheet->getColumnDimension('D')->setWidth(15);
+    $sheet->getColumnDimension('E')->setWidth(12);
+    $sheet->getColumnDimension('F')->setWidth(18);
+    $sheet->getColumnDimension('G')->setWidth(18);
+    
+    // TITLE
+    $sheet->setCellValue('A1', 'MONTHLY WATER BILLING REPORT');
+    $sheet->mergeCells('A1:G1');
+    $sheet->getStyle('A1:G1')->applyFromArray([
+        'font' => ['bold' => true, 'size' => 16, 'color' => ['rgb' => 'FFFFFF']],
+        'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '0F3D5E']],
+        'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER],
+    ]);
+    $sheet->getRowDimension(1)->setRowHeight(35);
+    
+    // SUBTITLE
+    $sheet->setCellValue('A2', "Barangay: {$barangay}  •  Billing Month: {$month->format('F Y')}");
+    $sheet->mergeCells('A2:G2');
+    $sheet->getStyle('A2:G2')->applyFromArray([
+        'font' => ['italic' => true, 'size' => 11, 'color' => ['rgb' => '475569']],
+        'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER],
+    ]);
+    $sheet->getRowDimension(2)->setRowHeight(22);
+    
+    // HEADERS
+    $headers = ['Account Number', 'Customer Name', 'Previous Reading', 'Present Reading', 'Usage (m³)', 'Status', 'Total Amount'];
+    $col = 'A';
+    foreach ($headers as $header) {
+        $sheet->setCellValue($col . '4', $header);
+        $col++;
     }
-    @unlink($temporaryBase);
-    $temporaryFile = $temporaryBase . '.xlsx';
-    $writer = \Box\Spout\Writer\Common\Creator\WriterEntityFactory::createXLSXWriter();
-    $writer->openToFile($temporaryFile);
-
-    $titleStyle = (new \Box\Spout\Writer\Common\Creator\Style\StyleBuilder())
-        ->setFontBold()->setFontSize(16)->setFontColor('FFFFFF')->setBackgroundColor('0F3D5E')
-        ->setCellAlignment(\Box\Spout\Common\Entity\Style\CellAlignment::CENTER)->build();
-    $subtitleStyle = (new \Box\Spout\Writer\Common\Creator\Style\StyleBuilder())
-        ->setFontItalic()->setFontColor('475569')->setCellAlignment(\Box\Spout\Common\Entity\Style\CellAlignment::CENTER)->build();
-    $headerStyle = (new \Box\Spout\Writer\Common\Creator\Style\StyleBuilder())
-        ->setFontBold()->setFontColor('FFFFFF')->setBackgroundColor('0E7490')
-        ->setCellAlignment(\Box\Spout\Common\Entity\Style\CellAlignment::CENTER)->build();
-    $currencyStyle = (new \Box\Spout\Writer\Common\Creator\Style\StyleBuilder())
-        ->setFormat('₱#,##0.00')->setCellAlignment(\Box\Spout\Common\Entity\Style\CellAlignment::RIGHT)->build();
-    $disconnectedStyle = (new \Box\Spout\Writer\Common\Creator\Style\StyleBuilder())
-        ->setFontColor('DC2626')->build(); // Red color for disconnected
-
-    // Title row
-    $writer->addRow(\Box\Spout\Writer\Common\Creator\WriterEntityFactory::createRowFromArray(['MONTHLY WATER BILLING REPORT'], $titleStyle));
+    $sheet->getStyle('A4:G4')->applyFromArray([
+        'font' => ['bold' => true, 'size' => 11, 'color' => ['rgb' => 'FFFFFF']],
+        'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '0E7490']],
+        'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER, 'wrapText' => true],
+        'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => '0891B2']]],
+    ]);
+    $sheet->getRowDimension(4)->setRowHeight(25);
     
-    // Subtitle row
-    $writer->addRow(\Box\Spout\Writer\Common\Creator\WriterEntityFactory::createRowFromArray(["Barangay: {$barangay} | Billing Month: {$month->format('F Y')}"], $subtitleStyle));
+    // DATA ROWS
+    $row = 5;
+    $totalAmount = 0;
+    $totalPaid = 0;
+    $totalPending = 0;
     
-    // Empty row
-    $writer->addRow(\Box\Spout\Writer\Common\Creator\WriterEntityFactory::createRowFromArray([]));
-    
-    // Header row
-    $writer->addRow(\Box\Spout\Writer\Common\Creator\WriterEntityFactory::createRowFromArray(['Account Number', 'Name', 'Previous', 'Present', 'Usage', 'Status', 'Total'], $headerStyle));
-
-    // Data rows
-    foreach ($reportData as $data) {
-        $statusStyle = ($data['status'] === 'Disconnected') ? $disconnectedStyle : null;
+    foreach ($reportData as $index => $data) {
+        $sheet->setCellValue('A' . $row, $data['account_no']);
+        $sheet->setCellValue('B' . $row, $data['customer_name']);
+        $sheet->setCellValue('C' . $row, $data['previous_reading'] !== '' ? $data['previous_reading'] : '');
+        $sheet->setCellValue('D' . $row, $data['current_reading'] !== '' ? $data['current_reading'] : '');
+        $sheet->setCellValue('E' . $row, $data['usage_m3'] !== '' ? $data['usage_m3'] : '');
         
-        $row = \Box\Spout\Writer\Common\Creator\WriterEntityFactory::createRow([
-            \Box\Spout\Writer\Common\Creator\WriterEntityFactory::createCell($data['account_no']),
-            \Box\Spout\Writer\Common\Creator\WriterEntityFactory::createCell($data['customer_name']),
-            \Box\Spout\Writer\Common\Creator\WriterEntityFactory::createCell($data['previous_reading']),
-            \Box\Spout\Writer\Common\Creator\WriterEntityFactory::createCell($data['current_reading']),
-            \Box\Spout\Writer\Common\Creator\WriterEntityFactory::createCell($data['usage_m3']),
-            \Box\Spout\Writer\Common\Creator\WriterEntityFactory::createCell(
-                $data['status'] === 'Disconnected' ? 'Disconnected' : ucfirst(strtolower($data['status'])),
-                $statusStyle
-            ),
-            \Box\Spout\Writer\Common\Creator\WriterEntityFactory::createCell((float) $data['total_due'], $currencyStyle),
+        $statusValue = $data['status'] === 'Disconnected' ? 'Disconnected' : ucfirst(strtolower($data['status']));
+        $sheet->setCellValue('F' . $row, $statusValue);
+        
+        switch (strtolower($data['status'])) {
+            case 'paid': $statusColor = '16A34A'; break;
+            case 'pending': $statusColor = 'EA580C'; break;
+            case 'disconnected': $statusColor = 'DC2626'; break;
+            case 'void': $statusColor = '6B7280'; break;
+            case 'due': $statusColor = 'CA8A04'; break;
+            default: $statusColor = '4B5563';
+        }
+        
+        $sheet->getStyle('F' . $row)->applyFromArray([
+            'font' => ['bold' => true, 'color' => ['rgb' => $statusColor]],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
         ]);
         
-        $writer->addRow($row);
+        $sheet->setCellValue('G' . $row, $data['total_due']);
+        $sheet->getStyle('G' . $row)->getNumberFormat()->setFormatCode('₱#,##0.00');
+        $sheet->getStyle('G' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+        
+        $sheet->getStyle('A' . $row . ':G' . $row)->applyFromArray([
+            'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => 'D1D5DB']]],
+        ]);
+        
+        // Alternate row colors - FIXED
+        if ($index % 2 == 1) {
+            $sheet->getStyle('A' . $row . ':G' . $row)->getFill()
+                ->setFillType(Fill::FILL_SOLID)
+                ->setStartColor(new Color('F8FAFC'));
+        }
+        
+        $sheet->getStyle('C' . $row . ':E' . $row)->getAlignment()
+            ->setHorizontal(Alignment::HORIZONTAL_CENTER);
+        
+        if ($data['has_bill']) {
+            $totalAmount += $data['total_due'];
+            if (strtolower($data['status']) == 'paid') $totalPaid += $data['total_due'];
+            if (strtolower($data['status']) == 'pending') $totalPending += $data['total_due'];
+        }
+        
+        $row++;
     }
-
-    $writer->close();
+    
+    // SUMMARY
+    $row++;
+    $sheet->setCellValue('A' . $row, 'SUMMARY');
+    $sheet->mergeCells('A' . $row . ':G' . $row);
+    $sheet->getStyle('A' . $row . ':G' . $row)->applyFromArray([
+        'font' => ['bold' => true, 'size' => 12, 'color' => ['rgb' => 'FFFFFF']],
+        'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '0F3D5E']],
+        'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
+    ]);
+    $row++;
+    
+    $summaryData = [
+        ['Total Customers', count($reportData)],
+        ['Active with Bills', count(array_filter($reportData, fn($d) => $d['has_bill']))],
+        ['Disconnected', count(array_filter($reportData, fn($d) => $d['status'] === 'Disconnected'))],
+        ['No Bill', count(array_filter($reportData, fn($d) => $d['status'] === 'No Bill'))],
+        ['', ''],
+        ['Total Amount Due', '₱' . number_format($totalAmount, 2)],
+        ['Total Collected', '₱' . number_format($totalPaid, 2)],
+        ['Total Pending', '₱' . number_format($totalPending, 2)],
+    ];
+    
+    foreach ($summaryData as $summaryRow) {
+        $sheet->setCellValue('A' . $row, $summaryRow[0]);
+        $sheet->setCellValue('B' . $row, $summaryRow[1]);
+        $sheet->mergeCells('B' . $row . ':C' . $row);
+        
+        if (!empty($summaryRow[0])) {
+            $sheet->getStyle('A' . $row)->getFont()->setBold(true);
+        }
+        if (strpos($summaryRow[0], 'Total') === 0) {
+            $sheet->getStyle('A' . $row . ':C' . $row)->getFont()
+                ->setBold(true)->setSize(11);
+        }
+        $row++;
+    }
+    
+    // FOOTER
+    $row++;
+    $sheet->setCellValue('A' . $row, 'Generated on: ' . now()->format('F d, Y  h:i A'));
+    $sheet->mergeCells('A' . $row . ':G' . $row);
+    $sheet->getStyle('A' . $row)->applyFromArray([
+        'font' => ['italic' => true, 'size' => 9, 'color' => ['rgb' => '6B7280']],
+        'alignment' => ['horizontal' => Alignment::HORIZONTAL_RIGHT],
+    ]);
+    
+    $sheet->freezePane('A5');
+    $sheet->setAutoFilter('A4:G4');
+    
+    $writer = new Xlsx($spreadsheet);
+    $temporaryFile = tempnam(sys_get_temp_dir(), 'monthly-billing-report-') . '.xlsx';
+    $writer->save($temporaryFile);
 
     return response()->download($temporaryFile, $filename, [
         'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     ])->deleteFileAfterSend(true);
 }
+
     public function indexByCustomer(Request $request, Customer $customer)
     {
         $status = $request->query('status');
