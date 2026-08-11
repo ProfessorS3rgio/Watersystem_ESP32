@@ -726,7 +726,6 @@ export default {
         search: customersComposable.search.value,
         status: statusFilter.value,
         bill_state: billFilter.value,
-        brgy_id: selectedBarangay.value,
       })
     }
 
