@@ -63,6 +63,10 @@ public function monthlyReport(Request $request)
     // Define the billing cycle: include first 5 days of next month as part of this month
     $billingStart = $month->copy()->startOfMonth();
     $billingEnd = $month->copy()->endOfMonth()->addDays(5); // Include up to 5th of next month
+
+    if (!$barangayId) {
+        return $this->allBarangaysMonthlyReport($month, $billingStart, $billingEnd);
+    }
     
     $billsQuery = Bill::with(['customer', 'reading'])
         ->whereBetween('bill_date', [$billingStart, $billingEnd])
@@ -283,6 +287,232 @@ public function monthlyReport(Request $request)
         'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     ])->deleteFileAfterSend(true);
 }
+
+    private function allBarangaysMonthlyReport(Carbon $month, Carbon $billingStart, Carbon $billingEnd)
+    {
+        $barangays = \App\Models\BarangaySequence::orderBy('brgy_id')->get();
+        $customerTypes = \App\Models\CustomerType::pluck('type_name', 'type_id');
+        $customersByBarangay = Customer::orderBy('account_no')->get()->groupBy('brgy_id');
+        $billsByAccount = Bill::with(['customer', 'reading'])
+            ->whereBetween('bill_date', [$billingStart, $billingEnd])
+            ->orderBy('bill_date', 'desc')
+            ->get()
+            ->keyBy('customer_account_number');
+
+        $spreadsheet = new Spreadsheet();
+        $spreadsheet->getDefaultStyle()->getFont()->setName('Calibri')->setSize(11);
+        $moneyFormat = '"PHP "#,##0.00';
+
+        $sectionForType = function (?string $typeName): string {
+            $type = strtolower((string) $typeName);
+            if (str_contains($type, 'communal')) return 'LEVEL - II';
+            if (str_contains($type, 'commercial')) return 'COMMERCIAL';
+            if (str_contains($type, 'officer')) return "OFFICER'S RATE";
+            return 'LEVEL - III';
+        };
+
+        $summary = [];
+
+        foreach ($barangays as $sheetIndex => $barangay) {
+            $sheet = $sheetIndex === 0 ? $spreadsheet->getActiveSheet() : $spreadsheet->createSheet();
+            $sheetName = substr(preg_replace('/[\\\\\\/\\?\\*\\[\\]:]+/', '-', $barangay->barangay), 0, 31);
+            $sheet->setTitle($sheetName ?: "Barangay {$barangay->brgy_id}");
+            $sheet->getDefaultRowDimension()->setRowHeight(18);
+
+            foreach (['A' => 8, 'B' => 7, 'C' => 28, 'D' => 14, 'E' => 14, 'F' => 12, 'G' => 14, 'H' => 12] as $column => $width) {
+                $sheet->getColumnDimension($column)->setWidth($width);
+            }
+
+            $sheet->setCellValue('F1', $month->format('F Y'));
+            $sheet->mergeCells('G2:H3');
+            $sheet->setCellValue('G2', strtoupper($barangay->barangay));
+            $sheet->getStyle('F1:H3')->applyFromArray([
+                'font' => ['bold' => true, 'size' => 12],
+                'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER],
+            ]);
+
+            $row = 3;
+            $barangaySummary = [
+                'barangay' => $barangay->barangay,
+                'LEVEL - II' => 0,
+                'LEVEL - III' => 0,
+                'COMMERCIAL' => 0,
+                "OFFICER'S RATE" => 0,
+                'gross' => 0,
+                'delayed' => 0,
+                'penalty' => 0,
+            ];
+
+            $customers = $customersByBarangay->get($barangay->brgy_id, collect())
+                ->groupBy(fn ($customer) => $sectionForType($customerTypes[$customer->type_id] ?? null));
+
+            foreach (['LEVEL - III', 'LEVEL - II', 'COMMERCIAL', "OFFICER'S RATE"] as $section) {
+                $sectionCustomers = $customers->get($section, collect());
+                if ($sectionCustomers->isEmpty()) {
+                    continue;
+                }
+
+                $row++;
+                $sheet->setCellValue("B{$row}", $section);
+                $sheet->getStyle("B{$row}:H{$row}")->getFont()->setBold(true);
+
+                $row++;
+                $sheet->mergeCells("C{$row}:D{$row}");
+                $sheet->mergeCells("F{$row}:G{$row}");
+                $sheet->fromArray([
+                    '',
+                    '',
+                    "Billing Month: {$billingStart->format('M. j')}-{$month->copy()->endOfMonth()->format('j, Y')}",
+                    '',
+                    'Collection Date:',
+                    'To be collect by the month of:',
+                    '',
+                    $billingEnd->copy()->addMonth()->format('M. Y'),
+                ], null, "A{$row}");
+                $sheet->getStyle("C{$row}:H{$row}")->getFont()->setBold(true);
+
+                $row++;
+                $sheet->fromArray(['Cubic Used', 'No.', 'NAME', 'PENALTY LAST MONTH', 'MONTHLY COLLECTION', 'METER No.', 'COLLECTABLE FAILURE TO PAY', 'PENALTY'], null, "A{$row}");
+                $sheet->getStyle("A{$row}:H{$row}")->applyFromArray([
+                    'font' => ['bold' => true],
+                    'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER, 'wrapText' => true],
+                    'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => '000000']]],
+                ]);
+
+                $row++;
+                $sectionStartRow = $row;
+                $sectionUsage = 0;
+                $sectionCollection = 0;
+                $sectionCollectable = 0;
+                $sectionPenalty = 0;
+                $number = 1;
+
+                foreach ($sectionCustomers as $customer) {
+                    $bill = $billsByAccount->get($customer->account_no);
+                    $status = strtolower((string) ($bill?->status ?? ''));
+                    $usage = $bill?->reading?->usage_m3;
+                    $penalty = (float) ($bill?->penalty ?? 0);
+                    $amount = (float) ($bill?->total_due ?? 0);
+                    $monthlyCollection = $bill && $status === 'paid' ? $amount : null;
+                    $collectable = $bill && in_array($status, ['pending', 'due'], true) ? $amount : null;
+                    $displayName = $customer->customer_name;
+
+                    if (!$bill && $customer->status === 'disconnected') {
+                        $displayName .= ' CLOSED';
+                    }
+
+                    $sheet->fromArray([
+                        $usage ?? '',
+                        $number,
+                        $displayName,
+                        '',
+                        $monthlyCollection,
+                        $customer->account_no,
+                        $collectable,
+                        $penalty > 0 ? $penalty : null,
+                    ], null, "A{$row}");
+                    $sheet->getStyle("A{$row}:H{$row}")->applyFromArray([
+                        'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => '000000']]],
+                        'alignment' => ['vertical' => Alignment::VERTICAL_CENTER],
+                    ]);
+                    $sheet->getStyle("A{$row}:B{$row}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                    $sheet->getStyle("D{$row}:E{$row}")->getNumberFormat()->setFormatCode($moneyFormat);
+                    $sheet->getStyle("G{$row}:H{$row}")->getNumberFormat()->setFormatCode($moneyFormat);
+
+                    $sectionUsage += (int) ($usage ?? 0);
+                    $sectionCollection += (float) ($monthlyCollection ?? 0);
+                    $sectionCollectable += (float) ($collectable ?? 0);
+                    $sectionPenalty += $penalty;
+                    $barangaySummary[$section] += (float) ($monthlyCollection ?? 0);
+                    $barangaySummary['gross'] += $amount;
+                    $barangaySummary['delayed'] += (float) ($collectable ?? 0);
+                    $barangaySummary['penalty'] += $penalty;
+                    $number++;
+                    $row++;
+                }
+
+                $sheet->fromArray([$sectionUsage, 'TOTAL', '', '', $sectionCollection, 'TOTAL', $sectionCollectable, $sectionPenalty], null, "A{$row}");
+                $sheet->getStyle("A{$row}:H{$row}")->applyFromArray([
+                    'font' => ['bold' => true],
+                    'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'FDE68A']],
+                    'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => '000000']]],
+                ]);
+                $sheet->getStyle("D{$sectionStartRow}:E{$row}")->getNumberFormat()->setFormatCode($moneyFormat);
+                $sheet->getStyle("G{$sectionStartRow}:H{$row}")->getNumberFormat()->setFormatCode($moneyFormat);
+                $row++;
+            }
+
+            if ($row === 3) {
+                $sheet->setCellValue('A5', 'No customers found for this barangay.');
+            }
+
+            $sheet->freezePane('A6');
+            $sheet->getPageSetup()
+                ->setOrientation(\PhpOffice\PhpSpreadsheet\Worksheet\PageSetup::ORIENTATION_LANDSCAPE)
+                ->setFitToWidth(1)
+                ->setFitToHeight(0);
+            $sheet->getPageMargins()->setTop(0.5)->setRight(0.3)->setLeft(0.3)->setBottom(0.5);
+            $sheet->getHeaderFooter()->setOddFooter('&L' . $sheet->getTitle() . '&RPage &P of &N');
+            $summary[] = $barangaySummary;
+        }
+
+        $summarySheet = $spreadsheet->createSheet();
+        $summarySheet->setTitle('DMBC-Summary');
+        foreach (['A' => 6, 'B' => 14, 'C' => 14, 'D' => 14, 'E' => 14, 'F' => 16, 'G' => 16, 'H' => 14] as $column => $width) {
+            $summarySheet->getColumnDimension($column)->setWidth($width);
+        }
+        $summarySheet->setCellValue('A1', "DMBC MONTHLY INCOME - {$month->format('F Y')}");
+        $summarySheet->mergeCells('A1:H1');
+        $summarySheet->getStyle('A1:H1')->applyFromArray([
+            'font' => ['bold' => true, 'size' => 14],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
+        ]);
+        $summarySheet->fromArray(['BRGY', 'L-2', 'L-3', 'COMMERCIAL', 'OFFICERS', 'Gross TOTAL Collection', 'DELAYED PAYMENT', 'PENALTY'], null, 'A4');
+        $summarySheet->getStyle('A4:H4')->applyFromArray([
+            'font' => ['bold' => true],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'wrapText' => true],
+            'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => '000000']]],
+        ]);
+
+        $row = 5;
+        $totals = ['LEVEL - II' => 0, 'LEVEL - III' => 0, 'COMMERCIAL' => 0, "OFFICER'S RATE" => 0, 'gross' => 0, 'delayed' => 0, 'penalty' => 0];
+        foreach ($summary as $item) {
+            $summarySheet->fromArray([
+                strtoupper(substr($item['barangay'], 0, 1)),
+                $item['LEVEL - II'],
+                $item['LEVEL - III'],
+                $item['COMMERCIAL'],
+                $item["OFFICER'S RATE"],
+                $item['gross'],
+                $item['delayed'],
+                $item['penalty'],
+            ], null, "A{$row}");
+            $summarySheet->getStyle("A{$row}:H{$row}")->applyFromArray([
+                'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => '000000']]],
+            ]);
+            foreach ($totals as $key => $value) {
+                $totals[$key] += $item[$key];
+            }
+            $row++;
+        }
+        $summarySheet->fromArray(['TOTAL', $totals['LEVEL - II'], $totals['LEVEL - III'], $totals['COMMERCIAL'], $totals["OFFICER'S RATE"], $totals['gross'], $totals['delayed'], $totals['penalty']], null, "A{$row}");
+        $summarySheet->getStyle("A{$row}:H{$row}")->applyFromArray([
+            'font' => ['bold' => true],
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'FDE68A']],
+            'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => '000000']]],
+        ]);
+        $summarySheet->getStyle("B5:H{$row}")->getNumberFormat()->setFormatCode($moneyFormat);
+        $spreadsheet->setActiveSheetIndex(0);
+
+        $filename = "monthly-billing-report-All-Barangays-{$month->format('Y-m')}.xlsx";
+        $writer = new Xlsx($spreadsheet);
+        $temporaryFile = tempnam(sys_get_temp_dir(), 'monthly-billing-report-all-') . '.xlsx';
+        $writer->save($temporaryFile);
+
+        return response()->download($temporaryFile, $filename, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ])->deleteFileAfterSend(true);
+    }
 
     public function indexByCustomer(Request $request, Customer $customer)
     {
