@@ -105,7 +105,9 @@ void printBill() {
   printer.print(F("Address  : "));
   printer.println(fitAddressForPrint(currentBill.address));
   printer.print(F("Barangay : "));
-  printer.println(F("Makilas"));
+  // printer.println(F("Makilas"));
+  // printer.println(F("Caparan"));
+  printer.println(F("Dona Josefa"));
   printer.println(F("--------------------------------"));
   YIELD_WDT();
 

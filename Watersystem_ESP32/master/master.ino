@@ -132,20 +132,43 @@ void setup() {
     Serial.println(F("[BLE] Slave link disabled for heap comparison"));
   }
   
-  // Initialize I2C for RTC and MAX17043
-  Wire.begin(RTC_SDA, RTC_SCL);
-  if (! rtc.begin()) {
-    Serial.println(F("Couldn't find RTC"));
-  } else {
-    Serial.println(F("RTC initialized"));
-    if (rtc.lostPower()) {
-      rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
-      Serial.println(F("RTC time set to compile time"));
-    } else {
-      Serial.println(F("RTC time preserved"));
-    }
-  }
+// Initialize I2C for RTC and MAX17043
+Wire.begin(RTC_SDA, RTC_SCL);
 
+// Try to initialize RTC with retries
+int rtcRetries = 3;
+bool rtcFound = false;
+
+for (int i = 0; i < rtcRetries; i++) {
+    if (rtc.begin()) {
+        rtcFound = true;
+        break;
+    }
+    Serial.printf("RTC init attempt %d failed, retrying...\n", i + 1);
+    delay(100);
+}
+
+if (!rtcFound) {
+    Serial.println(F("Couldn't find RTC after 3 attempts, restarting ESP32..."));
+    delay(1000);  // Give time for Serial to flush
+    ESP.restart();
+} else {
+    Serial.println(F("RTC initialized"));
+    
+    if (rtc.lostPower()) {
+        Serial.println(F("RTC lost power - setting to compile time"));
+        rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+        Serial.println(F("RTC time set to compile time"));
+    } else {
+        Serial.println(F("RTC time preserved"));
+    }
+    
+    // Print current time
+    DateTime now = rtc.now();
+    Serial.printf("RTC Time: %04d-%02d-%02d %02d:%02d:%02d\n",
+        now.year(), now.month(), now.day(),
+        now.hour(), now.minute(), now.second());
+}
   if (!g_lipo.begin()) {
     g_lipoDetected = false;
     Serial.printf("MAX17043 not detected. Check I2C wiring (SDA=%d, SCL=%d) or power.\n", RTC_SDA, RTC_SCL);
@@ -175,8 +198,8 @@ void setup() {
   
   // Initialize TFT
   tft.begin();  // For 320x240 ILI9341
-  // tft.setRotation(3);          // Landscape mode (flipped, 240x320)
-    tft.setRotation(1);          // Landscape mode (240x320)
+  tft.setRotation(3);          // Landscape mode (flipped, 240x320)
+    // tft.setRotation(1);          // Landscape mode (240x320)
   tft.fillScreen(COLOR_BG);
 
   // Ensure shared SPI CS pins are in a safe state before SD init

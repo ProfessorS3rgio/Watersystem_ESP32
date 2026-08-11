@@ -4,11 +4,11 @@ arduino-cli compile --fqbn esp32:esp32:esp32 Watersystem_ESP32.ino
 arduino-cli upload -p COM4 --fqbn esp32:esp32:esp32 Watersystem_ESP32.ino
 
 
-arduino-cli compile --upload -p COM7 --fqbn esp32:esp32:esp32 .
+arduino-cli compile --upload -p COM8 --fqbn esp32:esp32:esp32 .
 arduino-cli compile --upload -p COM4 --fqbn esp32:esp32:esp32 .
 arduino-cli compile --upload -p COM3 --fqbn esp32:esp32:esp32 .
 
-arduino-cli compile --upload -p COM10 --fqbn esp32:esp32:esp32 .
+arduino-cli compile --upload -p COM15 --fqbn esp32:esp32:esp32 .
 
 
 arduino-cli compile --upload -p COM7 --fqbn esp32:esp32:esp32:PartitionScheme=huge_app .
