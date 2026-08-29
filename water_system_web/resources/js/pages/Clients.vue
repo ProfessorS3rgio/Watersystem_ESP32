@@ -18,12 +18,15 @@
       @select-barangay="selectedBarangay = $event"
     />
 
-     <div class="mb-6">
+     <div class="mb-6 flex flex-wrap gap-3">
       <button @click="openAddModal" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-medium shadow-lg transition-all duration-200 flex items-center space-x-2">
         <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
         </svg>
         <span>Add New Client</span>
+      </button>
+      <button @click="isReadingImportOpen = true" class="bg-teal-600 hover:bg-teal-700 text-white px-6 py-3 rounded-lg font-medium shadow-lg transition-all duration-200">
+        Import Readings
       </button>
     </div>
     <!-- Clients Table -->
@@ -235,6 +238,13 @@
     />
 
     <!-- Client Form -->
+    <ReadingImportModal
+      :is-open="isReadingImportOpen"
+      :is-dark="isDark"
+      @close="isReadingImportOpen = false"
+      @imported="handleReadingImportCompleted"
+    />
+
     <ClientForm
       :is-add-modal-open="isAddModalOpen"
       :is-edit-modal-open="isEditModalOpen"
@@ -351,6 +361,7 @@ import SuccessModal from '../components/SuccessModal.vue'
 import UsageModal from '../components/UsageModal.vue'
 import StatsCards from '../components/StatsCards.vue'
 import ClientForm from '../components/ClientForm.vue'
+import ReadingImportModal from '../components/ReadingImportModal.vue'
 import { useCustomers } from '../composables/useCustomers.js'
 import { useModals } from '../composables/useModals.js'
 import { useCustomerForm } from '../composables/useCustomerForm.js'
@@ -364,7 +375,8 @@ export default {
     SuccessModal,
     UsageModal,
     StatsCards,
-    ClientForm
+    ClientForm,
+    ReadingImportModal
   },
   setup() {
     const customersComposable = useCustomers()
@@ -379,6 +391,7 @@ export default {
     const swapTargetCustomerId = ref(null)
     const swapError = ref('')
     const swapLoading = ref(false)
+    const isReadingImportOpen = ref(false)
 
     const statusFilter = ref('all')
     const billFilter = ref('all')
@@ -396,6 +409,14 @@ export default {
       }
       return filtered
     })
+
+    const handleReadingImportCompleted = async (result) => {
+      await fetchCustomersWithFilters()
+      modalsComposable.showSuccess(
+        'Readings Imported',
+        `<strong>${result.updated}</strong> ${result.barangay} reading records for ${result.billing_month_label} were updated successfully.`
+      )
+    }
 
     const swapTargets = computed(() => {
       const sourceId = swapSourceCustomer.value?.id
@@ -798,6 +819,8 @@ export default {
       statusFilter,
       billFilter,
       filteredCustomers,
+      isReadingImportOpen,
+      handleReadingImportCompleted,
     }
   }
 }

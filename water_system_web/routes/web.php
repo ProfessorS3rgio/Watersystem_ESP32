@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\ReadingController;
+use App\Http\Controllers\ReadingImportController;
 use App\Http\Controllers\BillController;
 use App\Http\Controllers\DeviceController;
 use App\Http\Controllers\SettingsController;
@@ -39,6 +40,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/deductions/mark-synced', [DeductionController::class, 'markSynced']);
 
     Route::get('/customers', [CustomerController::class, 'index']);
+    Route::post('/customers/readings-import/preview', [ReadingImportController::class, 'preview']);
+    Route::post('/customers/readings-import/confirm', [ReadingImportController::class, 'confirm']);
     Route::post('/customers', [CustomerController::class, 'store']);
     Route::put('/customers/{customer}', [CustomerController::class, 'update']);
     Route::delete('/customers/{customer}', [CustomerController::class, 'destroy']);
