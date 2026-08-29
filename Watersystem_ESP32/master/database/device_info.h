@@ -13,9 +13,10 @@ static const char* DEVICE_TYPE_VALUE = "ESP32 Water System";
 static const char* FIRMWARE_VERSION_VALUE = "v1.0.0";
 // static const char* COLLECTOR_NAME_VALUE = "DIOSDADO A. BALANSAG"; // BULUAN
 // static const char* COLLECTOR_NAME_VALUE = "ESMERALDA S. REBONANZA"; // DONA JOSEFA
-static const char* COLLECTOR_NAME_VALUE = "EXPEDITA R. BANAGUA"; // CAPARAN
-static const unsigned long DEVICE_ID_VALUE = 4; 
-static const unsigned long BRGY_ID_VALUE = 4;    
+// static const char* COLLECTOR_NAME_VALUE = "EXPEDITA R. BANAGUA"; // CAPARAN
+static const char* COLLECTOR_NAME_VALUE = "DIESERHEY BARANDA";
+static const unsigned long DEVICE_ID_VALUE = 2; 
+static const unsigned long BRGY_ID_VALUE = 2;    
 
 // Device UID - unique identifier (MAC address)
 static String getDeviceUID() {

@@ -67,27 +67,14 @@ public:
         delay(100);
     }
 
-    // set defaults (mimic Adafruit_Thermal)
+    // Restore only commands confirmed to work on the QR204.
     void setDefault() {
-        // just set a sane line spacing
         setLineSpacing(30);
-        setPrintDensity();
     }
 
-    // ESC/POS density/speed control (DC2 # n).
-    // printDensity: 0..31 (higher is darker), printBreakTime: 0..7 (higher is slower/darker)
-    void setPrintDensity(uint8_t printDensity = 10, uint8_t printBreakTime = 2) {
-        if (printDensity > 31) printDensity = 31;
-        if (printBreakTime > 7) printBreakTime = 7;
-
-        _serial.write(0x12);  // DC2
-        _serial.write('#');
-        _serial.write((uint8_t)((printDensity << 3) | printBreakTime));
-    }
-
-    // Stronger profile for dark bitmap/logo output.
+    // Kept for existing callers. This QR204 prints the parameter bytes from
+    // Adafruit-style ESC 7 and DC2 # commands as text, so do not send them.
     void setBitmapDarkProfile() {
-        setPrintDensity(23, 5);
     }
 
     // adjust line spacing (ESC 3 n)

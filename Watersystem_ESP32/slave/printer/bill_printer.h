@@ -113,7 +113,7 @@ void printBill() {
 
   // Collector
   printer.justify('C');
-  printer.println(F("Temp Collector"));
+  printer.println(F("Temp Reader"));
   printer.println(currentBill.collector);
 //   printer.println(F(""));
   YIELD_WDT();

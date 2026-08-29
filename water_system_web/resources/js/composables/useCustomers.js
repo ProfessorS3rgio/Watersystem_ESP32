@@ -77,7 +77,9 @@ export function useCustomers() {
       await fetchCustomers()
     } catch (error) {
       if (error.response?.status === 422) {
-        throw new Error('Validation error: ' + Object.values(error.response.data.errors).flat().join(', '))
+        const validationError = new Error('Please correct the highlighted fields.')
+        validationError.validationErrors = error.response.data.errors || {}
+        throw validationError
       }
       throw new Error(error.response?.data?.message || 'Failed to update customer')
     }

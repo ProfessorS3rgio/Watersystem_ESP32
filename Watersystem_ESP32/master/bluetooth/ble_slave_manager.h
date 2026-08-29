@@ -33,9 +33,9 @@ String bleConnectionStatusText();
 namespace {
 constexpr char BLE_MASTER_DEVICE_NAME[] = "WaterSystem";
 constexpr bool BLE_DIRECT_CONNECT_ENABLED = true;
-constexpr char BLE_SLAVE_KNOWN_MAC[] = "d4:05:92:e6:a7:ee"; // -- Caparan Device
+constexpr char BLE_SLAVE_KNOWN_MAC[] = "d4:05:92:e6:a7:ee"; // -- Makilas Device
 // constexpr char BLE_SLAVE_KNOWN_MAC[] = "e0:72:a1:6e:3f:ba"; //Buluan Device
-// constexpr char BLE_SLAVE_KNOWN_MAC[] = "ac:a7:04:d7:5d:0e"; // -- Makilas Device
+// constexpr char BLE_SLAVE_KNOWN_MAC[] = "ac:a7:04:d7:5d:0e"; // --  Device
 constexpr uint32_t BLE_SCAN_SECONDS = 5;
 constexpr uint32_t BLE_RETRY_DELAY_MS = 1200;
 constexpr uint32_t BLE_STATUS_POLL_MS = 1000;

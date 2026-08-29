@@ -237,8 +237,8 @@
             <p v-if="fieldError('address')" class="text-sm text-red-600 mt-1">{{ fieldError('address') }}</p>
           </div>
 
-          <!-- Row 4: Previous Reading and Status -->
-          <div class="grid grid-cols-2 gap-4">
+          <!-- Row 4: Meter readings and status -->
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label class="block text-sm font-medium mb-1">Previous Reading</label>
               <input
@@ -249,6 +249,22 @@
                 :class="inputClass(isDark)"
               />
               <p v-if="fieldError('previous_reading')" class="text-sm text-red-600 mt-1">{{ fieldError('previous_reading') }}</p>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium mb-1">Present Reading</label>
+              <input
+                v-model.number="editCustomer.current_reading"
+                type="number"
+                min="0"
+                class="w-full px-4 py-2 rounded-lg border disabled:cursor-not-allowed disabled:opacity-60"
+                :class="inputClass(isDark)"
+                :disabled="!editCustomer.has_current_reading"
+              />
+              <p v-if="!editCustomer.has_current_reading" class="text-xs mt-1" :class="isDark ? 'text-gray-400' : 'text-gray-500'">
+                No reading record is available yet.
+              </p>
+              <p v-if="fieldError('current_reading')" class="text-sm text-red-600 mt-1">{{ fieldError('current_reading') }}</p>
             </div>
 
             <div>

@@ -221,7 +221,7 @@ void printReceipt() {
   printer.justify('C');
   printer.println();
   printer.println(F("Thank you for your payment!"));
-  printer.println(F("This serves as an official receipt."));
+  printer.println(F("This serves as official receipt."));
   printer.println(F("Save Water, Save Life!"));
 
   // Office stub copy

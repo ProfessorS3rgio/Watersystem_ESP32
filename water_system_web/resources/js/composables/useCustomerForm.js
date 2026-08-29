@@ -11,6 +11,8 @@ export function useCustomerForm() {
     brgy_id: null,
     address: '',
     previous_reading: 0,
+    current_reading: null,
+    has_current_reading: false,
     status: 'active',
     deduction_id: null,
   })
@@ -33,6 +35,8 @@ export function useCustomerForm() {
       brgy_id: null,
       address: '',
       previous_reading: 0,
+      current_reading: null,
+      has_current_reading: false,
       status: 'active',
       deduction_id: null,
     })

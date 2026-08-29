@@ -433,6 +433,8 @@ export default {
         brgy_id: customer.brgy_id || null,
         address: customer.address || '',
         previous_reading: customer.previous_reading || 0,
+        current_reading: customer.current_reading ?? null,
+        has_current_reading: customer.current_reading !== null && customer.current_reading !== undefined,
         status: customer.status || 'active',
       })
       modalsComposable.openEditModal(customer)
@@ -568,6 +570,7 @@ export default {
           brgy_id: formComposable.editCustomer.brgy_id,
           address: formComposable.editCustomer.address,
           previous_reading: formComposable.editCustomer.previous_reading,
+          current_reading: formComposable.editCustomer.current_reading,
           status: formComposable.editCustomer.status,
         })
 
@@ -577,8 +580,8 @@ export default {
           `Client <strong>${formComposable.editCustomer.customer_name}</strong> has been successfully updated.`
         )
       } catch (e) {
-        if (e.message.includes('Validation error')) {
-          formComposable.setFieldErrors(JSON.parse(e.message.replace('Validation error: ', '')))
+        if (e.validationErrors) {
+          formComposable.setFieldErrors(e.validationErrors)
         } else {
           formComposable.submitError.value = e?.message || 'Failed to update customer'
         }

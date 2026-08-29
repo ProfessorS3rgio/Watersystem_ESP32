@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Customer;
 use App\Models\BarangaySequence;
+use App\Models\Reading;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -278,6 +279,7 @@ class CustomerController extends Controller
             'brgy_id' => ['required', 'integer', 'exists:barangay_sequence,brgy_id'],
             'address' => ['required', 'string', 'max:255'],
             'previous_reading' => ['nullable', 'integer', 'min:0'],
+            'current_reading' => ['nullable', 'integer', 'min:0'],
             'status' => ['required', 'in:active,disconnected'],
             'deduction_id' => ['nullable', 'integer', 'exists:deduction,deduction_id'],
         ]);
@@ -285,6 +287,31 @@ class CustomerController extends Controller
         $deductionId = $validated['deduction_id'] ?? null;
 
         DB::transaction(function () use ($customer, $validated, $deductionId) {
+            $latestReading = Reading::where('customer_id', $customer->customer_id)
+                ->orderByDesc('reading_at')
+                ->orderByDesc('reading_id')
+                ->lockForUpdate()
+                ->first();
+
+            $previousReading = array_key_exists('previous_reading', $validated) && $validated['previous_reading'] !== null
+                ? (int) $validated['previous_reading']
+                : (int) $customer->previous_reading;
+            $currentReadingInput = $validated['current_reading'] ?? null;
+
+            if ($currentReadingInput !== null) {
+                if (!$latestReading) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'current_reading' => 'This customer does not have a reading record to update yet.',
+                    ]);
+                }
+
+                if ((int) $currentReadingInput < $previousReading) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'current_reading' => 'Present reading must be greater than or equal to the previous reading.',
+                    ]);
+                }
+            }
+
             $customer->update([
                 'account_no' => $validated['account_no'],
                 'customer_name' => $validated['customer_name'],
@@ -292,13 +319,21 @@ class CustomerController extends Controller
                 'deduction_id' => $deductionId,
                 'brgy_id' => $validated['brgy_id'],
                 'address' => $validated['address'],
-                'previous_reading' => array_key_exists('previous_reading', $validated) && $validated['previous_reading'] !== null
-                    ? $validated['previous_reading']
-                    : $customer->previous_reading,
+                'previous_reading' => $previousReading,
                 'status' => $validated['status'],
                 'Synced' => false,
                 // Don't set last_sync to null for updated customers - keep previous sync time
             ]);
+
+            if ($latestReading && $currentReadingInput !== null) {
+                $currentReading = (int) $currentReadingInput;
+                $latestReading->previous_reading = $previousReading;
+                $latestReading->current_reading = $currentReading;
+                $latestReading->usage_m3 = $currentReading - $previousReading;
+                $latestReading->customer_account_number = $validated['account_no'];
+                $latestReading->Synced = false;
+                $latestReading->save();
+            }
 
             // Sync deductions in customer_deduction table
             if ($deductionId) {
