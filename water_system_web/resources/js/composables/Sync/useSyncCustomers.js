@@ -1,5 +1,8 @@
 import { ref } from 'vue'
 import { serialService } from '../../services/serialService'
+import { sanitizeCustomerForDevice } from './customerSyncPayload'
+
+export { sanitizeCustomerForDevice }
 
 export function useSyncCustomers() {
   const chunkAckPromise = ref(null)
@@ -12,17 +15,6 @@ export function useSyncCustomers() {
     const text = String(line).replace(/\r|\n/g, '')
     await serialService.sendLine(text)
   }
-
-  const sanitizeCustomerForDevice = (customer) => ({
-    account_no: customer.account_no ?? '',
-    customer_name: customer.customer_name ?? '',
-    address: customer.address ?? '',
-    previous_reading: Number(customer.previous_reading ?? 0),
-    status: customer.status ?? 'active',
-    type_id: Number(customer.type_id ?? 1),
-    deduction_id: customer.deduction_id == null ? null : Number(customer.deduction_id),
-    brgy_id: Number(customer.brgy_id ?? 1),
-  })
 
   const sendCustomerChunks = async (type, customers) => {
     // Sequentially send chunks; automatically reduce chunk size if line becomes
