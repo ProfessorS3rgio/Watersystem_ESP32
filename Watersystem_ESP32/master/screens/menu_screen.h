@@ -33,8 +33,10 @@ void displayMenuScreen() {
   tft.println(F("5. Printer Test"));
   tft.setCursor(20, 175);
   tft.println(F("6. Edit Previous"));
+  tft.setCursor(20, 200);
+  tft.println(F("7. Set Date/Time"));
   
-  tft.drawLine(0, 200, 320, 200, COLOR_LINE);
+  tft.drawLine(0, 225, 320, 225, COLOR_LINE);
   
   tft.setTextColor(COLOR_LABEL);
   tft.setCursor(67, 223);

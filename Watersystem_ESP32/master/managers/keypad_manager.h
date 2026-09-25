@@ -33,6 +33,7 @@ void processAccountNumberEntry();
 void processReadingEntry();
 void resetWorkflow();
 void displayMenuScreen();
+void displaySetDateTimeScreen();
 void displayViewRateScreen();
 void displayPrinterStatusScreen();
 void startParallelPrintingJob(void (*job)());
@@ -242,6 +243,11 @@ void handleKeypadInput(char key) {
       inputBuffer = "";
       displayEnterAccountScreen();
     }
+    else if (key == '7') {
+      currentState = STATE_SET_DATETIME;
+      inputBuffer = "";
+      displaySetDateTimeScreen();
+    }
     else if (key == 'C' || key == '#') {
       // Exit menu
       resetWorkflow();
@@ -250,6 +256,60 @@ void handleKeypadInput(char key) {
   else if (currentState == STATE_ABOUT) {
     // About screen
     if (key == 'C') {
+      currentState = STATE_MENU;
+      displayMenuScreen();
+    }
+  }
+  else if (currentState == STATE_SET_DATETIME) {
+    if (key >= '0' && key <= '9' && inputBuffer.length() < 14) {
+      inputBuffer += key;
+      displaySetDateTimeScreen();
+    }
+    else if (key == 'B') {
+      inputBuffer = "";
+      displaySetDateTimeScreen();
+    }
+    else if (key == 'D') {
+      if (inputBuffer.length() != 14) {
+        displayWarningScreen(F("INVALID DATE/TIME"),
+                             String("Enter all 14 digits"),
+                             String("YYYYMMDDHHMMSS"),
+                             F("Press C to cancel"));
+        delay(2000);
+        displaySetDateTimeScreen();
+      } else {
+        int year = inputBuffer.substring(0, 4).toInt();
+        int month = inputBuffer.substring(4, 6).toInt();
+        int day = inputBuffer.substring(6, 8).toInt();
+        int hour = inputBuffer.substring(8, 10).toInt();
+        int minute = inputBuffer.substring(10, 12).toInt();
+        int second = inputBuffer.substring(12, 14).toInt();
+        DateTime dateTime(year, month, day, hour, minute, second);
+
+        if (!dateTime.isValid() || year < 2000 || year > 2099
+            || dateTime.year() != year || dateTime.month() != month
+            || dateTime.day() != day || hour > 23 || minute > 59 || second > 59) {
+          displayWarningScreen(F("INVALID DATE/TIME"),
+                               String("Please check the values"),
+                               String("and try again."),
+                               F("Press C to cancel"));
+          delay(2000);
+          displaySetDateTimeScreen();
+        } else {
+          rtc.adjust(dateTime);
+          tft.fillScreen(COLOR_BG);
+          tft.setTextColor(TFT_GREEN);
+          tft.setCursor(35, 80);
+          tft.println(F("Date/time saved"));
+          delay(1500);
+          inputBuffer = "";
+          currentState = STATE_MENU;
+          displayMenuScreen();
+        }
+      }
+    }
+    else if (key == 'C') {
+      inputBuffer = "";
       currentState = STATE_MENU;
       displayMenuScreen();
     }
