@@ -13,13 +13,14 @@ struct DeviceProfileOption {
   const char* barangay;
   const char* collector;
   const char* slaveMac;
+  uint8_t rotation;
 };
 
 static const DeviceProfileOption DEVICE_PROFILE_OPTIONS[] = {
-  {1, "Dona Josefa", "ESMERALDA S. REBONANZA", "e0:72:a1:6e:3f:ba"},
-  {2, "Makilas", "DIESERHEY BARANDA", "d4:05:92:e6:a7:ee"},
-  {3, "Buluan", "DIOSDADO A. BALANSAG", "e0:72:a1:6e:3f:ba"},
-  {4, "Caparan", "EXPEDITA R. BANAGUA", "ac:a7:04:d7:5d:0e"}
+  {1, "Dona Josefa", "ESMERALDA S. REBONANZA", "e0:72:a1:6e:3f:ba", 1},
+  {2, "Makilas", "DIESERHEY BARANDA", "d4:05:92:e6:a7:ee", 3},
+  {3, "Buluan", "DIOSDADO A. BALANSAG", "e0:72:a1:6e:3f:ba", 3},
+  {4, "Caparan", "EXPEDITA R. BANAGUA", "ac:a7:04:d7:5d:0e", 3}
 };
 
 static const size_t DEVICE_PROFILE_OPTION_COUNT = sizeof(DEVICE_PROFILE_OPTIONS) / sizeof(DEVICE_PROFILE_OPTIONS[0]);
@@ -49,6 +50,11 @@ static const DeviceProfileOption* findDeviceProfileOption(uint32_t deviceId) {
     }
   }
   return nullptr;
+}
+
+void applyDeviceProfileRotation() {
+  const DeviceProfileOption* option = findDeviceProfileOption(g_deviceId);
+  tft.setRotation(option != nullptr ? option->rotation : 3);
 }
 
 bool saveDeviceProfile(uint32_t deviceId) {
@@ -134,6 +140,7 @@ void configureDeviceProfileAtBoot(bool forceSelection = false) {
 
     const uint32_t selectedId = static_cast<uint32_t>(key - '0');
     saveDeviceProfile(selectedId);
+    applyDeviceProfileRotation();
     tft.fillScreen(COLOR_BG);
     tft.setTextColor(TFT_GREEN);
     tft.setCursor(25, 75);

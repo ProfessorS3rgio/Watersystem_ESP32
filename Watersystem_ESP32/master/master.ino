@@ -60,6 +60,7 @@ TFT_eSPI tft = TFT_eSPI();
 
 // ===== RTC MODULE =====
 RTC_DS3231 rtc;
+bool g_rtcNeedsConfiguration = false;
 
 // ===== MCP23017 I/O EXPANDER =====
 Adafruit_MCP23X17 mcp;
@@ -160,15 +161,18 @@ if (!rtcFound) {
     Serial.println(F("RTC initialized"));
     
     if (rtc.lostPower()) {
-        Serial.println(F("RTC lost power - setting to compile time"));
-        rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
-        Serial.println(F("RTC time set to compile time"));
+      g_rtcNeedsConfiguration = true;
+      Serial.println(F("RTC lost power - manual date/time setup required"));
     } else {
         Serial.println(F("RTC time preserved"));
     }
     
     // Print current time
     DateTime now = rtc.now();
+    if (!isPlausibleDateTime(now)) {
+      g_rtcNeedsConfiguration = true;
+      Serial.println(F("RTC returned an invalid date/time - manual setup required"));
+    }
     Serial.printf("RTC Time: %04d-%02d-%02d %02d:%02d:%02d\n",
         now.year(), now.month(), now.day(),
         now.hour(), now.minute(), now.second());
@@ -202,8 +206,7 @@ if (!rtcFound) {
   
   // Initialize TFT
   tft.begin();  // For 320x240 ILI9341
-  tft.setRotation(3);          // Landscape mode (flipped, 240x320)
-    // tft.setRotation(1);          // Landscape mode (240x320)
+  applyDeviceProfileRotation();
   tft.fillScreen(COLOR_BG);
 
   configureDeviceProfileAtBoot();
@@ -253,9 +256,15 @@ if (!rtcFound) {
   Serial.println(F("Commands: 'P' = Print sample, 'S' = SD status, 'L' = List customers, 'DD' = List deductions, 'CT' = List customer types, 'R' = List readings, 'B' = List bills, 'BT' = List transactions, 'DB' = Display all databases (100 rows), 'DB_ALL' = Display all databases (full), 'DROPDB' = Drop and recreate database, 'HEAP' = Show memory stats"));
 #endif
   
-  // Show welcome screen on TFT
-  currentState = STATE_WELCOME;
-  showWelcomeScreen();
+  // Do not enter the normal workflow until the RTC has a valid manual time.
+  if (g_rtcNeedsConfiguration) {
+    currentState = STATE_SET_DATETIME;
+    inputBuffer = "";
+    displaySetDateTimeScreen();
+  } else {
+    currentState = STATE_WELCOME;
+    showWelcomeScreen();
+  }
 
   powerSaveBegin(TFT_BLK, POWER_SAVE_TIMEOUT, 25, 255);
 }

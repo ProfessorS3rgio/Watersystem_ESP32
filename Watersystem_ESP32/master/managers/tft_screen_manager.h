@@ -27,6 +27,7 @@ extern RTC_DS3231 rtc;
 #include "../screens/bill_display_screen.h"
 #include "../screens/void_payment_screen.h"
 #include "../screens/set_datetime_screen.h"
+#include "../screens/system_tools_screen.h"
 #include "../screens/warning_screen.h"
 #include <SD.h>
 
@@ -43,6 +44,7 @@ enum WorkflowState {
   STATE_WELCOME,           // Initial welcome screen
   STATE_MENU,              // Menu screen
   STATE_ABOUT,             // About screen
+  STATE_SYSTEM_TOOLS,      // System tools submenu
   STATE_SET_DATETIME,      // Waiting for manual RTC date/time entry
   STATE_ENTER_ACCOUNT,     // Waiting for account number entry
   STATE_ACCOUNT_FOUND,     // Account found, showing customer info

@@ -34,6 +34,7 @@ void processReadingEntry();
 void resetWorkflow();
 void displayMenuScreen();
 void displaySetDateTimeScreen();
+void displaySystemToolsScreen();
 void displayViewRateScreen();
 void displayPrinterStatusScreen();
 void startParallelPrintingJob(void (*job)());
@@ -194,11 +195,8 @@ void handleKeypadInput(char key) {
       displayPrinterStatusScreen();
     }
     else if (key == '3') {
-      // Void payments
-      isVoidFlow = true;
-      currentState = STATE_VOID_ENTER_ACCOUNT;
-      inputBuffer = "";
-      displayEnterAccountScreen();
+      currentState = STATE_SYSTEM_TOOLS;
+      displaySystemToolsScreen();
     }
     else if (key == '4') {
       // Restart
@@ -234,7 +232,18 @@ void handleKeypadInput(char key) {
       delay(2000);
       displayMenuScreen();
     }
-    else if (key == '6') {
+    else if (key == 'C' || key == '#') {
+      // Exit menu
+      resetWorkflow();
+    }
+  }
+  else if (currentState == STATE_SYSTEM_TOOLS) {
+    if (key == '1') {
+      currentState = STATE_SET_DATETIME;
+      inputBuffer = "";
+      displaySetDateTimeScreen();
+    }
+    else if (key == '2') {
       // Edit Previous Reading
       isPaymentFlow = false;
       isVoidFlow = false;
@@ -243,14 +252,16 @@ void handleKeypadInput(char key) {
       inputBuffer = "";
       displayEnterAccountScreen();
     }
-    else if (key == '7') {
-      currentState = STATE_SET_DATETIME;
+    else if (key == '3') {
+      // Void payments
+      isVoidFlow = true;
+      currentState = STATE_VOID_ENTER_ACCOUNT;
       inputBuffer = "";
-      displaySetDateTimeScreen();
+      displayEnterAccountScreen();
     }
     else if (key == 'C' || key == '#') {
-      // Exit menu
-      resetWorkflow();
+      currentState = STATE_MENU;
+      displayMenuScreen();
     }
   }
   else if (currentState == STATE_ABOUT) {
@@ -296,22 +307,33 @@ void handleKeypadInput(char key) {
           delay(2000);
           displaySetDateTimeScreen();
         } else {
+          const bool wasBootRtcConfiguration = g_rtcNeedsConfiguration;
           rtc.adjust(dateTime);
+          g_rtcNeedsConfiguration = false;
           tft.fillScreen(COLOR_BG);
           tft.setTextColor(TFT_GREEN);
           tft.setCursor(35, 80);
           tft.println(F("Date/time saved"));
           delay(1500);
           inputBuffer = "";
-          currentState = STATE_MENU;
-          displayMenuScreen();
+          if (wasBootRtcConfiguration) {
+            currentState = STATE_WELCOME;
+            showWelcomeScreen();
+          } else {
+            currentState = STATE_MENU;
+            displayMenuScreen();
+          }
         }
       }
     }
     else if (key == 'C') {
       inputBuffer = "";
-      currentState = STATE_MENU;
-      displayMenuScreen();
+      if (g_rtcNeedsConfiguration) {
+        displaySetDateTimeScreen();
+      } else {
+        currentState = STATE_MENU;
+        displayMenuScreen();
+      }
     }
   }
   else if (currentState == STATE_ENTER_ACCOUNT) {

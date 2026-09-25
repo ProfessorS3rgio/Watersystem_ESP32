@@ -26,20 +26,16 @@ void displayMenuScreen() {
   tft.setCursor(20, 75);
   tft.println(F("2. Printer Status"));
   tft.setCursor(20, 100);
-  tft.println(F("3. Void payments"));
+  tft.println(F("3. System Tools"));
   tft.setCursor(20, 125);
   tft.println(F("4. Restart"));
   tft.setCursor(20, 150);
   tft.println(F("5. Printer Test"));
-  tft.setCursor(20, 175);
-  tft.println(F("6. Edit Previous"));
-  tft.setCursor(20, 200);
-  tft.println(F("7. Set Date/Time"));
   
-  tft.drawLine(0, 225, 320, 225, COLOR_LINE);
+  tft.drawLine(0, 180, 320, 180, COLOR_LINE);
   
   tft.setTextColor(COLOR_LABEL);
-  tft.setCursor(67, 223);
+  tft.setCursor(67, 203);
   tft.println(F("Press # or C to cancel"));
   
   // ===== BOTTOM BORDER =====

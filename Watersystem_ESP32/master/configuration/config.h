@@ -88,6 +88,7 @@ sqlite3 *db = nullptr;
 extern Adafruit_MCP23X17 mcp;
 extern bool g_mcpReady;
 extern RTC_DS3231 rtc;
+extern bool g_rtcNeedsConfiguration;
 extern float paymentAmount;
 extern int g_batteryPercent;
 extern bool g_batteryCharging;
