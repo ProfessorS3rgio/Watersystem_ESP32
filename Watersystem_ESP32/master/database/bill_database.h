@@ -668,7 +668,7 @@ bool generateBillForCustomer(String accountNo, unsigned long currentReading) {
     currentBill.customerName = customer->customer_name;
     currentBill.accountNo = customer->account_no;
     currentBill.address = customer->address;
-    currentBill.collector = COLLECTOR_NAME_VALUE;
+    currentBill.collector = g_collectorName;
     currentBill.dueDate = calculateDueDate(existingBillDate, getBillDueDaysSetting());
     currentBill.billDate = existingBillDate;
     currentBill.prevReading = oldPreviousReading;
@@ -747,7 +747,7 @@ bool generateBillForCustomer(String accountNo, unsigned long currentReading) {
         currentBill.customerName = customer->customer_name;
         currentBill.accountNo = customer->account_no;
         currentBill.address = customer->address;
-        currentBill.collector = COLLECTOR_NAME_VALUE;
+        currentBill.collector = g_collectorName;
         currentBill.dueDate = dueDateStr;
         currentBill.billDate = bill.bill_date;
         currentBill.prevReading = oldPreviousReading;
@@ -824,7 +824,7 @@ bool getBillForCustomer(String accountNo) {
     currentBill.accountNo = customer->account_no;
     currentBill.address = customer->address;
     // Always populate collector name for downstream printing.
-    currentBill.collector = COLLECTOR_NAME_VALUE;
+    currentBill.collector = g_collectorName;
     currentBill.refNumber = (const char*)sqlite3_column_text(stmt, 0);
     currentBill.billDate = (const char*)sqlite3_column_text(stmt, 1);
     currentBill.dueDate = calculateDueDate(currentBill.billDate, getBillDueDaysSetting());

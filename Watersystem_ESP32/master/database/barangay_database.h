@@ -81,7 +81,7 @@ int getBarangayCount() {
 // ===== GET BARANGAY PREFIX FOR CURRENT DEVICE =====
 String getCurrentBarangayPrefix() {
   for (const auto& b : barangays) {
-    if (b.brgy_id == BRGY_ID_VALUE) {
+    if (b.brgy_id == (int)g_deviceId) {
       return b.prefix;
     }
   }

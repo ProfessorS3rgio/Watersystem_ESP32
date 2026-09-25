@@ -13,11 +13,6 @@ static const char* DEVICE_TYPE_VALUE = "ESP32 Water System";
 static const char* FIRMWARE_VERSION_VALUE = "v1.0.0";
 // static const char* COLLECTOR_NAME_VALUE = "DIOSDADO A. BALANSAG"; // BULUAN
 // static const char* COLLECTOR_NAME_VALUE = "ESMERALDA S. REBONANZA"; // DONA JOSEFA
-static const char* COLLECTOR_NAME_VALUE = "EXPEDITA R. BANAGUA"; // CAPARAN
-// static const char* COLLECTOR_NAME_VALUE = "DIESERHEY BARANDA"; // MAKILAS
-static const unsigned long DEVICE_ID_VALUE = 4; 
-static const unsigned long BRGY_ID_VALUE = 4;    
-
 // Device UID - unique identifier (MAC address)
 static String getDeviceUID() {
 #if defined(ARDUINO_ARCH_ESP32)
@@ -83,9 +78,9 @@ static void setDeviceInfoValue(const char* key, const String& value) {
 
 static String getDeviceInfoValue(const char* key) {
   if (!db) return "";
-  if (strcmp(key, "device_id") == 0) return String(DEVICE_ID_VALUE);
-  if (strcmp(key, "brgy_id") == 0) return String(BRGY_ID_VALUE);
-  if (strcmp(key, "collector") == 0) return COLLECTOR_NAME_VALUE;
+  if (strcmp(key, "device_id") == 0) return String(g_deviceId);
+  if (strcmp(key, "brgy_id") == 0) return String(g_deviceId);
+  if (strcmp(key, "collector") == 0) return g_collectorName;
   char sql[128];
   const char* column = "";
   if (strcmp(key, "device_mac") == 0) column = "device_mac";
@@ -215,10 +210,10 @@ static void exportDeviceInfoForSync() {
   Serial.println(FIRMWARE_VERSION_VALUE);
 
   Serial.print(F("INFO|device_id|"));
-  Serial.println(DEVICE_ID_VALUE);
+  Serial.println(g_deviceId);
 
   Serial.print(F("INFO|brgy_id|"));
-  Serial.println(BRGY_ID_VALUE);
+  Serial.println(g_deviceId);
 
   Serial.print(F("INFO|device_uid|"));
   Serial.println(getDeviceUID());
@@ -227,7 +222,7 @@ static void exportDeviceInfoForSync() {
   Serial.println(getDeviceUID());
 
   Serial.print(F("INFO|collector|"));
-  Serial.println(COLLECTOR_NAME_VALUE);
+  Serial.println(g_collectorName);
 
   Serial.print(F("INFO|last_sync_epoch|"));
   Serial.println((unsigned long)g_lastSyncEpoch);

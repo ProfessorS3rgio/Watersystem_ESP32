@@ -109,8 +109,8 @@ void initializeDefaultDevice() {
 
   char insert_sql[384];
   snprintf(insert_sql, sizeof(insert_sql),
-           "INSERT OR IGNORE INTO device_info (brgy_id, device_mac, device_uid, firmware_version, device_name, collector, print_count, customer_count, last_sync, created_at, updated_at) VALUES (2, '%s', '%s', 'v1.0.0', 'ESP32 Water System', 'Aurelio Macasling', 0, 0, '0', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);",
-           macAddress, macAddress);
+           "INSERT OR IGNORE INTO device_info (brgy_id, device_mac, device_uid, firmware_version, device_name, collector, print_count, customer_count, last_sync, created_at, updated_at) VALUES (%lu, '%s', '%s', 'v1.0.0', 'ESP32 Water System', '%s', 0, 0, '0', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);",
+           (unsigned long)g_deviceId, macAddress, macAddress, g_collectorName.c_str());
 
   int rc = sqlite3_exec(db, insert_sql, NULL, NULL, NULL);
   if (rc != SQLITE_OK) {

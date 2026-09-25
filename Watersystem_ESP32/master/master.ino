@@ -27,6 +27,7 @@ SPIClass SPI_SD(VSPI);
 
 // ===== REFACTORED HEADER FILES =====
 #include "configuration/config.h"
+#include "configuration/device_profile.h"
 #include "database/customers_database.h"
 #include "database/readings_database.h"
 #include "database/device_info.h"
@@ -126,6 +127,9 @@ void setup() {
   }
   Serial.setTimeout(30000); // 30 seconds timeout for long transmissions
 
+  // Load identity before database, BLE, receipts, or sync code use it.
+  loadDeviceProfile();
+
   if (BLE_SLAVE_LINK_ENABLED) {
     Serial.println(F("[BLE] Slave link set to lazy init for printing"));
   } else {
@@ -201,6 +205,8 @@ if (!rtcFound) {
   tft.setRotation(3);          // Landscape mode (flipped, 240x320)
     // tft.setRotation(1);          // Landscape mode (240x320)
   tft.fillScreen(COLOR_BG);
+
+  configureDeviceProfileAtBoot();
 
   // Ensure shared SPI CS pins are in a safe state before SD init
   pinMode(TFT_CS, OUTPUT);
@@ -577,6 +583,13 @@ void loop() {
       Serial.print(F("Current time: "));
       Serial.println(dt);
     }
+    else if (raw == "CHANGE_DEVICE_ID") {
+      Serial.println(F("Select the new device/barangay ID on the TFT."));
+      configureDeviceProfileAtBoot(true);
+      Serial.println(F("Device profile saved. Restarting..."));
+      delay(500);
+      ESP.restart();
+    }
     else if (cmd == "HEAP" || cmd == "MEM") {
       Serial.println(F("=== HEAP MEMORY STATUS ==="));
       Serial.print(F("Free heap        : "));
@@ -620,7 +633,7 @@ void loop() {
     else if (cmd.length() > 0) {
       Serial.print(F("Unknown: "));
       Serial.println(cmd);
-      Serial.println(F("Commands: P, D, S, L, DD, CT, B, BT, DB, DB_ALL, DROPDB, DROPR, DROPB, DROPBT, DROPC, RESET, RESET_BILL_TRANSACTION, START, TIME, HEAP, SET_TIME <YYYY-MM-DD HH:MM:SS>, NORMALIZE_DATES <YYYY-MM-DD>, PURGE_DATE <YYYY-MM-DD>"));
+      Serial.println(F("Commands: P, D, S, L, DD, CT, B, BT, DB, DB_ALL, DROPDB, DROPR, DROPB, DROPBT, DROPC, RESET, RESET_BILL_TRANSACTION, START, TIME, HEAP, SET_TIME <YYYY-MM-DD HH:MM:SS>, CHANGE_DEVICE_ID, NORMALIZE_DATES <YYYY-MM-DD>, PURGE_DATE <YYYY-MM-DD>"));
     }
   }
   

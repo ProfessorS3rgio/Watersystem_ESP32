@@ -33,9 +33,6 @@ String bleConnectionStatusText();
 namespace {
 constexpr char BLE_MASTER_DEVICE_NAME[] = "WaterSystem";
 constexpr bool BLE_DIRECT_CONNECT_ENABLED = true;
-// constexpr char BLE_SLAVE_KNOWN_MAC[] = "d4:05:92:e6:a7:ee"; // -- Makilas Device
-// constexpr char BLE_SLAVE_KNOWN_MAC[] = "e0:72:a1:6e:3f:ba"; //Buluan Device
-constexpr char BLE_SLAVE_KNOWN_MAC[] = "ac:a7:04:d7:5d:0e"; // Caparan --  Device
 constexpr uint32_t BLE_SCAN_SECONDS = 5;
 constexpr uint32_t BLE_RETRY_DELAY_MS = 1200;
 constexpr uint32_t BLE_STATUS_POLL_MS = 1000;
@@ -500,10 +497,10 @@ bool bleConnectToSlave() {
 	}
 
 	Serial.print(F("[BLE] Connecting directly to known slave: "));
-	Serial.println(BLE_SLAVE_KNOWN_MAC);
+	Serial.println(g_slaveMac);
 	Serial.print(F("[BLE] Heap before connect: "));
 	Serial.println(esp_get_free_heap_size());
-	NimBLEAddress knownAddress(std::string(BLE_SLAVE_KNOWN_MAC), BLE_ADDR_PUBLIC);
+	NimBLEAddress knownAddress(std::string(g_slaveMac.c_str()), BLE_ADDR_PUBLIC);
 	const bool connected = pBleClient->connect(knownAddress);
 	Serial.print(F("[BLE] Heap after connect attempt: "));
 	Serial.println(esp_get_free_heap_size());
