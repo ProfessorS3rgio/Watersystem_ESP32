@@ -14,6 +14,7 @@ extern RTC_DS3231 rtc;
 #include "components/battery_display.h"
 #include "../screens/welcome_screen.h"
 #include "../screens/menu_screen.h"
+#include "../screens/about_screen.h"
 #include "../screens/enter_account_screen.h"
 #include "../screens/edit_previous_screen.h"
 #include "../screens/customer_info_screen.h"

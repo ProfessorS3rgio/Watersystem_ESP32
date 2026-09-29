@@ -18,7 +18,7 @@ void displaySetDateTimeScreen() {
   tft.setFreeFont(&FreeSans9pt7b);
   tft.setTextColor(COLOR_LABEL);
   tft.setCursor(15, 55);
-  tft.println(F("Enter: YYYYMMDDHHMMSS"));
+  tft.println(F("Enter: YYYY-MM-DD HH:MM:SS"));
 
   tft.drawRect(15, 70, 290, 60, COLOR_LINE);
   tft.setFreeFont(&FreeSans12pt7b);

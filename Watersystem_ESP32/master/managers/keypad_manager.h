@@ -33,6 +33,7 @@ void processAccountNumberEntry();
 void processReadingEntry();
 void resetWorkflow();
 void displayMenuScreen();
+void displayAboutScreen();
 void displaySetDateTimeScreen();
 void displaySystemToolsScreen();
 void displayViewRateScreen();
@@ -168,26 +169,7 @@ void handleKeypadInput(char key) {
     if (key == '1') {
       // About
       currentState = STATE_ABOUT;
-      tft.fillScreen(COLOR_BG);
-      tft.setTextColor(COLOR_HEADER);
-      tft.setTextSize(1);
-      tft.setCursor(50, 10);
-      tft.println(F("ABOUT"));
-      tft.drawLine(0, 20, 160, 20, COLOR_LINE);
-      tft.setTextColor(COLOR_TEXT);
-      tft.setCursor(5, 30);
-      tft.println(F("Water Billing v1.0"));
-      tft.setCursor(5, 45);
-      tft.println(F("DONA JOSEFA M."));
-      tft.setCursor(5, 55);
-      tft.println(F("BULU-AN CAPARAN"));
-      tft.setCursor(5, 70);
-      tft.println(F("Zamboanga Sibugay"));
-      tft.setTextColor(COLOR_LABEL);
-      tft.setCursor(8, 110);
-      tft.println(F("Press C to go back"));
-      tft.setCursor(28, 120);
-      tft.println(F("to the Menu"));
+      displayAboutScreen();
     }
     else if (key == '2') {
       // Printer Status
