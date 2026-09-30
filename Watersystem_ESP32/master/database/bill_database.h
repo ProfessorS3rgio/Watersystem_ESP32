@@ -458,6 +458,98 @@ static bool getCurrentYearMonthFromRtc(int &year, int &month) {
   return (year > 0 && month >= 1 && month <= 12);
 }
 
+// Readings entered during the first week are late readings for the previous cycle.
+static const int LATE_READING_CUTOFF_DAY = 7;
+
+static String currentReadingCycleFilter(const String& yearMonth) {
+  return "strftime('%Y-%m', created_at) = '" + yearMonth
+       + "' AND CAST(strftime('%d', created_at) AS INTEGER) > "
+       + String(LATE_READING_CUTOFF_DAY);
+}
+
+bool getLatestReadingForCustomer(int customerId,
+                                 unsigned long& previousReading,
+                                 unsigned long& currentReadingValue,
+                                 unsigned long& usage,
+                                 String& createdAt,
+                                 String& billStatus) {
+  const char* sql =
+    "SELECT r.previous_reading, r.current_reading, r.usage_m3, r.created_at, "
+    "COALESCE(b.status, '') FROM readings r "
+    "LEFT JOIN bills b ON b.reading_id = r.reading_id "
+    "WHERE r.customer_id = ? ORDER BY r.reading_id DESC LIMIT 1;";
+  sqlite3_stmt* stmt = nullptr;
+  if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) return false;
+  sqlite3_bind_int(stmt, 1, customerId);
+
+  bool found = false;
+  if (sqlite3_step(stmt) == SQLITE_ROW) {
+    previousReading = sqlite3_column_int64(stmt, 0);
+    currentReadingValue = sqlite3_column_int64(stmt, 1);
+    usage = sqlite3_column_int64(stmt, 2);
+    createdAt = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
+    billStatus = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 4));
+    found = true;
+  }
+  sqlite3_finalize(stmt);
+  return found;
+}
+
+bool voidLatestReadingForCustomer(int customerId) {
+  if (!db) return false;
+
+  sqlite3_stmt* selectStmt = nullptr;
+  const char* selectSql =
+    "SELECT r.reading_id, r.previous_reading, COALESCE(b.bill_id, 0), "
+    "COALESCE(b.status, '') FROM readings r "
+    "LEFT JOIN bills b ON b.reading_id = r.reading_id "
+    "WHERE r.customer_id = ? ORDER BY r.reading_id DESC LIMIT 1;";
+  if (sqlite3_prepare_v2(db, selectSql, -1, &selectStmt, nullptr) != SQLITE_OK) return false;
+  sqlite3_bind_int(selectStmt, 1, customerId);
+
+  int readingId = 0;
+  unsigned long previousReading = 0;
+  int billId = 0;
+  String billStatus;
+  if (sqlite3_step(selectStmt) == SQLITE_ROW) {
+    readingId = sqlite3_column_int(selectStmt, 0);
+    previousReading = sqlite3_column_int64(selectStmt, 1);
+    billId = sqlite3_column_int(selectStmt, 2);
+    billStatus = reinterpret_cast<const char*>(sqlite3_column_text(selectStmt, 3));
+  }
+  sqlite3_finalize(selectStmt);
+
+  if (readingId == 0 || billStatus.equalsIgnoreCase("paid")) return false;
+  if (sqlite3_exec(db, "BEGIN;", nullptr, nullptr, nullptr) != SQLITE_OK) return false;
+
+  bool success = true;
+  char sql[192];
+  if (billId > 0) {
+    snprintf(sql, sizeof(sql), "DELETE FROM bill_transactions WHERE bill_id = %d;", billId);
+    success = sqlite3_exec(db, sql, nullptr, nullptr, nullptr) == SQLITE_OK;
+    if (success) {
+      snprintf(sql, sizeof(sql), "DELETE FROM bills WHERE bill_id = %d;", billId);
+      success = sqlite3_exec(db, sql, nullptr, nullptr, nullptr) == SQLITE_OK;
+    }
+  }
+  if (success) {
+    snprintf(sql, sizeof(sql), "DELETE FROM readings WHERE reading_id = %d;", readingId);
+    success = sqlite3_exec(db, sql, nullptr, nullptr, nullptr) == SQLITE_OK;
+  }
+  if (success) {
+    snprintf(sql, sizeof(sql), "UPDATE customers SET previous_reading = %lu, updated_at = '%s' WHERE customer_id = %d;",
+             previousReading, getCurrentDateTimeString().c_str(), customerId);
+    success = sqlite3_exec(db, sql, nullptr, nullptr, nullptr) == SQLITE_OK;
+  }
+
+  if (success) {
+    success = sqlite3_exec(db, "COMMIT;", nullptr, nullptr, nullptr) == SQLITE_OK;
+  } else {
+    sqlite3_exec(db, "ROLLBACK;", nullptr, nullptr, nullptr);
+  }
+  return success;
+}
+
 // ===== CHECK IF CUSTOMER HAS READING THIS MONTH =====
 bool hasReadingThisMonth(int customerId) {
   int year = 0;
@@ -467,7 +559,7 @@ bool hasReadingThisMonth(int customerId) {
   char ym[8];
   sprintf(ym, "%04d-%02d", year, month);
   String query = "SELECT COUNT(*) FROM readings WHERE customer_id = " + String(customerId)
-    + " AND strftime('%Y-%m', created_at) = '" + String(ym) + "';";
+    + " AND " + currentReadingCycleFilter(String(ym)) + ";";
   sqlite3_stmt *stmt;
   int rc = sqlite3_prepare_v2(db, query.c_str(), -1, &stmt, NULL);
   if (rc != SQLITE_OK) {
@@ -532,8 +624,8 @@ int getExistingReadingIdThisMonth(int customerId) {
   char ym[8];
   sprintf(ym, "%04d-%02d", year, month);
   String query = "SELECT reading_id FROM readings WHERE customer_id = " + String(customerId)
-    + " AND strftime('%Y-%m', created_at) = '" + String(ym)
-    + "' ORDER BY reading_id DESC LIMIT 1;";
+    + " AND " + currentReadingCycleFilter(String(ym))
+    + " ORDER BY reading_id DESC LIMIT 1;";
   sqlite3_stmt *stmt;
   int rc = sqlite3_prepare_v2(db, query.c_str(), -1, &stmt, NULL);
   if (rc != SQLITE_OK) {
@@ -558,8 +650,8 @@ bool getExistingReadingDataThisMonth(int customerId, unsigned long& prevReading,
   char ym[8];
   sprintf(ym, "%04d-%02d", year, month);
   String query = "SELECT previous_reading, current_reading, usage_m3 FROM readings WHERE customer_id = " + String(customerId)
-    + " AND strftime('%Y-%m', created_at) = '" + String(ym)
-    + "' ORDER BY reading_id DESC LIMIT 1;";
+    + " AND " + currentReadingCycleFilter(String(ym))
+    + " ORDER BY reading_id DESC LIMIT 1;";
   sqlite3_stmt *stmt;
   int rc = sqlite3_prepare_v2(db, query.c_str(), -1, &stmt, NULL);
   if (rc != SQLITE_OK) {

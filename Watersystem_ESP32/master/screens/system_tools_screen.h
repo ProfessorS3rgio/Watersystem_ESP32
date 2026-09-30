@@ -22,10 +22,14 @@ void displaySystemToolsScreen() {
   tft.println(F("2. Edit Previous"));
   tft.setCursor(20, 130);
   tft.println(F("3. Void Payments"));
+  tft.setCursor(20, 165);
+  tft.println(F("4. Reset Device Profile"));
+  tft.setCursor(20, 200);
+  tft.println(F("5. Void Reading"));
 
-  tft.drawLine(0, 165, 320, 165, COLOR_LINE);
+  tft.drawLine(0, 225, 320, 225, COLOR_LINE);
   tft.setTextColor(COLOR_LABEL);
-  tft.setCursor(55, 195);
+  tft.setCursor(55, 223);
   tft.println(F("Press # or C to go back"));
 }
 

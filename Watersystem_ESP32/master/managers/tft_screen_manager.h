@@ -29,6 +29,8 @@ extern RTC_DS3231 rtc;
 #include "../screens/void_payment_screen.h"
 #include "../screens/set_datetime_screen.h"
 #include "../screens/system_tools_screen.h"
+#include "../screens/reset_profile_screen.h"
+#include "../screens/void_reading_screen.h"
 #include "../screens/warning_screen.h"
 #include <SD.h>
 
@@ -46,6 +48,8 @@ enum WorkflowState {
   STATE_MENU,              // Menu screen
   STATE_ABOUT,             // About screen
   STATE_SYSTEM_TOOLS,      // System tools submenu
+  STATE_RESET_PROFILE_PIN, // Waiting for device profile reset PIN
+  STATE_VOID_READING,      // Reviewing latest reading before removal
   STATE_SET_DATETIME,      // Waiting for manual RTC date/time entry
   STATE_ENTER_ACCOUNT,     // Waiting for account number entry
   STATE_ACCOUNT_FOUND,     // Account found, showing customer info
@@ -69,6 +73,7 @@ unsigned long currentReading = 0; // Current meter reading from keypad
 unsigned long correctPreviousReading = 0; // Correct previous reading for validation
 bool isPaymentFlow = false;       // Flag to distinguish billing vs payment flow
 bool isVoidFlow = false;          // Flag for void payments flow
+bool isVoidReadingFlow = false;   // Flag for void latest reading flow
 bool isEditPreviousFlow = false;  // Flag for editing customer previous reading
 
 // ===== DISPLAY FUNCTIONS FOR WORKFLOW =====
@@ -81,7 +86,10 @@ void processAccountNumberEntry() {
   // Account found
   if (selectedCustomerIndex != -1) {
     inputBuffer = "";  // Clear buffer for next input
-    if (isVoidFlow) {
+    if (isVoidReadingFlow) {
+      currentState = STATE_VOID_READING;
+      displayVoidReadingScreen();
+    } else if (isVoidFlow) {
       currentState = STATE_VOID_DISPLAY_TRANSACTION;
       displayVoidPaymentScreen();
     } else if (isPaymentFlow) {
@@ -188,6 +196,7 @@ void resetWorkflow() {
   currentReading = 0;
   isPaymentFlow = false;
   isVoidFlow = false;
+  isVoidReadingFlow = false;
   isEditPreviousFlow = false;
   showWelcomeScreen();
 }

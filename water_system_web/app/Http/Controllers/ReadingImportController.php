@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\BarangaySequence;
+use App\Models\Bill;
+use App\Models\BillTransaction;
 use App\Models\Customer;
 use App\Models\Reading;
 use Carbon\Carbon;
@@ -62,6 +64,18 @@ class ReadingImportController extends Controller
             ->get()
             ->unique('customer_id')
             ->keyBy('customer_id');
+        $defaultDeviceUid = $latestReadings->pluck('device_uid')
+            ->filter()
+            ->countBy()
+            ->sortDesc()
+            ->keys()
+            ->first();
+        $latestBills = Bill::whereIn('customer_id', $customerIds)
+            ->orderByDesc('bill_date')
+            ->orderByDesc('bill_id')
+            ->get()
+            ->unique('customer_id')
+            ->keyBy('customer_id');
 
         $seenAccounts = [];
         $previewRows = [];
@@ -79,8 +93,10 @@ class ReadingImportController extends Controller
             $accountNo = $source['account_no'];
             $customer = $source['customer'];
             $reading = $customer ? $latestReadings->get($customer->customer_id) : null;
+            $bill = $customer ? $latestBills->get($customer->customer_id) : null;
             $status = 'change';
             $message = 'Ready to update';
+            $importRow = null;
             $duplicateKey = $accountNo ?: "row-{$source['row']}";
 
             if (isset($seenAccounts[$duplicateKey])) {
@@ -93,8 +109,12 @@ class ReadingImportController extends Controller
             $previous = $this->parseInteger($source['previous']);
             $present = $this->parseInteger($source['present']);
             $bothBlank = $this->isBlank($source['previous']) && $this->isBlank($source['present']);
+            $nonReadingNote = $this->nonReadingNote($source['previous'], $source['present']);
 
-            if ($status !== 'error' && $bothBlank) {
+            if ($status !== 'error' && $nonReadingNote) {
+                $status = 'skipped';
+                $message = "Marked as {$nonReadingNote} in workbook";
+            } elseif ($status !== 'error' && $bothBlank) {
                 $status = 'skipped';
                 $message = 'No readings in workbook';
             } elseif ($status !== 'error' && ($previous === null || $present === null)) {
@@ -114,9 +134,27 @@ class ReadingImportController extends Controller
             } elseif ($status !== 'error' && !$reading && $previous === 0 && $present === 0) {
                 $status = 'skipped';
                 $message = 'No reading record; zero readings skipped';
-            } elseif ($status !== 'error' && !$reading) {
+            } elseif ($status !== 'error' && !$reading && !$defaultDeviceUid) {
                 $status = 'error';
-                $message = 'This customer does not have a reading record to update';
+                $message = 'No barangay device is available for the first reading record';
+            } elseif ($status !== 'error' && !$reading) {
+                $nameDiffers = $this->normalizeName($source['customer_name']) !== $this->normalizeName($customer->customer_name);
+                $status = $nameDiffers ? 'warning' : 'change';
+                $message = $nameDiffers
+                    ? "Will create first reading; name differs from database: {$customer->customer_name}"
+                    : 'Will create this customer\'s first reading record';
+                $importRow = [
+                    'apply_reading' => true,
+                    'reading_id' => null,
+                    'device_uid' => $defaultDeviceUid,
+                    'customer_id' => $customer->customer_id,
+                    'account_no' => $accountNo,
+                    'old_customer_previous' => (int) $customer->previous_reading,
+                    'old_previous' => null,
+                    'old_present' => null,
+                    'new_previous' => $previous,
+                    'new_present' => $present,
+                ];
             } elseif ($status !== 'error') {
                 $nameDiffers = $this->normalizeName($source['customer_name']) !== $this->normalizeName($customer->customer_name);
                 $unchanged = (int) $reading->previous_reading === $previous
@@ -131,7 +169,8 @@ class ReadingImportController extends Controller
                 }
 
                 if (!$unchanged) {
-                    $importRows[] = [
+                    $importRow = [
+                        'apply_reading' => true,
                         'reading_id' => $reading->reading_id,
                         'customer_id' => $customer->customer_id,
                         'account_no' => $accountNo,
@@ -144,6 +183,43 @@ class ReadingImportController extends Controller
                 }
             }
 
+            $filePaymentStatus = $source['has_payment_status']
+                ? $this->parsePaymentStatus($source['payment_status'])
+                : null;
+            $databasePaymentStatus = $bill ? Str::ucfirst(Str::lower($bill->status)) : null;
+            $paymentStatusChanges = $bill
+                && in_array($filePaymentStatus, ['Paid', 'Pending'], true)
+                && Str::lower($bill->status) !== Str::lower($filePaymentStatus);
+
+            if ($status !== 'error' && $source['has_payment_status'] && $filePaymentStatus === null) {
+                $status = 'error';
+                $message = 'Payment status must be blank, Paid, Pending, Not Paid, or Not Pad';
+                $importRow = null;
+            } elseif ($status !== 'error' && $paymentStatusChanges) {
+                $importRow ??= [
+                    'apply_reading' => false,
+                    'customer_id' => $customer->customer_id,
+                    'account_no' => $accountNo,
+                ];
+                $importRow['bill_id'] = $bill->bill_id;
+                $importRow['old_bill_status'] = $bill->status;
+                $importRow['old_bill_total_due'] = (string) $bill->total_due;
+                $importRow['new_bill_status'] = $filePaymentStatus;
+
+                $paymentMessage = "Latest bill ({$bill->bill_date->format('M j, Y')}) will change from {$databasePaymentStatus} to {$filePaymentStatus}";
+                if (in_array($status, ['skipped', 'unchanged'], true)) {
+                    $status = 'change';
+                    $message = $paymentMessage;
+                } else {
+                    $message .= "; {$paymentMessage}";
+                }
+            }
+
+            if ($importRow && $status !== 'error') {
+                $importRow['source_row'] = $source['row'];
+                $importRows[] = $importRow;
+            }
+
             $summary[$this->summaryKey($status)]++;
             $previewRows[] = [
                 'row' => $source['row'],
@@ -154,6 +230,10 @@ class ReadingImportController extends Controller
                 'file_usage' => ($previous !== null && $present !== null) ? $present - $previous : null,
                 'database_previous' => $reading ? (int) $reading->previous_reading : null,
                 'database_present' => $reading ? (int) $reading->current_reading : null,
+                'bill_date' => $bill?->bill_date?->format('Y-m-d'),
+                'database_payment_status' => $databasePaymentStatus,
+                'file_payment_status' => $filePaymentStatus === 'Ignored' ? null : $filePaymentStatus,
+                'payment_status_changes' => $paymentStatusChanges,
                 'status' => $status,
                 'message' => $message,
             ];
@@ -161,13 +241,14 @@ class ReadingImportController extends Controller
 
         $token = null;
         $expiresAt = null;
-        if ($summary['errors'] === 0 && count($importRows) > 0) {
+        if (count($importRows) > 0) {
             $token = (string) Str::uuid();
             $expiresAt = now()->addMinutes(15);
             $request->session()->put("reading_import.{$token}", [
                 'expires_at' => $expiresAt->timestamp,
                 'barangay' => $barangay->barangay,
-                'billing_month' => $metadata['month']->format('Y-m'),
+                'billing_month' => $metadata['month']?->format('Y-m'),
+                'source_file' => $validated['file']->getClientOriginalName(),
                 'rows' => $importRows,
             ]);
         }
@@ -178,8 +259,8 @@ class ReadingImportController extends Controller
             'file_name' => $validated['file']->getClientOriginalName(),
             'sheet_name' => $sheet->getTitle(),
             'barangay' => $barangay->barangay,
-            'billing_month' => $metadata['month']->format('Y-m'),
-            'billing_month_label' => $metadata['month']->format('F Y'),
+            'billing_month' => $metadata['month']?->format('Y-m'),
+            'billing_month_label' => $metadata['month']?->format('F Y') ?? 'Not specified',
             'summary' => $summary,
             'rows' => $previewRows,
         ]);
@@ -189,6 +270,8 @@ class ReadingImportController extends Controller
     {
         $validated = $request->validate([
             'token' => ['required', 'uuid'],
+            'selected_accounts' => ['required', 'array', 'min:1', 'max:2000'],
+            'selected_accounts.*' => ['required', 'string', 'distinct'],
         ]);
 
         $sessionKey = "reading_import.{$validated['token']}";
@@ -200,44 +283,129 @@ class ReadingImportController extends Controller
             ]);
         }
 
-        $updated = DB::transaction(function () use ($payload) {
+        $rowsByAccount = collect($payload['rows'])->keyBy('account_no');
+        $selectedRows = collect($validated['selected_accounts'])->map(function ($accountNo) use ($rowsByAccount) {
+            $row = $rowsByAccount->get($accountNo);
+            if (!$row) {
+                throw ValidationException::withMessages([
+                    'selected_accounts' => "Account {$accountNo} is not an applicable row from this preview.",
+                ]);
+            }
+            return $row;
+        })->values();
+
+        $sourceFile = $payload['source_file'] ?? 'workbook import';
+        $userId = auth()->id();
+
+        $result = DB::transaction(function () use ($selectedRows, $sourceFile, $userId) {
             $updated = 0;
+            $created = 0;
+            $billStatusesUpdated = 0;
 
-            foreach ($payload['rows'] as $row) {
+            foreach ($selectedRows as $row) {
                 $customer = Customer::whereKey($row['customer_id'])->lockForUpdate()->first();
-                $reading = Reading::whereKey($row['reading_id'])->lockForUpdate()->first();
-
-                if (!$customer
-                    || !$reading
-                    || (int) $reading->customer_id !== (int) $row['customer_id']
-                    || (int) $customer->previous_reading !== (int) $row['old_customer_previous']
-                    || (int) $reading->previous_reading !== (int) $row['old_previous']
-                    || (int) $reading->current_reading !== (int) $row['old_present']) {
+                if (!$customer) {
                     throw ValidationException::withMessages([
-                        'token' => "Reading {$row['account_no']} changed after preview. Upload the workbook again.",
+                        'token' => "Customer {$row['account_no']} changed after preview. Upload the workbook again.",
                     ]);
                 }
 
-                $customer->previous_reading = $row['new_previous'];
-                $customer->Synced = false;
-                $customer->save();
+                if ($row['apply_reading']) {
+                    $reading = $row['reading_id']
+                        ? Reading::whereKey($row['reading_id'])->lockForUpdate()->first()
+                        : null;
 
-                $reading->previous_reading = $row['new_previous'];
-                $reading->current_reading = $row['new_present'];
-                $reading->usage_m3 = $row['new_present'] - $row['new_previous'];
-                $reading->Synced = false;
-                $reading->save();
-                $updated++;
+                    $customerChanged = (int) $customer->previous_reading !== (int) $row['old_customer_previous'];
+                    $readingChanged = $row['reading_id']
+                        ? (!$reading
+                            || (int) $reading->customer_id !== (int) $row['customer_id']
+                            || (int) $reading->previous_reading !== (int) $row['old_previous']
+                            || (int) $reading->current_reading !== (int) $row['old_present'])
+                        : Reading::where('customer_id', $row['customer_id'])
+                            ->orderByDesc('reading_at')
+                            ->orderByDesc('reading_id')
+                            ->lockForUpdate()
+                            ->exists();
+
+                    if ($customerChanged || $readingChanged) {
+                        throw ValidationException::withMessages([
+                            'token' => "Reading {$row['account_no']} changed after preview. Upload the workbook again.",
+                        ]);
+                    }
+
+                    $customer->previous_reading = $row['new_previous'];
+                    $customer->Synced = false;
+                    $customer->save();
+
+                    if (!$reading) {
+                        $reading = new Reading();
+                        $reading->customer_id = $customer->customer_id;
+                        $reading->customer_account_number = $customer->account_no;
+                        $reading->device_uid = $row['device_uid'];
+                        $reading->reading_at = now();
+                        $created++;
+                    } else {
+                        $updated++;
+                    }
+
+                    $reading->previous_reading = $row['new_previous'];
+                    $reading->current_reading = $row['new_present'];
+                    $reading->usage_m3 = $row['new_present'] - $row['new_previous'];
+                    $reading->Synced = false;
+                    $reading->save();
+                }
+
+                if (!empty($row['bill_id'])) {
+                    $bill = Bill::whereKey($row['bill_id'])->lockForUpdate()->first();
+                    if (!$bill
+                        || (int) $bill->customer_id !== (int) $row['customer_id']
+                        || Str::lower($bill->status) !== Str::lower($row['old_bill_status'])
+                        || (string) $bill->total_due !== (string) $row['old_bill_total_due']) {
+                        throw ValidationException::withMessages([
+                            'token' => "Bill status for {$row['account_no']} changed after preview. Upload the workbook again.",
+                        ]);
+                    }
+
+                    $newStatus = $row['new_bill_status'];
+                    $bill->status = $newStatus;
+                    $bill->Synced = false;
+                    $bill->save();
+
+                    BillTransaction::create([
+                        'bill_reference_number' => $bill->reference_number,
+                        'device_uid' => $bill->device_uid,
+                        'type' => $newStatus === 'Paid' ? 'payment' : 'void',
+                        'source' => 'Office',
+                        'amount' => $bill->total_due,
+                        'cash_received' => $newStatus === 'Paid' ? $bill->total_due : null,
+                        'change' => 0,
+                        'transaction_date' => now(),
+                        'payment_method' => 'workbook_import',
+                        'processed_by_user_id' => $userId,
+                        'notes' => "Status changed from {$row['old_bill_status']} to {$newStatus} from {$sourceFile}, row {$row['source_row']}.",
+                        'Synced' => false,
+                    ]);
+                    $billStatusesUpdated++;
+                }
             }
 
-            return $updated;
+            return [
+                'updated' => $updated,
+                'created' => $created,
+                'bill_statuses_updated' => $billStatusesUpdated,
+            ];
         });
 
+        $applied = $selectedRows->count();
+
         return response()->json([
-            'updated' => $updated,
+            'applied' => $applied,
+            'updated' => $result['updated'],
+            'created' => $result['created'],
+            'bill_statuses_updated' => $result['bill_statuses_updated'],
             'barangay' => $payload['barangay'],
             'billing_month' => $payload['billing_month'],
-            'message' => "{$updated} reading records were updated.",
+            'message' => "{$applied} workbook rows were applied.",
         ]);
     }
 
@@ -267,6 +435,7 @@ class ReadingImportController extends Controller
                 if ($this->matchesHeader($normalized, ['customername', 'clientname', 'concessionairename', 'name'])) $mapped['name'] = $column;
                 if ($this->matchesHeader($normalized, ['previousreading', 'prevreading', 'previous', 'prev', 'oldreading', 'oldmeterreading'])) $mapped['previous'] = $column;
                 if ($this->matchesHeader($normalized, ['presentreading', 'currentreading', 'present', 'current', 'newreading', 'newmeterreading'])) $mapped['present'] = $column;
+                if ($this->matchesHeader($normalized, ['paymentstatus', 'billstatus', 'status'])) $mapped['status'] = $column;
             }
 
             if (isset($mapped['previous'], $mapped['present']) && !isset($mapped['account'])) {
@@ -329,14 +498,14 @@ class ReadingImportController extends Controller
             ->implode(' | ');
 
         preg_match('/Barangay:\s*(.*?)\s+.+?\s+Billing Month:/i', $heading, $barangayMatch);
-        preg_match('/Billing Month:\s*([A-Za-z]+\s+\d{4})/i', $heading, $monthMatch);
+        preg_match('/Billing Month:\s*([A-Za-z]+)(?:\s+\d{1,2}(?:\s*-\s*\d{1,2})?\s*,?)?\s+(20\d{2})/i', $heading, $monthMatch);
 
         $barangay = trim($barangayMatch[1] ?? '');
         $month = null;
 
-        if (!empty($monthMatch[1])) {
+        if (!empty($monthMatch[1]) && !empty($monthMatch[2])) {
             try {
-                $month = Carbon::createFromFormat('F Y', trim($monthMatch[1]))->startOfMonth();
+                $month = Carbon::createFromFormat('F Y', trim("{$monthMatch[1]} {$monthMatch[2]}"))->startOfMonth();
             } catch (\Throwable) {
                 $month = null;
             }
@@ -360,10 +529,6 @@ class ReadingImportController extends Controller
         if ($barangay === '') {
             throw ValidationException::withMessages(['file' => 'The workbook barangay could not be detected.']);
         }
-        if (!$month) {
-            throw ValidationException::withMessages(['file' => 'The workbook billing month could not be detected.']);
-        }
-
         return ['barangay' => $barangay, 'month' => $month];
     }
 
@@ -396,6 +561,8 @@ class ReadingImportController extends Controller
                 'customer_name' => $customerName,
                 'previous' => $row[$columns['previous']] ?? null,
                 'present' => $row[$columns['present']] ?? null,
+                'has_payment_status' => isset($columns['status']),
+                'payment_status' => isset($columns['status']) ? $row[$columns['status']] ?? null : null,
             ];
         }
 
@@ -417,6 +584,30 @@ class ReadingImportController extends Controller
     private function isBlank(mixed $value): bool
     {
         return $value === null || (is_string($value) && trim($value) === '');
+    }
+
+    private function nonReadingNote(mixed ...$values): ?string
+    {
+        foreach ($values as $value) {
+            if (!is_string($value)) continue;
+
+            $normalized = $this->normalizeHeader($value);
+            if ($normalized === 'stopmeter' || $normalized === 'stoppedmeter') return 'stopped meter';
+            if (in_array($normalized, ['closed', 'disconnected', 'inactive'], true)) return $normalized;
+        }
+
+        return null;
+    }
+
+    private function parsePaymentStatus(mixed $value): ?string
+    {
+        $normalized = $this->normalizeHeader($value);
+
+        if ($normalized === '' || $normalized === 'paid') return 'Paid';
+        if (in_array($normalized, ['pending', 'due', 'unpaid', 'notpaid', 'notpad'], true)) return 'Pending';
+        if (in_array($normalized, ['nobill', 'void', 'closed', 'disconnected', 'inactive', 'stopmeter'], true)) return 'Ignored';
+
+        return null;
     }
 
     private function normalizeHeader(mixed $value): string

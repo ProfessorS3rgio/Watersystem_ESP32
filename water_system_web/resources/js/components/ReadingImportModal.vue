@@ -6,7 +6,7 @@
         <div class="flex items-center justify-between border-b px-6 py-4" :class="isDark ? 'border-gray-800' : 'border-gray-200'">
           <div>
             <h3 class="text-lg font-semibold">Import Meter Readings</h3>
-            <p class="mt-1 text-sm" :class="isDark ? 'text-gray-400' : 'text-gray-600'">Upload an exported monthly billing workbook and review every row before applying it.</p>
+            <p class="mt-1 text-sm" :class="isDark ? 'text-gray-400' : 'text-gray-600'">Upload a meter-reading workbook and review every row before applying it.</p>
           </div>
           <button type="button" class="text-2xl leading-none" :class="isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'" aria-label="Close" @click="closeModal">&times;</button>
         </div>
@@ -28,7 +28,7 @@
                 Browse XLSX File
               </label>
               <p v-if="selectedFile" class="mt-4 font-medium text-green-600">Selected: {{ selectedFile.name }}</p>
-              <p class="mt-3 text-xs" :class="mutedClass">Expected columns: Account Number, Previous Reading, and Present Reading. Maximum file size: 5 MB.</p>
+              <p class="mt-3 text-xs" :class="mutedClass">Best results: Account Number, Previous Reading, and Present Reading. Numbered legacy customer lists are also supported. Maximum file size: 5 MB.</p>
             </div>
 
             <div class="border-l-4 border-amber-500 px-4 py-3 text-sm" :class="isDark ? 'bg-amber-950/40 text-amber-100' : 'bg-amber-50 text-amber-900'">
@@ -43,7 +43,7 @@
                 <p class="mt-1 font-semibold">{{ preview.barangay }}</p>
               </div>
               <div class="border p-3" :class="panelClass">
-                <p class="text-xs uppercase" :class="mutedClass">Billing Month</p>
+                <p class="text-xs uppercase" :class="mutedClass">Workbook Month</p>
                 <p class="mt-1 font-semibold">{{ preview.billing_month_label }}</p>
               </div>
               <div class="border p-3" :class="panelClass">
@@ -72,8 +72,11 @@
               <button type="button" class="px-3 py-2 font-medium" :class="isDark ? 'text-indigo-300 hover:text-indigo-200' : 'text-indigo-700 hover:text-indigo-900'" @click="resetPreview">Choose another file</button>
             </div>
 
-            <div v-if="preview.summary.errors" class="border-l-4 border-red-500 px-4 py-3 text-sm" :class="isDark ? 'bg-red-950/40 text-red-100' : 'bg-red-50 text-red-900'">
-              Fix the error rows in the workbook and upload it again. No rows can be applied while errors remain.
+            <div v-if="selectedErrorCount" class="border-l-4 border-red-500 px-4 py-3 text-sm" :class="isDark ? 'bg-red-950/40 text-red-100' : 'bg-red-50 text-red-900'">
+              Unmark {{ selectedErrorCount }} error {{ selectedErrorCount === 1 ? 'row' : 'rows' }} in the Apply column to continue. Error rows are never sent to the database.
+            </div>
+            <div v-else-if="preview.summary.errors" class="border-l-4 border-amber-500 px-4 py-3 text-sm" :class="isDark ? 'bg-amber-950/40 text-amber-100' : 'bg-amber-50 text-amber-900'">
+              {{ preview.summary.errors }} error {{ preview.summary.errors === 1 ? 'row is' : 'rows are' }} excluded. You can apply the {{ selectedImportableCount }} marked valid {{ selectedImportableCount === 1 ? 'row' : 'rows' }}.
             </div>
             <div v-else-if="importableCount === 0" class="border-l-4 border-green-500 px-4 py-3 text-sm" :class="isDark ? 'bg-green-950/40 text-green-100' : 'bg-green-50 text-green-900'">
               All populated readings already match the database. There is nothing to update.
@@ -83,6 +86,10 @@
               <table class="min-w-full text-sm">
                 <thead class="sticky top-0 z-10" :class="isDark ? 'bg-gray-800' : 'bg-gray-100'">
                   <tr>
+                    <th class="w-16 px-3 py-2 text-center">
+                      <input type="checkbox" :checked="allMarkableSelected" aria-label="Mark or unmark all review rows" @change="toggleAllRows" />
+                      <span class="mt-1 block text-xs font-medium">Apply</span>
+                    </th>
                     <th class="px-3 py-2 text-left">Row</th>
                     <th class="px-3 py-2 text-left">Account</th>
                     <th class="px-3 py-2 text-left">Customer</th>
@@ -91,11 +98,23 @@
                     <th class="px-3 py-2 text-right">DB Present</th>
                     <th class="px-3 py-2 text-right">File Present</th>
                     <th class="px-3 py-2 text-right">Usage</th>
+                    <th class="px-3 py-2 text-left">Bill Date</th>
+                    <th class="px-3 py-2 text-left">DB Payment</th>
+                    <th class="px-3 py-2 text-left">File Payment</th>
                     <th class="px-3 py-2 text-left">Review</th>
                   </tr>
                 </thead>
                 <tbody :class="isDark ? 'divide-gray-800' : 'divide-gray-200'" class="divide-y">
-                  <tr v-for="row in preview.rows" :key="`${row.row}-${row.account_no}`" :class="row.status === 'error' ? (isDark ? 'bg-red-950/20' : 'bg-red-50/60') : ''">
+                  <tr v-for="row in preview.rows" :key="`${row.row}-${row.account_no}`" :class="reviewRowClass(row)">
+                    <td class="px-3 py-2 text-center">
+                      <input
+                        type="checkbox"
+                        :checked="isRowMarked(row)"
+                        :disabled="!isRowMarkable(row)"
+                        :aria-label="`${isRowMarked(row) ? 'Unmark' : 'Mark'} ${row.account_no || `row ${row.row}`}`"
+                        @change="toggleRow(row)"
+                      />
+                    </td>
                     <td class="px-3 py-2" :class="mutedClass">{{ row.row }}</td>
                     <td class="whitespace-nowrap px-3 py-2 font-semibold">{{ row.account_no }}</td>
                     <td class="min-w-48 px-3 py-2">{{ row.customer_name }}</td>
@@ -104,6 +123,15 @@
                     <td class="px-3 py-2 text-right">{{ valueOrDash(row.database_present) }}</td>
                     <td class="px-3 py-2 text-right font-medium">{{ valueOrDash(row.file_present) }}</td>
                     <td class="px-3 py-2 text-right">{{ valueOrDash(row.file_usage) }}</td>
+                    <td class="whitespace-nowrap px-3 py-2">{{ formatBillDate(row.bill_date) }}</td>
+                    <td class="px-3 py-2">
+                      <span v-if="row.database_payment_status" class="inline-block px-2 py-0.5 text-xs font-semibold" :class="paymentStatusClass(row.database_payment_status)">{{ row.database_payment_status }}</span>
+                      <span v-else :class="mutedClass">-</span>
+                    </td>
+                    <td class="px-3 py-2">
+                      <span v-if="row.file_payment_status" class="inline-block px-2 py-0.5 text-xs font-semibold" :class="paymentStatusClass(row.file_payment_status)">{{ row.file_payment_status }}</span>
+                      <span v-else :class="mutedClass">-</span>
+                    </td>
                     <td class="min-w-56 px-3 py-2">
                       <span class="inline-block px-2 py-0.5 text-xs font-semibold" :class="statusClass(row.status)">{{ statusLabel(row.status) }}</span>
                       <p class="mt-1 text-xs" :class="mutedClass">{{ row.message }}</p>
@@ -113,7 +141,7 @@
               </table>
             </div>
 
-            <p class="text-xs" :class="mutedClass">This import updates only previous reading, present reading, and usage for {{ preview.billing_month_label }}. Bill amounts, payment status, and newer readings are not changed.</p>
+            <p class="text-xs" :class="mutedClass">Blank workbook payment status means Paid; Not Paid and Not Pad mean Pending. Applying a payment change updates the latest existing bill and records an audit transaction. Customers without a bill are left unchanged.</p>
           </div>
 
           <p v-if="error" class="mt-4 text-sm text-red-600">{{ error }}</p>
@@ -125,7 +153,7 @@
             {{ isReviewing ? 'Reviewing...' : 'Review File' }}
           </button>
           <button v-else type="button" class="bg-green-600 px-4 py-2 font-medium text-white hover:bg-green-700 disabled:opacity-50" :disabled="!canConfirm || isConfirming" @click="confirmImport">
-            {{ isConfirming ? 'Applying...' : (importableCount === 0 ? 'No Changes to Apply' : `Apply ${importableCount} Changes`) }}
+            {{ isConfirming ? 'Applying...' : (selectedImportableCount === 0 ? 'No Marked Changes' : `Apply ${selectedImportableCount} Marked Changes`) }}
           </button>
         </div>
       </div>
@@ -149,9 +177,15 @@ const error = ref('')
 const isReviewing = ref(false)
 const isConfirming = ref(false)
 const isDragging = ref(false)
+const selectedRowKeys = ref([])
 
 const importableCount = computed(() => (preview.value?.summary?.changes || 0) + (preview.value?.summary?.warnings || 0))
-const canConfirm = computed(() => Boolean(preview.value?.token) && preview.value.summary.errors === 0 && importableCount.value > 0)
+const markableRows = computed(() => preview.value?.rows?.filter(isRowMarkable) || [])
+const selectedErrorCount = computed(() => markableRows.value.filter(row => row.status === 'error' && isRowMarked(row)).length)
+const selectedImportableRows = computed(() => markableRows.value.filter(row => ['change', 'warning'].includes(row.status) && isRowMarked(row)))
+const selectedImportableCount = computed(() => selectedImportableRows.value.length)
+const allMarkableSelected = computed(() => markableRows.value.length > 0 && markableRows.value.every(isRowMarked))
+const canConfirm = computed(() => Boolean(preview.value?.token) && selectedErrorCount.value === 0 && selectedImportableCount.value > 0)
 const panelClass = computed(() => props.isDark ? 'border-gray-700 bg-gray-800/60' : 'border-gray-200 bg-gray-50')
 const mutedClass = computed(() => props.isDark ? 'text-gray-400' : 'text-gray-500')
 const dropZoneClass = computed(() => {
@@ -201,6 +235,7 @@ async function reviewFile() {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
     preview.value = response.data
+    selectedRowKeys.value = markableRows.value.map(rowSelectionKey)
   } catch (requestError) {
     error.value = firstError(requestError, 'The workbook could not be reviewed.')
   } finally {
@@ -213,7 +248,10 @@ async function confirmImport() {
   isConfirming.value = true
   error.value = ''
   try {
-    const response = await window.axios.post('/customers/readings-import/confirm', { token: preview.value.token })
+    const response = await window.axios.post('/customers/readings-import/confirm', {
+      token: preview.value.token,
+      selected_accounts: selectedImportableRows.value.map(row => row.account_no),
+    })
     emit('imported', { ...response.data, billing_month_label: preview.value.billing_month_label })
     emit('close')
   } catch (requestError) {
@@ -231,6 +269,7 @@ function firstError(requestError, fallback) {
 
 function resetPreview() {
   preview.value = null
+  selectedRowKeys.value = []
   selectedFile.value = null
   error.value = ''
   if (fileInput.value) fileInput.value.value = ''
@@ -249,6 +288,47 @@ function closeModal() {
 
 function valueOrDash(value) {
   return value === null || value === undefined ? '-' : value
+}
+
+function formatBillDate(value) {
+  if (!value) return '-'
+  return new Intl.DateTimeFormat('en-PH', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}T00:00:00Z`))
+}
+
+function paymentStatusClass(status) {
+  const paid = String(status).toLowerCase() === 'paid'
+  if (props.isDark) return paid ? 'bg-green-900 text-green-200' : 'bg-amber-900 text-amber-200'
+  return paid ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'
+}
+
+function rowSelectionKey(row) {
+  return `${row.account_no || 'row'}-${row.row}`
+}
+
+function isRowMarkable(row) {
+  return ['change', 'warning', 'error'].includes(row.status)
+}
+
+function isRowMarked(row) {
+  return selectedRowKeys.value.includes(rowSelectionKey(row))
+}
+
+function toggleRow(row) {
+  if (!isRowMarkable(row)) return
+  const key = rowSelectionKey(row)
+  selectedRowKeys.value = isRowMarked(row)
+    ? selectedRowKeys.value.filter(value => value !== key)
+    : [...selectedRowKeys.value, key]
+}
+
+function toggleAllRows(event) {
+  selectedRowKeys.value = event.target.checked ? markableRows.value.map(rowSelectionKey) : []
+}
+
+function reviewRowClass(row) {
+  if (!isRowMarked(row) && isRowMarkable(row)) return props.isDark ? 'opacity-50 bg-gray-900' : 'opacity-50 bg-gray-50'
+  if (row.status === 'error') return props.isDark ? 'bg-red-950/20' : 'bg-red-50/60'
+  return ''
 }
 
 function statusLabel(status) {

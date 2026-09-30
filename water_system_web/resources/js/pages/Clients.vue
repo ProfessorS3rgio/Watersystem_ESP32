@@ -414,7 +414,7 @@ export default {
       await fetchCustomersWithFilters()
       modalsComposable.showSuccess(
         'Readings Imported',
-        `<strong>${result.updated}</strong> ${result.barangay} reading records for ${result.billing_month_label} were updated successfully.`
+        `<strong>${result.applied}</strong> ${result.barangay} workbook rows were applied successfully${result.created ? `, including <strong>${result.created}</strong> first reading ${result.created === 1 ? 'record' : 'records'}` : ''}${result.bill_statuses_updated ? ` and <strong>${result.bill_statuses_updated}</strong> bill status ${result.bill_statuses_updated === 1 ? 'change' : 'changes'}` : ''}.`
       )
     }
 

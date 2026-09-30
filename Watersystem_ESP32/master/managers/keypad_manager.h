@@ -36,6 +36,8 @@ void displayMenuScreen();
 void displayAboutScreen();
 void displaySetDateTimeScreen();
 void displaySystemToolsScreen();
+void displayResetProfilePinScreen();
+void displayVoidReadingScreen();
 void displayViewRateScreen();
 void displayPrinterStatusScreen();
 void startParallelPrintingJob(void (*job)());
@@ -51,6 +53,7 @@ extern bool isVoidFlow;
 extern bool isEditPreviousFlow;
 extern float paymentAmount;
 
+extern bool isVoidReadingFlow;
 
 // Keypad setup
 char keys[KEYPAD_ROWS][KEYPAD_COLS] = {
@@ -241,9 +244,86 @@ void handleKeypadInput(char key) {
       inputBuffer = "";
       displayEnterAccountScreen();
     }
+    else if (key == '4') {
+      currentState = STATE_RESET_PROFILE_PIN;
+      inputBuffer = "";
+      displayResetProfilePinScreen();
+    }
+    else if (key == '5') {
+      isVoidFlow = false;
+      isVoidReadingFlow = true;
+      currentState = STATE_ENTER_ACCOUNT;
+      inputBuffer = "";
+      displayEnterAccountScreen();
+    }
     else if (key == 'C' || key == '#') {
       currentState = STATE_MENU;
       displayMenuScreen();
+    }
+  }
+  else if (currentState == STATE_RESET_PROFILE_PIN) {
+    if (key >= '0' && key <= '9' && inputBuffer.length() < 4) {
+      inputBuffer += key;
+      displayResetProfilePinScreen();
+    }
+    else if (key == 'B') {
+      inputBuffer = "";
+      displayResetProfilePinScreen();
+    }
+    else if (key == 'D') {
+      if (inputBuffer == "0000") {
+        clearDeviceProfile();
+        tft.fillScreen(COLOR_BG);
+        tft.setTextColor(TFT_GREEN);
+        tft.setCursor(30, 80);
+        tft.println(F("Profile reset"));
+        tft.setTextColor(COLOR_TEXT);
+        tft.setCursor(20, 110);
+        tft.println(F("Restarting setup..."));
+        delay(1500);
+        ESP.restart();
+      } else {
+        displayWarningScreen(F("INVALID PIN"),
+                             String("Incorrect security PIN"),
+                             String("Try again."),
+                             F("Press C to cancel"));
+        delay(1500);
+        inputBuffer = "";
+        displayResetProfilePinScreen();
+      }
+    }
+    else if (key == 'C' || key == '#') {
+      inputBuffer = "";
+      currentState = STATE_SYSTEM_TOOLS;
+      displaySystemToolsScreen();
+    }
+  }
+  else if (currentState == STATE_VOID_READING) {
+    if (key == 'D') {
+      if (currentCustomer != nullptr
+          && voidLatestReadingForCustomer(currentCustomer->customer_id)) {
+        tft.fillScreen(COLOR_BG);
+        tft.setTextColor(TFT_GREEN);
+        tft.setCursor(35, 80);
+        tft.println(F("Reading voided"));
+        tft.setTextColor(COLOR_TEXT);
+        tft.setCursor(25, 110);
+        tft.println(F("Latest reading removed"));
+        delay(1500);
+      } else {
+        tft.fillScreen(COLOR_BG);
+        tft.setTextColor(TFT_RED);
+        tft.setCursor(25, 80);
+        tft.println(F("Cannot void reading"));
+        tft.setTextColor(COLOR_LABEL);
+        tft.setCursor(25, 110);
+        tft.println(F("Paid bills are protected"));
+        delay(1800);
+      }
+      resetWorkflow();
+    }
+    else if (key == 'C' || key == '#') {
+      resetWorkflow();
     }
   }
   else if (currentState == STATE_ABOUT) {
