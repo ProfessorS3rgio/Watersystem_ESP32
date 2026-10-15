@@ -28,8 +28,23 @@ static const size_t DEVICE_PROFILE_OPTION_COUNT = sizeof(DEVICE_PROFILE_OPTIONS)
 uint32_t g_deviceId = 0;
 String g_collectorName;
 String g_slaveMac;
+String g_printerMac;
+String g_printerName;
 
 static Preferences g_deviceProfilePreferences;
+
+static const DeviceProfileOption* defaultPrinterProfile() {
+  return &DEVICE_PROFILE_OPTIONS[2]; // Buluan
+}
+
+static const DeviceProfileOption* findPrinterProfile(const String& mac) {
+  for (size_t i = 0; i < DEVICE_PROFILE_OPTION_COUNT; ++i) {
+    if (mac == DEVICE_PROFILE_OPTIONS[i].slaveMac) {
+      return &DEVICE_PROFILE_OPTIONS[i];
+    }
+  }
+  return nullptr;
+}
 
 static bool isValidBleMac(const String& mac) {
   if (mac.length() != 17) return false;
@@ -87,11 +102,24 @@ void loadDeviceProfile() {
     }
   }
 
+  const DeviceProfileOption* defaultPrinter = defaultPrinterProfile();
+  g_printerMac = g_deviceProfilePreferences.getString("printer_mac", defaultPrinter->slaveMac);
+  g_printerName = g_deviceProfilePreferences.getString("printer_name", defaultPrinter->barangay);
+  const DeviceProfileOption* selectedPrinter = findPrinterProfile(g_printerMac);
+  if (selectedPrinter == nullptr) {
+    g_printerMac = defaultPrinter->slaveMac;
+    g_printerName = defaultPrinter->barangay;
+    g_deviceProfilePreferences.putString("printer_mac", g_printerMac);
+    g_deviceProfilePreferences.putString("printer_name", g_printerName);
+  }
+
   Serial.printf("[PROFILE] Device/Barangay ID: %lu\n", (unsigned long)g_deviceId);
   Serial.print(F("[PROFILE] Collector: "));
   Serial.println(g_collectorName);
   Serial.print(F("[PROFILE] Slave MAC: "));
   Serial.println(g_slaveMac);
+  Serial.print(F("[PROFILE] Print target: "));
+  Serial.println(g_printerName);
 }
 
 String deviceProfileStatus() {
@@ -111,6 +139,22 @@ void clearDeviceProfile() {
   g_deviceId = 0;
   g_slaveMac = "";
   g_collectorName = "";
+  g_printerMac = "";
+  g_printerName = "";
+}
+
+bool savePrinterProfile(char key) {
+  const DeviceProfileOption* option = nullptr;
+  if (key >= '1' && key <= '4') {
+    option = &DEVICE_PROFILE_OPTIONS[key - '1'];
+  }
+  if (option == nullptr) return false;
+
+  g_printerMac = option->slaveMac;
+  g_printerName = option->barangay;
+  g_deviceProfilePreferences.putString("printer_mac", g_printerMac);
+  g_deviceProfilePreferences.putString("printer_name", g_printerName);
+  return true;
 }
 
 void displayDeviceProfileSelector() {

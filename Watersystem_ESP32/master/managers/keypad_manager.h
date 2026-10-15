@@ -38,6 +38,8 @@ void displaySetDateTimeScreen();
 void displaySystemToolsScreen();
 void displayResetProfilePinScreen();
 void displayVoidReadingScreen();
+void displayExtraScreen();
+void displayPrinterSelectScreen();
 void displayViewRateScreen();
 void displayPrinterStatusScreen();
 void startParallelPrintingJob(void (*job)());
@@ -245,9 +247,8 @@ void handleKeypadInput(char key) {
       displayEnterAccountScreen();
     }
     else if (key == '4') {
-      currentState = STATE_RESET_PROFILE_PIN;
-      inputBuffer = "";
-      displayResetProfilePinScreen();
+      currentState = STATE_EXTRA;
+      displayExtraScreen();
     }
     else if (key == '5') {
       isVoidFlow = false;
@@ -259,6 +260,41 @@ void handleKeypadInput(char key) {
     else if (key == 'C' || key == '#') {
       currentState = STATE_MENU;
       displayMenuScreen();
+    }
+  }
+  else if (currentState == STATE_EXTRA) {
+    if (key == '1') {
+      currentState = STATE_RESET_PROFILE_PIN;
+      inputBuffer = "";
+      displayResetProfilePinScreen();
+    }
+    else if (key == '2') {
+      currentState = STATE_PRINTER_SELECT;
+      displayPrinterSelectScreen();
+    }
+    else if (key == 'C' || key == '#') {
+      currentState = STATE_SYSTEM_TOOLS;
+      displaySystemToolsScreen();
+    }
+  }
+  else if (currentState == STATE_PRINTER_SELECT) {
+    if (key >= '1' && key <= '4') {
+      if (savePrinterProfile(key)) {
+        tft.fillScreen(COLOR_BG);
+        tft.setTextColor(TFT_GREEN);
+        tft.setCursor(30, 80);
+        tft.println(F("Printer selected"));
+        tft.setTextColor(COLOR_TEXT);
+        tft.setCursor(30, 110);
+        tft.println(g_printerName);
+        delay(1200);
+        currentState = STATE_EXTRA;
+        displayExtraScreen();
+      }
+    }
+    else if (key == 'C' || key == '#') {
+      currentState = STATE_EXTRA;
+      displayExtraScreen();
     }
   }
   else if (currentState == STATE_RESET_PROFILE_PIN) {

@@ -23,7 +23,7 @@ void displaySystemToolsScreen() {
   tft.setCursor(20, 130);
   tft.println(F("3. Void Payments"));
   tft.setCursor(20, 165);
-  tft.println(F("4. Reset Device Profile"));
+  tft.println(F("4. Extra"));
   tft.setCursor(20, 200);
   tft.println(F("5. Void Reading"));
 

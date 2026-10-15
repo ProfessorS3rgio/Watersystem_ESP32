@@ -31,6 +31,8 @@ extern RTC_DS3231 rtc;
 #include "../screens/system_tools_screen.h"
 #include "../screens/reset_profile_screen.h"
 #include "../screens/void_reading_screen.h"
+#include "../screens/extra_screen.h"
+#include "../screens/printer_select_screen.h"
 #include "../screens/warning_screen.h"
 #include <SD.h>
 
@@ -50,6 +52,8 @@ enum WorkflowState {
   STATE_SYSTEM_TOOLS,      // System tools submenu
   STATE_RESET_PROFILE_PIN, // Waiting for device profile reset PIN
   STATE_VOID_READING,      // Reviewing latest reading before removal
+  STATE_EXTRA,             // Extra maintenance submenu
+  STATE_PRINTER_SELECT,    // Selecting the print target
   STATE_SET_DATETIME,      // Waiting for manual RTC date/time entry
   STATE_ENTER_ACCOUNT,     // Waiting for account number entry
   STATE_ACCOUNT_FOUND,     // Account found, showing customer info

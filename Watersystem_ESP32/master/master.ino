@@ -76,7 +76,7 @@ constexpr bool BLE_SLAVE_LINK_ENABLED = true;
 
 // ===== KEYPAD SIMULATION HELPER =====
 bool isValidKeypadKey(char key) {
-  const char validKeys[] = {'1','2','3','A','4','5','6','B','7','8','9','C','*','0','#','D'};
+  const char validKeys[] = {'1','2','3','A','4','5','6','B','7','8','9','C','*','0','#','D','M'};
   for (char k : validKeys) {
     if (k == key) return true;
   }

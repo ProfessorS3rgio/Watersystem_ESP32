@@ -497,10 +497,10 @@ bool bleConnectToSlave() {
 	}
 
 	Serial.print(F("[BLE] Connecting directly to known slave: "));
-	Serial.println(g_slaveMac);
+	Serial.println(g_printerMac);
 	Serial.print(F("[BLE] Heap before connect: "));
 	Serial.println(esp_get_free_heap_size());
-	NimBLEAddress knownAddress(std::string(g_slaveMac.c_str()), BLE_ADDR_PUBLIC);
+	NimBLEAddress knownAddress(std::string(g_printerMac.c_str()), BLE_ADDR_PUBLIC);
 	const bool connected = pBleClient->connect(knownAddress);
 	Serial.print(F("[BLE] Heap after connect attempt: "));
 	Serial.println(esp_get_free_heap_size());
