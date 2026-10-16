@@ -11,9 +11,14 @@
         <div v-else>
           <div v-if="errorMessage" class="text-sm text-red-600 mb-4">{{ errorMessage }}</div>
 
-          <form v-if="activeSection === 'billing'" class="space-y-4" @submit.prevent="saveSettings">
-            <div>
-              <label class="block text-sm font-medium mb-1">Days Before Due Date</label>
+          <form v-if="activeSection === 'billing'" class="space-y-6" @submit.prevent="saveSettings">
+            <div class="flex items-start gap-3 border-b pb-5" :class="isDark ? 'border-gray-700' : 'border-gray-200'">
+              <div class="settings-section-icon bg-indigo-100 text-indigo-600" :class="isDark ? 'bg-indigo-900/50 text-indigo-300' : ''"><svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M6 4.75h12A1.25 1.25 0 0 1 19.25 6v12A1.25 1.25 0 0 1 18 19.25H6A1.25 1.25 0 0 1 4.75 18V6A1.25 1.25 0 0 1 6 4.75ZM8 9h8M8 12h5M8 15h8" /></svg></div>
+              <div><h2 class="text-lg font-semibold">Billing rules</h2><p class="mt-1 text-sm" :class="isDark ? 'text-gray-400' : 'text-gray-600'">Control when bills become due and how overdue accounts are handled.</p></div>
+            </div>
+            <div class="grid gap-4 md:grid-cols-2">
+            <div class="rounded-xl border p-4" :class="isDark ? 'border-gray-700 bg-gray-800/50' : 'border-gray-200 bg-gray-50/70'">
+              <label class="flex items-center gap-2 text-sm font-medium mb-2"><svg class="h-4 w-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M7 4.75h10A2.25 2.25 0 0 1 19.25 7v10A2.25 2.25 0 0 1 17 19.25H7A2.25 2.25 0 0 1 4.75 17V7A2.25 2.25 0 0 1 7 4.75ZM8 8.25h8M8 12h8M8 15.75h4" /></svg>Days Before Due Date</label>
               <input
                 v-model.number="form.bill_due_days"
                 type="number"
@@ -24,9 +29,8 @@
               />
               <p class="text-xs mt-1" :class="isDark ? 'text-gray-400' : 'text-gray-500'">Due date = bill date + this many days</p>
             </div>
-
-            <div>
-              <label class="block text-sm font-medium mb-1">Disconnection Days (days past due)</label>
+            <div class="rounded-xl border p-4" :class="isDark ? 'border-gray-700 bg-gray-800/50' : 'border-gray-200 bg-gray-50/70'">
+              <label class="flex items-center gap-2 text-sm font-medium mb-2"><svg class="h-4 w-4 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 4.75 20 19.25H4L12 4.75ZM12 9v4M12 16.5h.01" /></svg>Disconnection Days</label>
               <input
                 v-model.number="form.disconnection_days"
                 type="number"
@@ -37,9 +41,8 @@
               />
               <p class="text-xs mt-1" :class="isDark ? 'text-gray-400' : 'text-gray-500'">If today is greater than due date + this many days, service may be disconnected</p>
             </div>
-
-            <div>
-              <label class="block text-sm font-medium mb-1">Days Before Additional Charge</label>
+            <div class="rounded-xl border p-4" :class="isDark ? 'border-gray-700 bg-gray-800/50' : 'border-gray-200 bg-gray-50/70'">
+              <label class="flex items-center gap-2 text-sm font-medium mb-2"><svg class="h-4 w-4 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 3.75v16.5M16.25 7.25c0-1.38-1.9-2.5-4.25-2.5s-4.25 1.12-4.25 2.5 1.35 2.1 4.25 2.75 4.25 1.37 4.25 2.75-1.9 2.5-4.25 2.5-4.25-1.12-4.25-2.5" /></svg>Days Before Additional Charge</label>
               <input
                 v-model.number="form.penalty_after_days"
                 type="number"
@@ -50,9 +53,8 @@
               />
               <p class="text-xs mt-1" :class="isDark ? 'text-gray-400' : 'text-gray-500'">Additional charge starts after the bill due date plus this many days.</p>
             </div>
-
-            <div>
-              <label class="block text-sm font-medium mb-1">Additional Charge</label>
+            <div class="rounded-xl border p-4" :class="isDark ? 'border-gray-700 bg-gray-800/50' : 'border-gray-200 bg-gray-50/70'">
+              <label class="flex items-center gap-2 text-sm font-medium mb-2"><svg class="h-4 w-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M6.5 5.25h11A2.25 2.25 0 0 1 19.75 7.5v9A2.25 2.25 0 0 1 17.5 18.75h-11A2.25 2.25 0 0 1 4.25 16.5v-9A2.25 2.25 0 0 1 6.5 5.25ZM4.25 9h15.5M8.25 13h.01M11.5 13h4.25" /></svg>Additional Charge</label>
               <input
                 v-model.number="form.penalty_amount"
                 type="number"
@@ -63,7 +65,7 @@
                 required
               />
               <p class="text-xs mt-1" :class="isDark ? 'text-gray-400' : 'text-gray-500'">This charge is added when an overdue bill is paid.</p>
-            </div>
+            </div></div>
 
             <div class="pt-2 flex items-center justify-end gap-3">
               <button
@@ -95,7 +97,7 @@
             <div v-if="categoriesLoading" class="text-sm" :class="isDark ? 'text-gray-300' : 'text-gray-600'">Loading customer categories...</div>
             <div v-else class="overflow-x-auto">
               <table class="w-full text-sm">
-                <thead :class="isDark ? 'bg-gray-800 text-gray-300' : 'bg-gray-50 text-gray-600'"><tr><th class="px-3 py-2 text-left">Category</th><th class="px-3 py-2 text-left">Rate / m³</th><th class="px-3 py-2 text-left">Minimum charge</th><th class="px-3 py-2 text-left">Late penalty</th></tr></thead>
+                <thead :class="isDark ? 'bg-gray-800 text-gray-300' : 'bg-gray-50 text-gray-600'"><tr><th class="px-3 py-2 text-left"><span class="flex items-center gap-2"><svg class="h-4 w-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M8 11.25a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM4.75 19.25a3.25 3.25 0 0 1 6.5 0" /></svg>Category</span></th><th class="px-3 py-2 text-left"><span class="flex items-center gap-2"><svg class="h-4 w-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 3.75v16.5M16.25 7.25c0-1.38-1.9-2.5-4.25-2.5s-4.25 1.12-4.25 2.5 1.35 2.1 4.25 2.75 4.25 1.37 4.25 2.75-1.9 2.5-4.25 2.5-4.25-1.12-4.25-2.5" /></svg>Rate / m³</span></th><th class="px-3 py-2 text-left"><span class="flex items-center gap-2"><svg class="h-4 w-4 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M5 7.25h14M5 12h14M5 16.75h9" /></svg>Minimum charge</span></th><th class="px-3 py-2 text-left"><span class="flex items-center gap-2"><svg class="h-4 w-4 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 4.75v14.5M16 8c0-1.1-1.8-2-4-2s-4 0-4 2 1.8 2 4 2 4 .9 4 2-1.8 2-4 2-4-.9-4-2" /></svg>Late penalty</span></th></tr></thead>
                 <tbody class="divide-y" :class="isDark ? 'divide-gray-700' : 'divide-gray-200'">
                   <tr v-for="category in categories" :key="category.type_id">
                     <td class="px-3 py-3 font-medium">{{ category.type_name }}</td>
@@ -287,3 +289,7 @@ export default {
   }
 }
 </script>
+
+<style scoped>
+.settings-section-icon { display: flex; width: 2.5rem; height: 2.5rem; flex-shrink: 0; align-items: center; justify-content: center; border-radius: .75rem; }
+</style>

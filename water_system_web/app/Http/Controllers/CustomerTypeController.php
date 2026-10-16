@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\CustomerType;
 use Illuminate\Http\Request;
+use App\Services\AuditLogService;
 
 class CustomerTypeController extends Controller
 {
@@ -14,7 +15,7 @@ class CustomerTypeController extends Controller
         ]);
     }
 
-    public function update(Request $request, CustomerType $customerType)
+    public function update(Request $request, CustomerType $customerType, AuditLogService $audit)
     {
         $validated = $request->validate([
             'rate_per_m3' => ['required', 'numeric', 'min:0', 'max:1000000'],
@@ -23,9 +24,11 @@ class CustomerTypeController extends Controller
             'penalty' => ['required', 'numeric', 'min:0', 'max:1000000'],
         ]);
 
+        $before = $customerType->getAttributes();
         $customerType->fill($validated);
         $customerType->Synced = false;
         $customerType->save();
+        $audit->record('customer_category_updated', $customerType, $before, $customerType->getAttributes());
 
         return response()->json(['data' => $customerType]);
     }

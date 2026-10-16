@@ -13,6 +13,7 @@ use App\Http\Controllers\CustomerTypeController;
 use App\Http\Controllers\BarangaySequenceController;
 use App\Http\Controllers\DeductionController;
 use App\Http\Controllers\SyncController;
+use App\Http\Controllers\AuditLogController;
 
 Route::get('/', function () {
     return view('welcome');
@@ -80,4 +81,5 @@ Route::middleware('auth')->group(function () {
     Route::post('/settings/mark-synced', [SettingsController::class, 'markSynced']);
 
     Route::post('/sync/reset-status', [SyncController::class, 'resetStatus']);
+    Route::get('/audit-logs', [AuditLogController::class, 'index']);
 });

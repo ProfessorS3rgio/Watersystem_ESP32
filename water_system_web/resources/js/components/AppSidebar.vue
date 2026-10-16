@@ -130,11 +130,25 @@
             <svg class="h-4 w-4 transition-transform duration-200" :class="isSettingsOpen ? 'rotate-90' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m9 5 7 7-7 7" /></svg>
           </button>
           <div v-if="isSettingsOpen" class="space-y-1">
-            <router-link to="/settings/billing" class="block ml-6 px-4 py-2 rounded-lg text-sm transition-all duration-200" :class="isActive('/settings/billing') ? 'bg-indigo-600 text-white shadow-lg' : (isDark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100')">Billing Rules</router-link>
-              <router-link to="/settings/categories" class="block ml-6 px-4 py-2 rounded-lg text-sm transition-all duration-200" :class="isActive('/settings/categories') ? 'bg-indigo-600 text-white shadow-lg' : (isDark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100')">Customer Categories</router-link>
-            <router-link to="/settings/backup" class="block ml-6 px-4 py-2 rounded-lg text-sm transition-all duration-200" :class="isActive('/settings/backup') ? 'bg-indigo-600 text-white shadow-lg' : (isDark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100')">Data Backup</router-link>
+              <router-link to="/settings/billing" class="flex items-center gap-3 ml-6 px-4 py-2 rounded-lg text-sm transition-all duration-200" :class="isActive('/settings/billing') ? 'bg-indigo-600 text-white shadow-lg' : (isDark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100')">
+                <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M6 4.75h12A1.25 1.25 0 0 1 19.25 6v12A1.25 1.25 0 0 1 18 19.25H6A1.25 1.25 0 0 1 4.75 18V6A1.25 1.25 0 0 1 6 4.75ZM8 9h8M8 12h5M8 15h8" /></svg>
+                <span>Billing Rules</span>
+              </router-link>
+              <router-link to="/settings/categories" class="flex items-center gap-3 ml-6 px-4 py-2 rounded-lg text-sm transition-all duration-200" :class="isActive('/settings/categories') ? 'bg-indigo-600 text-white shadow-lg' : (isDark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100')">
+                <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M8 11.25a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM4.75 19.25a3.25 3.25 0 0 1 6.5 0M16 12.25a2.5 2.5 0 1 0 0-5M14.5 19.25h4.75a.75.75 0 0 0 .75-.75v-.5a3.5 3.5 0 0 0-5.5-2.85" /></svg>
+                <span>Customer Categories</span>
+              </router-link>
+              <router-link to="/settings/backup" class="flex items-center gap-3 ml-6 px-4 py-2 rounded-lg text-sm transition-all duration-200" :class="isActive('/settings/backup') ? 'bg-indigo-600 text-white shadow-lg' : (isDark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100')">
+                <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 16V4m0 0L8 8m4-4 4 4M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4" /></svg>
+                <span>Data Backup</span>
+              </router-link>
           </div>
         </div>
+
+        <router-link to="/audit-logs" class="flex items-center space-x-3 px-4 py-3 rounded-lg transition-all duration-200" :class="isActive('/audit-logs') ? (isDark ? 'bg-indigo-600 text-white shadow-lg' : 'bg-indigo-600 text-white shadow-lg') : (isDark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100')">
+          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M6 4.75h12A1.25 1.25 0 0 1 19.25 6v12A1.25 1.25 0 0 1 18 19.25H6A1.25 1.25 0 0 1 4.75 18V6A1.25 1.25 0 0 1 6 4.75ZM8 9h8M8 12h5M8 15h8" /></svg>
+          <span class="font-medium">Audit Logs</span>
+        </router-link>
       </nav>
 
       <!-- Theme Toggle -->

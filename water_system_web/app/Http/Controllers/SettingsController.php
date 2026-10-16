@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Setting;
 use Illuminate\Http\Request;
+use App\Services\AuditLogService;
 
 class SettingsController extends Controller
 {
@@ -31,7 +32,7 @@ class SettingsController extends Controller
         ]);
     }
 
-    public function update(Request $request)
+    public function update(Request $request, AuditLogService $audit)
     {
         $row = $this->ensureSettingsRow();
 
@@ -42,8 +43,10 @@ class SettingsController extends Controller
             'penalty_amount' => ['required', 'numeric', 'min:0', 'max:1000000'],
         ]);
 
+        $before = $row->getAttributes();
         $row->fill($validated);
         $row->save();
+        $audit->record('settings_updated', $row, $before, $row->getAttributes());
 
         return response()->json([
             'data' => $row,

@@ -8,6 +8,7 @@ import CustomerBilling from '../components/billing/CustomerBilling.vue';
 import AllBills from '../components/billing/AllBills.vue';
 import SyncDevice from '../pages/SyncDevice.vue';
 import Settings from '../pages/Settings.vue';
+import AuditLogs from '../pages/AuditLogs.vue';
 
 const checkAuth = async () => {
   try {
@@ -93,6 +94,12 @@ export const router = createRouter({
       path: '/settings/categories',
       name: 'settings-categories',
       component: Settings,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/audit-logs',
+      name: 'audit-logs',
+      component: AuditLogs,
       meta: { requiresAuth: true }
     },
   ],

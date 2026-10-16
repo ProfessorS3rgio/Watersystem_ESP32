@@ -9,6 +9,7 @@ use App\Models\BillTransaction;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use App\Services\AuditLogService;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
@@ -645,7 +646,7 @@ public function monthlyReport(Request $request)
         ]);
     }
 
-    public function pay(Request $request, Bill $bill)
+    public function pay(Request $request, Bill $bill, AuditLogService $audit)
     {
         if (in_array(strtolower((string) $bill->status), ['paid', 'void'], true)) {
             return response()->json([
@@ -669,7 +670,7 @@ public function monthlyReport(Request $request)
             $penalty = max(0, $penaltyAmount);
         }
 
-        DB::transaction(function () use ($bill, $validated, $penalty) {
+        DB::transaction(function () use ($bill, $validated, $penalty, $audit) {
             $bill->refresh();
             if ($penalty > 0 && (float) $bill->penalty < $penalty) {
                 $bill->penalty = $penalty;
@@ -688,6 +689,13 @@ public function monthlyReport(Request $request)
             $bill->balance_due = max((float) $bill->total_due - (float) $bill->amount_paid, 0);
             $bill->status = $bill->balance_due <= 0.01 ? 'Paid' : 'Partially Paid';
             $bill->save();
+
+            $audit->record('payment_recorded', $bill, null, $bill->getAttributes(), [
+                'amount' => $amount,
+                'cash_received' => $validated['cash_received'],
+                'change' => $validated['change_amount'],
+                'source' => 'office',
+            ]);
 
             BillTransaction::create([
                 'bill_id' => $bill->bill_id,
@@ -768,7 +776,7 @@ public function monthlyReport(Request $request)
             'overdue' => $overdue,
         ]);
     }
-    public function markPaid(Request $request, Bill $bill)
+    public function markPaid(Request $request, Bill $bill, AuditLogService $audit)
     {
         $validated = $request->validate([
             'status' => ['nullable', 'string', 'in:paid'],
@@ -787,7 +795,7 @@ public function monthlyReport(Request $request)
             }
         }
 
-        DB::transaction(function () use ($bill, $penalty) {
+        DB::transaction(function () use ($bill, $penalty, $audit) {
             $bill->refresh();
             $bill->penalty = $penalty;
             $bill->total_due = (float) $bill->charges + (float) $bill->penalty;
@@ -796,6 +804,11 @@ public function monthlyReport(Request $request)
             $bill->balance_due = max((float) $bill->total_due - (float) $bill->amount_paid, 0);
             $bill->status = 'Paid';
             $bill->save();
+
+            $audit->record('bill_marked_paid', $bill, null, $bill->getAttributes(), [
+                'amount' => $amount,
+                'source' => 'office',
+            ]);
 
             BillTransaction::create([
                 'bill_id' => $bill->bill_id,
@@ -817,7 +830,7 @@ public function monthlyReport(Request $request)
         ]);
     }
 
-    public function void(Request $request, Bill $bill)
+    public function void(Request $request, Bill $bill, AuditLogService $audit)
     {
         // Check if bill can be voided
         if (!in_array(strtolower((string) $bill->status), ['paid', 'partially paid'], true)) {
@@ -830,7 +843,7 @@ public function monthlyReport(Request $request)
             'reason' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        DB::transaction(function () use ($bill, $validated) {
+        DB::transaction(function () use ($bill, $validated, $audit) {
             $bill->refresh();
             $paidAmount = (float) ($bill->amount_paid ?? 0);
             $bill->amount_paid = 0;
@@ -838,6 +851,11 @@ public function monthlyReport(Request $request)
             $bill->status = 'Pending';
             $bill->void_reason = $validated['reason'] ?? null;
             $bill->save();
+
+            $audit->record('bill_voided', $bill, null, $bill->getAttributes(), [
+                'reason' => $validated['reason'] ?? null,
+                'source' => 'office',
+            ]);
 
             BillTransaction::create([
                 'bill_id' => $bill->bill_id,

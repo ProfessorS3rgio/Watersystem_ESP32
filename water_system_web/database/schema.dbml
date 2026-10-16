@@ -313,6 +313,28 @@ Table "settings" {
   "updated_at" timestamp
 }
 
+Table "audit_logs" {
+  "id" bigint [pk, not null, increment]
+  "actor_type" varchar(255) [not null, default: 'system']
+  "actor_id" bigint
+  "action" varchar(255) [not null]
+  "auditable_type" varchar(255) [not null]
+  "auditable_id" bigint
+  "before" json
+  "after" json
+  "metadata" json
+  "ip_address" varchar(45)
+  "device_uid" varchar(255)
+  "created_at" timestamp
+  "updated_at" timestamp
+
+  Indexes {
+    (auditable_type, auditable_id)
+    (actor_type, actor_id)
+    (action, created_at)
+  }
+}
+
 Table "users" {
   "id" bigint [pk, not null, increment]
   "name" varchar(255) [not null]
