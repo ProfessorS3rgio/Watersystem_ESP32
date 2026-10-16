@@ -14,6 +14,22 @@ class CustomerTypeController extends Controller
         ]);
     }
 
+    public function update(Request $request, CustomerType $customerType)
+    {
+        $validated = $request->validate([
+            'rate_per_m3' => ['required', 'numeric', 'min:0', 'max:1000000'],
+            'min_m3' => ['required', 'integer', 'min:0', 'max:1000000'],
+            'min_charge' => ['required', 'numeric', 'min:0', 'max:1000000'],
+            'penalty' => ['required', 'numeric', 'min:0', 'max:1000000'],
+        ]);
+
+        $customerType->fill($validated);
+        $customerType->Synced = false;
+        $customerType->save();
+
+        return response()->json(['data' => $customerType]);
+    }
+
     /**
      * Mark customer types as synced after successful device sync.
      */

@@ -32,9 +32,14 @@ export function useUsage() {
     }
   }
 
-  const markBillPaid = async (billId) => {
+  const markBillPaid = async (billId, payment) => {
     try {
-      await window.axios.post(`/bills/${billId}/mark-paid`)
+      await window.axios.post(`/bills/${billId}/pay`, {
+        amount_paid: payment.amount_paid,
+        cash_received: payment.cash_received,
+        change_amount: payment.change_amount,
+        payment_method: 'cash'
+      })
     } catch (error) {
       if (error.response?.status === 401) throw new Error('Unauthorized. Please login again.')
       throw new Error('Failed to mark paid: ' + (error.response?.data?.message || error.message))

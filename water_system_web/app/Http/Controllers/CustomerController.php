@@ -68,6 +68,13 @@ class CustomerController extends Controller
             ->select('customer_id', DB::raw('MAX(bill_date) as latest_bill_date'))
             ->groupBy('customer_id');
 
+        $accountBalances = DB::table('bill')
+            ->select(
+                'customer_id',
+                DB::raw("SUM(CASE WHEN status NOT IN ('Void', 'void') THEN COALESCE(balance_due, total_due) ELSE 0 END) as account_balance")
+            )
+            ->groupBy('customer_id');
+
         $customers = $query
             ->leftJoinSub($latestReadingAt, 'lr', function ($join) {
                 $join->on('lr.customer_id', '=', 'customer.customer_id');
@@ -82,6 +89,9 @@ class CustomerController extends Controller
             ->leftJoin('bill as b', function ($join) {
                 $join->on('b.customer_id', '=', 'customer.customer_id')
                     ->on('b.bill_date', '=', 'lb.latest_bill_date');
+            })
+            ->leftJoinSub($accountBalances, 'ab', function ($join) {
+                $join->on('ab.customer_id', '=', 'customer.customer_id');
             })
             ->orderBy('customer.account_no')
             ->get([
@@ -106,7 +116,10 @@ class CustomerController extends Controller
                 DB::raw('b.bill_date as latest_bill_date'),
                 DB::raw('b.due_date as latest_bill_due_date'),
                 DB::raw('b.total_due as latest_bill_total_due'),
+                DB::raw('b.amount_paid as latest_bill_amount_paid'),
+                DB::raw('b.balance_due as latest_bill_balance_due'),
                 DB::raw('b.status as latest_bill_status'),
+                DB::raw('COALESCE(ab.account_balance, 0) as account_balance'),
             ]);
 
         $today = Carbon::today();

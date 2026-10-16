@@ -42,6 +42,8 @@
             >
               <option value="">All</option>
               <option value="pending">Pending</option>
+              <option value="due">Due</option>
+              <option value="partially paid">Partially Paid</option>
               <option value="paid">Paid</option>
             </select>
           </div>
@@ -93,35 +95,35 @@
                 <span :class="isDark ? 'text-gray-400' : 'text-gray-600'">{{ bill.customer?.account_no || 'N/A' }}</span>
               </td>
               <td class="py-2 px-2">
-                <span :class="isDark ? 'text-gray-400' : 'text-gray-600'">{{ bill.status.toLowerCase() === 'paid' ? '' : formatDate(bill.due_date) }}</span>
+                <span :class="isDue(bill) ? (isDark ? 'font-semibold text-red-300' : 'font-semibold text-red-600') : (isDark ? 'text-gray-400' : 'text-gray-600')">{{ normalizedStatus(bill) === 'paid' ? '' : formatDate(bill.due_date) }}</span>
               </td>
               <td class="py-2 px-2">
-                <span class="font-semibold text-green-600">₱{{ formatMoney(bill.total_due) }}</span>
+                <span class="font-semibold" :class="getAmountClass(bill)">₱{{ formatMoney(displayAmount(bill)) }}</span>
               </td>
               <td class="py-2 px-2">
                 <span class="px-2 py-1 rounded-full text-xs font-medium"
-                      :class="getStatusClass(bill.status)">
-                  {{ bill.status.charAt(0).toUpperCase() + bill.status.slice(1) }}
+                      :class="getStatusClass(normalizedStatus(bill))">
+                  {{ displayStatus(bill) }}
                 </span>
               </td>
               <td class="py-2 px-2">
                 <div class="flex gap-1">
                   <button
-                    v-if="bill.status === 'pending'"
+                    v-if="['pending', 'due', 'partially paid'].includes(normalizedStatus(bill))"
                     @click="handlePayBill(bill)"
                     class="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-xs font-medium transition-colors duration-200"
                   >
                     Pay
                   </button>
                   <button
-                    v-if="bill.status === 'paid'"
+                    v-if="normalizedStatus(bill) === 'paid'"
                     @click="handleVoidBill(bill)"
                     class="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded text-xs font-medium transition-colors duration-200"
                   >
                     Void
                   </button>
                   <button
-                    v-if="bill.status === 'paid'"
+                    v-if="normalizedStatus(bill) === 'paid'"
                     @click="handlePrintBill(bill)"
                     class="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs font-medium transition-colors duration-200"
                   >
@@ -254,18 +256,65 @@ export default {
       this.$emit('go-to-page', page)
     },
     getStatusClass(status) {
-      switch (status.toLowerCase()) {
+      switch (String(status || '').toLowerCase()) {
         case 'paid':
           return 'bg-green-500 text-white'
         case 'pending':
-          return 'bg-yellow-100 text-yellow-800'
+          return this.isDark ? 'bg-amber-900/60 text-amber-200' : 'bg-amber-100 text-amber-800'
+        case 'due':
+          return this.isDark ? 'bg-red-900/70 text-red-200' : 'bg-red-100 text-red-800'
+        case 'partially paid':
+          return this.isDark ? 'bg-orange-900/70 text-orange-200' : 'bg-orange-100 text-orange-800'
+        case 'void':
+          return this.isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
         default:
-          return 'bg-gray-100 text-gray-800'
+          return this.isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-800'
       }
+    },
+    normalizedStatus(bill) {
+      const status = String(bill?.status || '').toLowerCase()
+      if (status === 'pending' && this.isDue(bill)) return 'due'
+      return status
+    },
+    isDue(bill) {
+      const status = String(bill?.status || '').toLowerCase()
+      if (status === 'due') return true
+      if (!bill?.due_date || !['pending', 'due'].includes(status)) return false
+      const due = new Date(bill.due_date)
+      if (Number.isNaN(due.getTime())) return false
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      due.setHours(0, 0, 0, 0)
+      return due < today
+    },
+    displayStatus(bill) {
+      const status = this.normalizedStatus(bill)
+      return status ? status.replace(/\b\w/g, letter => letter.toUpperCase()) : 'Unknown'
+    },
+    getAmountClass(bill) {
+      switch (this.normalizedStatus(bill)) {
+        case 'due': return this.isDark ? 'text-red-300' : 'text-red-600'
+        case 'pending': return this.isDark ? 'text-amber-300' : 'text-amber-600'
+        case 'partially paid': return this.isDark ? 'text-orange-300' : 'text-orange-600'
+        case 'paid': return this.isDark ? 'text-green-300' : 'text-green-600'
+        default: return this.isDark ? 'text-gray-300' : 'text-gray-600'
+      }
+    },
+    displayAmount(bill) {
+      return this.normalizedStatus(bill) === 'paid'
+        ? (bill.total_due ?? bill.balance_due ?? 0)
+        : (bill.balance_due ?? bill.total_due ?? 0)
     },
     formatDate(date) {
       if (!date) return 'N/A'
-      return new Date(date).toLocaleDateString()
+      const value = String(date).slice(0, 10)
+      const parts = value.split('-')
+      if (parts.length === 3 && parts.every(part => /^\d+$/.test(part))) {
+        return `${parts[1].padStart(2, '0')}/${parts[2].padStart(2, '0')}/${parts[0]}`
+      }
+      const parsed = new Date(date)
+      if (Number.isNaN(parsed.getTime())) return 'N/A'
+      return `${String(parsed.getMonth() + 1).padStart(2, '0')}/${String(parsed.getDate()).padStart(2, '0')}/${parsed.getFullYear()}`
     },
     formatMoney(amount) {
       if (amount === null || amount === undefined) return '0.00'

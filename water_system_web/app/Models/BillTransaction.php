@@ -12,6 +12,7 @@ class BillTransaction extends Model
 
     protected $fillable = [
         'bill_reference_number',
+        'bill_id',
         'device_uid',
         'type',
         'source',

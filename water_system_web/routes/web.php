@@ -33,6 +33,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index']);
 
     Route::get('/customer-types', [CustomerTypeController::class, 'index']);
+    Route::put('/customer-types/{customerType}', [CustomerTypeController::class, 'update']);
     Route::post('/customer-types/mark-synced', [CustomerTypeController::class, 'markSynced']);
     Route::get('/barangays', [BarangaySequenceController::class, 'index']);
     Route::post('/barangays/mark-synced', [BarangaySequenceController::class, 'markSynced']);

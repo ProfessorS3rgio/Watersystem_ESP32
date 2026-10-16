@@ -77,6 +77,24 @@ export const router = createRouter({
       component: Settings,
       meta: { requiresAuth: true }
     },
+    {
+      path: '/settings/billing',
+      name: 'settings-billing',
+      component: Settings,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/settings/backup',
+      name: 'settings-backup',
+      component: Settings,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/settings/categories',
+      name: 'settings-categories',
+      component: Settings,
+      meta: { requiresAuth: true }
+    },
   ],
 });
 

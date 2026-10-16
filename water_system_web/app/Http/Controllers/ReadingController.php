@@ -45,6 +45,8 @@ class ReadingController extends Controller
             DB::raw('b.bill_date as bill_date'),
             DB::raw('b.due_date as due_date'),
             DB::raw('b.total_due as total_due'),
+            DB::raw('b.amount_paid as amount_paid'),
+            DB::raw('b.balance_due as balance_due'),
             DB::raw('b.status as status'),
         ]);
 

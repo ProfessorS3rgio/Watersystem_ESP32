@@ -368,10 +368,21 @@ class ReadingImportController extends Controller
 
                     $newStatus = $row['new_bill_status'];
                     $bill->status = $newStatus;
+                    if (Str::lower($newStatus) === 'paid') {
+                        $bill->amount_paid = $bill->total_due;
+                        $bill->balance_due = 0;
+                    } elseif (Str::lower($newStatus) === 'void') {
+                        $bill->amount_paid = 0;
+                        $bill->balance_due = 0;
+                    } else {
+                        $bill->amount_paid = 0;
+                        $bill->balance_due = $bill->total_due;
+                    }
                     $bill->Synced = false;
                     $bill->save();
 
                     BillTransaction::create([
+                        'bill_id' => $bill->bill_id,
                         'bill_reference_number' => $bill->reference_number,
                         'device_uid' => $bill->device_uid,
                         'type' => $newStatus === 'Paid' ? 'payment' : 'void',

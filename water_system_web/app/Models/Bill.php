@@ -19,6 +19,8 @@ class Bill extends Model
         'charges',
         'penalty',
         'total_due',
+        'amount_paid',
+        'balance_due',
         'due_date',
         'status',
         'void_reason',
@@ -32,6 +34,8 @@ class Bill extends Model
         'charges' => 'decimal:2',
         'penalty' => 'decimal:2',
         'total_due' => 'decimal:2',
+        'amount_paid' => 'decimal:2',
+        'balance_due' => 'decimal:2',
     ];
 
     public function customer()

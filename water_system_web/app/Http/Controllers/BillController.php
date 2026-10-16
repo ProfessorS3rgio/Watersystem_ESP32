@@ -8,6 +8,7 @@ use App\Models\Customer;
 use App\Models\BillTransaction;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
@@ -29,7 +30,7 @@ class BillController extends Controller
         $query = Bill::with('customer');
 
         if ($status) {
-            $query->where('status', $status);
+            $query->whereRaw('LOWER(status) = ?', [strtolower($status)]);
         }
 
         if ($customerId) {
@@ -600,7 +601,7 @@ public function monthlyReport(Request $request)
         $query = Bill::where('customer_id', $customerId);
 
         if ($status) {
-            $query->where('status', $status);
+            $query->whereRaw('LOWER(status) = ?', [strtolower($status)]);
         }
 
         $bills = $query->orderBy('created_at', 'desc')->get();
@@ -646,10 +647,9 @@ public function monthlyReport(Request $request)
 
     public function pay(Request $request, Bill $bill)
     {
-        // Check if bill can be paid
-        if ($bill->status !== 'pending') {
+        if (in_array(strtolower((string) $bill->status), ['paid', 'void'], true)) {
             return response()->json([
-                'message' => 'Only pending bills can be paid.'
+                'message' => 'This bill cannot receive a payment.'
             ], 422);
         }
 
@@ -660,24 +660,52 @@ public function monthlyReport(Request $request)
             'payment_method' => ['required', 'string', 'in:cash'],
         ]);
 
-        // Update bill status to paid
-        $bill->status = 'paid';
-        $bill->save();
+        // Apply the configured additional charge before calculating the remaining balance.
+        $settings = Setting::query()->orderBy('id')->first();
+        $penaltyAfterDays = $settings ? (int) $settings->penalty_after_days : (int) env('PENALTY_AFTER_DAYS', 0);
+        $penaltyAmount = $this->resolvePenaltyAmount($bill, $settings);
+        $penalty = 0.0;
+        if ($bill->due_date && now()->greaterThan(Carbon::parse($bill->due_date)->addDays($penaltyAfterDays))) {
+            $penalty = max(0, $penaltyAmount);
+        }
 
-        // Create transaction record
-        BillTransaction::create([
-            'bill_reference_number' => $bill->reference_number,
-            'type' => 'payment',
-            'amount' => $validated['amount_paid'],
-            'cash_received' => $validated['cash_received'],
-            'change' => $validated['change_amount'],
-            'transaction_date' => now(),
-            'payment_method' => $validated['payment_method'],
-            'processed_by_user_id' => auth()->id(),
-        ]);
+        DB::transaction(function () use ($bill, $validated, $penalty) {
+            $bill->refresh();
+            if ($penalty > 0 && (float) $bill->penalty < $penalty) {
+                $bill->penalty = $penalty;
+                $bill->total_due = (float) $bill->charges + $penalty;
+            }
+            $balance = $penalty > 0
+                ? max((float) $bill->total_due - (float) ($bill->amount_paid ?? 0), 0)
+                : (float) ($bill->balance_due ?? $bill->total_due);
+            $amount = (float) $validated['amount_paid'];
+
+            if ($amount <= 0 || $amount > $balance + 0.01) {
+                abort(422, 'Payment cannot exceed the bill balance.');
+            }
+
+            $bill->amount_paid = (float) ($bill->amount_paid ?? 0) + $amount;
+            $bill->balance_due = max((float) $bill->total_due - (float) $bill->amount_paid, 0);
+            $bill->status = $bill->balance_due <= 0.01 ? 'Paid' : 'Partially Paid';
+            $bill->save();
+
+            BillTransaction::create([
+                'bill_id' => $bill->bill_id,
+                'bill_reference_number' => $bill->reference_number,
+                'device_uid' => $bill->device_uid,
+                'type' => 'payment',
+                'source' => 'Office',
+                'amount' => $amount,
+                'cash_received' => $validated['cash_received'],
+                'change' => $validated['change_amount'],
+                'transaction_date' => now(),
+                'payment_method' => $validated['payment_method'],
+                'processed_by_user_id' => auth()->id(),
+            ]);
+        });
 
         return response()->json([
-            'data' => $bill,
+            'data' => $bill->fresh(),
         ]);
     }
 
@@ -716,7 +744,7 @@ public function monthlyReport(Request $request)
         $currentMonth = now()->month;
         $currentYear = now()->year;
 
-        $collectable = Bill::where('status', 'pending')
+        $collectable = Bill::whereIn('status', ['pending', 'Pending', 'due', 'Due'])
             ->whereYear('due_date', $currentYear)
             ->whereMonth('due_date', $currentMonth)
             ->get();
@@ -731,7 +759,7 @@ public function monthlyReport(Request $request)
     {
         $pending = Bill::where('status', 'pending')->count();
 
-        $overdue = Bill::where('status', 'pending')
+        $overdue = Bill::whereIn('status', ['pending', 'Pending', 'due', 'Due'])
             ->where('due_date', '<', now()->toDateString())
             ->count();
 
@@ -749,7 +777,7 @@ public function monthlyReport(Request $request)
         // Apply penalty at payment time (if overdue beyond grace days).
         $settings = Setting::query()->orderBy('id')->first();
         $penaltyAfterDays = $settings ? (int) $settings->penalty_after_days : (int) env('PENALTY_AFTER_DAYS', 0);
-        $penaltyAmount = $settings ? (float) $settings->penalty_amount : (float) env('PENALTY_AMOUNT', 0.00);
+        $penaltyAmount = $this->resolvePenaltyAmount($bill, $settings);
 
         $penalty = 0.0;
         if ($bill->due_date) {
@@ -759,33 +787,40 @@ public function monthlyReport(Request $request)
             }
         }
 
-        $bill->penalty = $penalty;
-        $bill->total_due = (float) $bill->charges + (float) $bill->penalty;
+        DB::transaction(function () use ($bill, $penalty) {
+            $bill->refresh();
+            $bill->penalty = $penalty;
+            $bill->total_due = (float) $bill->charges + (float) $bill->penalty;
+            $amount = max((float) $bill->total_due - (float) ($bill->amount_paid ?? 0), 0);
+            $bill->amount_paid = (float) ($bill->amount_paid ?? 0) + $amount;
+            $bill->balance_due = max((float) $bill->total_due - (float) $bill->amount_paid, 0);
+            $bill->status = 'Paid';
+            $bill->save();
 
-        $bill->status = 'paid';
-        $bill->save();
-
-        // Create transaction record
-        BillTransaction::create([
-            'bill_reference_number' => $bill->reference_number,
-            'type' => 'payment',
-            'amount' => $bill->total_due,
-            'cash_received' => $bill->total_due,
-            'change' => 0,
-            'transaction_date' => now(),
-            'payment_method' => 'cash',
-            'processed_by_user_id' => auth()->id(),
-        ]);
+            BillTransaction::create([
+                'bill_id' => $bill->bill_id,
+                'bill_reference_number' => $bill->reference_number,
+                'device_uid' => $bill->device_uid,
+                'type' => 'payment',
+                'source' => 'Office',
+                'amount' => $amount,
+                'cash_received' => $amount,
+                'change' => 0,
+                'transaction_date' => now(),
+                'payment_method' => 'cash',
+                'processed_by_user_id' => auth()->id(),
+            ]);
+        });
 
         return response()->json([
-            'data' => $bill,
+            'data' => $bill->fresh(),
         ]);
     }
 
     public function void(Request $request, Bill $bill)
     {
         // Check if bill can be voided
-        if ($bill->status !== 'paid') {
+        if (!in_array(strtolower((string) $bill->status), ['paid', 'partially paid'], true)) {
             return response()->json([
                 'message' => 'Only paid bills can be voided.'
             ], 422);
@@ -795,22 +830,32 @@ public function monthlyReport(Request $request)
             'reason' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        $bill->status = 'pending';
-        $bill->void_reason = $validated['reason'] ?? null;
-        $bill->save();
+        DB::transaction(function () use ($bill, $validated) {
+            $bill->refresh();
+            $paidAmount = (float) ($bill->amount_paid ?? 0);
+            $bill->amount_paid = 0;
+            $bill->balance_due = (float) $bill->total_due;
+            $bill->status = 'Pending';
+            $bill->void_reason = $validated['reason'] ?? null;
+            $bill->save();
 
-        // Create transaction record for void
-        BillTransaction::create([
-            'bill_reference_number' => $bill->reference_number,
-            'type' => 'void',
-            'amount' => $bill->total_due,
-            'transaction_date' => now(),
-            'processed_by_user_id' => auth()->id(),
-            'notes' => $validated['reason'] ?? null,
-        ]);
+            BillTransaction::create([
+                'bill_id' => $bill->bill_id,
+                'bill_reference_number' => $bill->reference_number,
+                'device_uid' => $bill->device_uid,
+                'type' => 'void',
+                'source' => 'Office',
+                'amount' => $paidAmount,
+                'change' => 0,
+                'transaction_date' => now(),
+                'payment_method' => 'adjustment',
+                'processed_by_user_id' => auth()->id(),
+                'notes' => $validated['reason'] ?? null,
+            ]);
+        });
 
         return response()->json([
-            'data' => $bill,
+            'data' => $bill->fresh(),
         ]);
     }
 
@@ -908,21 +953,39 @@ public function monthlyReport(Request $request)
             continue;
         }
 
-        Bill::updateOrCreate(
+        $dueDate = $this->resolveDueDate($row['bill_date'] ?? null);
+        $incomingStatus = $row['status'] ?? 'Pending';
+        $status = strcasecmp((string) $incomingStatus, 'pending') === 0
+            && $dueDate && Carbon::parse($dueDate)->isBefore(today())
+            ? 'Due'
+            : $incomingStatus;
+
+        $bill = Bill::updateOrCreate(
             ['reference_number' => $row['reference_number']],
             [
                 'customer_id' => $customer->customer_id,
                 'reading_id' => $readingId,
                 'device_uid' => $row['device_uid'] ?? null,
                 'bill_date' => $row['bill_date'] ?? null,
+                'due_date' => $dueDate,
                 'rate_per_m3' => $row['rate_per_m3'] ?? 0,
                 'charges' => $row['charges'] ?? 0,
                 'penalty' => $row['penalty'] ?? 0,
                 'total_due' => $row['total_due'] ?? 0,
-                'status' => $row['status'] ?? 'Pending',
+                'status' => $status,
                 'customer_account_number' => $row['customer_account_number'],
             ]
         );
+
+        // Initialize the new derived balance for bills created by device sync.
+        if ($bill->wasRecentlyCreated
+            || ((float) ($bill->amount_paid ?? 0) === 0.0
+                && (float) ($bill->balance_due ?? 0) === 0.0
+                && strtolower((string) $bill->status) !== 'paid')) {
+            $bill->amount_paid = 0;
+            $bill->balance_due = (float) $bill->total_due;
+            $bill->save();
+        }
 
         $processed++;
     }
@@ -933,6 +996,41 @@ public function monthlyReport(Request $request)
         'processed' => $processed,
         'skipped' => $skipped,
     ]);
+}
+
+private function resolveDueDate(?string $billDate): ?string
+{
+    if (!$billDate) {
+        return null;
+    }
+
+    $settings = Setting::query()->orderBy('id')->first();
+    $days = $settings ? (int) $settings->bill_due_days : (int) env('BILL_DUE_DAYS', 5);
+
+    return Carbon::parse($billDate)->addDays(max(0, $days))->toDateString();
+}
+
+private function resolvePenaltyAmount(Bill $bill, ?Setting $settings = null): float
+{
+    $customer = DB::table('customer as c')
+        ->leftJoin('customer_type as ct', 'ct.type_id', '=', 'c.type_id')
+        ->leftJoin('deduction as d', 'd.deduction_id', '=', 'c.deduction_id')
+        ->where('c.customer_id', $bill->customer_id)
+        ->select('ct.penalty as category_penalty', 'd.name as deduction_name')
+        ->first();
+
+    // Senior citizens receive the fixed ₱20 penalty regardless of category.
+    if ($customer && str_contains(strtolower((string) $customer->deduction_name), 'senior')) {
+        return 20.00;
+    }
+
+    if ($customer && $customer->category_penalty !== null) {
+        return max(0, (float) $customer->category_penalty);
+    }
+
+    return $settings
+        ? max(0, (float) $settings->penalty_amount)
+        : max(0, (float) env('PENALTY_AMOUNT', 0.00));
 }
     /**
      * Bulk upsert bill transactions coming from the device.

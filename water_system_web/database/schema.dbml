@@ -1,6 +1,7 @@
 
 Enum "bill_status_enum" {
   "Paid"
+  "Partially Paid"
   "Void"
   "Pending"
   "Due"
@@ -52,6 +53,8 @@ Table "bill" {
   "charges" decimal(10,2) [not null]
   "penalty" decimal(10,2) [not null]
   "total_due" decimal(10,2) [not null]
+  "amount_paid" decimal(10,2) [not null, default: '0.00']
+  "balance_due" decimal(10,2) [not null, default: '0.00']
   "due_date" date
   "status" bill_status_enum [not null, default: 'Pending']
   "Synced" tinyint(1) [not null, default: '0']
@@ -83,6 +86,7 @@ Table "bill_deduction" {
 
 Table "bill_transaction" {
   "bill_transaction_id" bigint [pk, not null, increment]
+  "bill_id" bigint
   "bill_reference_number" varchar(255) [not null]
   "device_uid" varchar(255) [not null]
   "type" bill_transaction_type_enum [not null]
@@ -101,6 +105,7 @@ Table "bill_transaction" {
   "updated_at" timestamp
 
   Indexes {
+    bill_id [name: "bill_transaction_bill_id_index"]
     bill_reference_number [name: "bill_transaction_bill_reference_number_foreign"]
     device_uid [name: "bill_transaction_device_uid_foreign"]
     processed_by_device_uid [name: "bill_transaction_processed_by_device_uid_foreign"]
@@ -300,6 +305,8 @@ Table "settings" {
   "id" bigint [pk, not null, increment]
   "bill_due_days" int [not null, default: '5']
   "disconnection_days" int [not null, default: '8']
+  "penalty_after_days" int [not null, default: '0']
+  "penalty_amount" decimal(10,2) [not null, default: '0.00']
   "Synced" tinyint(1) [not null, default: '0']
   "last_sync" timestamp
   "created_at" timestamp
@@ -332,6 +339,8 @@ Ref "bill_deduction_bill_id_foreign":"bill"."bill_id" <? "bill_deduction"."bill_
 Ref "bill_deduction_deduction_id_foreign":"deduction"."deduction_id" <? "bill_deduction"."deduction_id"
 
 Ref "bill_transaction_bill_reference_number_foreign":"bill"."reference_number" <? "bill_transaction"."bill_reference_number"
+
+Ref "bill_transaction_bill_id_foreign":"bill"."bill_id" <? "bill_transaction"."bill_id"
 
 Ref "bill_transaction_device_uid_foreign":"device"."device_uid" <? "bill_transaction"."device_uid"
 

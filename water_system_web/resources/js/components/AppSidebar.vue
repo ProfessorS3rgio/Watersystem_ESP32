@@ -121,16 +121,20 @@
           <span class="font-medium">Sync Device</span>
         </router-link>
 
-        <router-link
-          to="/settings"
-          class="flex items-center space-x-3 px-4 py-3 rounded-lg transition-all duration-200"
-          :class="isActive('/settings') ? (isDark ? 'bg-indigo-600 text-white shadow-lg' : 'bg-indigo-600 text-white shadow-lg') : (isDark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100')"
-        >
-          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
-          </svg>
-          <span class="font-medium">Settings</span>
-        </router-link>
+        <div class="space-y-1">
+          <button @click="toggleSettings" class="w-full flex items-center justify-between px-4 py-3 rounded-lg transition-all duration-200" :class="(isActive('/settings') || isActive('/settings/billing') || isActive('/settings/categories') || isActive('/settings/backup')) ? (isDark ? 'bg-indigo-600 text-white shadow-lg' : 'bg-indigo-600 text-white shadow-lg') : (isDark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100')">
+            <span class="flex items-center space-x-3">
+              <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>
+              <span class="font-medium">Settings</span>
+            </span>
+            <svg class="h-4 w-4 transition-transform duration-200" :class="isSettingsOpen ? 'rotate-90' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m9 5 7 7-7 7" /></svg>
+          </button>
+          <div v-if="isSettingsOpen" class="space-y-1">
+            <router-link to="/settings/billing" class="block ml-6 px-4 py-2 rounded-lg text-sm transition-all duration-200" :class="isActive('/settings/billing') ? 'bg-indigo-600 text-white shadow-lg' : (isDark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100')">Billing Rules</router-link>
+              <router-link to="/settings/categories" class="block ml-6 px-4 py-2 rounded-lg text-sm transition-all duration-200" :class="isActive('/settings/categories') ? 'bg-indigo-600 text-white shadow-lg' : (isDark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100')">Customer Categories</router-link>
+            <router-link to="/settings/backup" class="block ml-6 px-4 py-2 rounded-lg text-sm transition-all duration-200" :class="isActive('/settings/backup') ? 'bg-indigo-600 text-white shadow-lg' : (isDark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100')">Data Backup</router-link>
+          </div>
+        </div>
       </nav>
 
       <!-- Theme Toggle -->
@@ -194,6 +198,7 @@ export default {
     const user = ref(null)
     const isDark = ref(localStorage.getItem('theme') === 'dark')
     const isBillingOpen = ref(route.path.startsWith('/billing'))
+    const isSettingsOpen = ref(route.path.startsWith('/settings'))
 
     const isActive = (path) => {
       return route.path === path
@@ -218,6 +223,10 @@ export default {
 
     const toggleBilling = () => {
       isBillingOpen.value = !isBillingOpen.value
+    }
+
+    const toggleSettings = () => {
+      isSettingsOpen.value = !isSettingsOpen.value
     }
 
     const logout = async () => {
@@ -245,7 +254,9 @@ export default {
       isDark,
       toggleTheme,
       isBillingOpen,
-      toggleBilling
+      toggleBilling,
+      isSettingsOpen,
+      toggleSettings
     }
   }
 }

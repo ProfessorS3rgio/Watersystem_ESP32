@@ -18,6 +18,48 @@
       @select-barangay="selectedBarangay = $event"
     />
 
+    <div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div class="rounded-lg border px-5 py-4" :class="isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'">
+        <div class="flex items-center gap-4">
+          <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-amber-500">
+            <svg class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-2.21 0-4 1.12-4 2.5S9.79 13 12 13s4 1.12 4 2.5S14.21 18 12 18m0-10V6m0 12v-2m8-4a8 8 0 11-16 0 8 8 0 0116 0z" />
+            </svg>
+          </div>
+          <div>
+            <p class="text-xs uppercase tracking-wide" :class="isDark ? 'text-gray-400' : 'text-gray-500'">Accounts with balance</p>
+            <p class="mt-1 text-2xl font-bold" :class="isDark ? 'text-amber-300' : 'text-amber-600'">{{ displayedAccountsWithBalance }}</p>
+          </div>
+        </div>
+      </div>
+      <div class="rounded-lg border px-5 py-4" :class="isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'">
+        <div class="flex items-center gap-4">
+          <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-red-500">
+            <svg class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-2.21 0-4 1.12-4 2.5S9.79 13 12 13s4 1.12 4 2.5S14.21 18 12 18m0-10V6m0 12v-2m8-4a8 8 0 11-16 0 8 8 0 0116 0z" />
+            </svg>
+          </div>
+          <div>
+            <p class="text-xs uppercase tracking-wide" :class="isDark ? 'text-gray-400' : 'text-gray-500'">Outstanding balance</p>
+            <p class="mt-1 text-2xl font-bold" :class="isDark ? 'text-red-300' : 'text-red-600'">₱{{ formatMoney(displayedOutstandingBalance) }}</p>
+          </div>
+        </div>
+      </div>
+      <div class="rounded-lg border px-5 py-4" :class="isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'">
+        <div class="flex items-center gap-4">
+          <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-indigo-500">
+            <svg class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.36-1.86M17 20H7m10 0v-2c0-.66-.13-1.28-.36-1.86M7 20H2v-2a3 3 0 015.36-1.86M7 20v-2a5 5 0 019.29 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          </div>
+          <div>
+            <p class="text-xs uppercase tracking-wide" :class="isDark ? 'text-gray-400' : 'text-gray-500'">Customers shown</p>
+            <p class="mt-1 text-2xl font-bold" :class="isDark ? 'text-indigo-300' : 'text-indigo-600'">{{ displayedCustomersShown }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
      <div class="mb-6 flex flex-wrap gap-3">
       <button @click="openAddModal" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-medium shadow-lg transition-all duration-200 flex items-center space-x-2">
         <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -60,6 +102,7 @@
           >
             <option value="all">All Bills</option>
             <option value="pending">Pending</option>
+            <option value="partial">Partially Paid</option>
             <option value="due">Due</option>
             <option value="paid">Paid</option>
             <option value="none">No Bill</option>
@@ -75,6 +118,7 @@
               <th class="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider" :class="isDark ? 'text-gray-300' : 'text-gray-500'">Previous</th>
               <th class="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider" :class="isDark ? 'text-gray-300' : 'text-gray-500'">Present</th>
               <th class="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider" :class="isDark ? 'text-gray-300' : 'text-gray-500'">Latest Bill</th>
+              <th class="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider" :class="isDark ? 'text-gray-300' : 'text-gray-500'">Balance</th>
               <th class="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider" :class="isDark ? 'text-gray-300' : 'text-gray-500'">Status</th>
               <th class="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider" :class="isDark ? 'text-gray-300' : 'text-gray-500'">Usage</th>
               <th class="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider w-48" :class="isDark ? 'text-gray-300' : 'text-gray-500'">Actions</th>
@@ -82,13 +126,13 @@
           </thead>
           <tbody :class="isDark ? 'bg-gray-800 divide-gray-700' : 'bg-white divide-gray-200'" class="divide-y">
             <tr v-if="isLoading">
-              <td class="px-6 py-6 text-sm" :class="isDark ? 'text-gray-300' : 'text-gray-600'" colspan="8">Loading customers...</td>
+              <td class="px-6 py-6 text-sm" :class="isDark ? 'text-gray-300' : 'text-gray-600'" colspan="9">Loading customers...</td>
             </tr>
             <tr v-if="errorMessage">
-              <td class="px-6 py-6 text-sm text-red-600" colspan="8">{{ errorMessage }}</td>
+              <td class="px-6 py-6 text-sm text-red-600" colspan="9">{{ errorMessage }}</td>
             </tr>
             <tr v-else-if="filteredCustomers.length === 0">
-              <td class="px-6 py-6 text-sm" :class="isDark ? 'text-gray-300' : 'text-gray-600'" colspan="8">No customers found.</td>
+              <td class="px-6 py-6 text-sm" :class="isDark ? 'text-gray-300' : 'text-gray-600'" colspan="9">No customers found.</td>
             </tr>
             <tr v-else v-for="customer in filteredCustomers" :key="customer.id" :class="isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'">
               <td class="px-4 py-2.5 whitespace-nowrap text-sm font-semibold" :class="isDark ? 'text-purple-300' : 'text-purple-600'">{{ customer.account_no }}</td>
@@ -107,8 +151,12 @@
               <td class="px-4 py-2.5 whitespace-nowrap text-sm">
                 <span v-if="customer.latest_bill_state === 'paid'" class="px-2.5 py-0.5 rounded-full text-xs font-medium" :class="isDark ? 'bg-green-900 text-green-200' : 'bg-green-100 text-green-800'">Paid</span>
                 <span v-else-if="customer.latest_bill_state === 'due'" class="px-2.5 py-0.5 rounded-full text-xs font-medium" :class="isDark ? 'bg-red-900 text-red-200' : 'bg-red-100 text-red-800'">Due</span>
+                <span v-else-if="customer.latest_bill_state === 'partial'" class="px-2.5 py-0.5 rounded-full text-xs font-medium" :class="isDark ? 'bg-orange-900 text-orange-200' : 'bg-orange-100 text-orange-800'">Partially Paid</span>
                 <span v-else-if="customer.latest_bill_state === 'pending'" class="px-2.5 py-0.5 rounded-full text-xs font-medium" :class="isDark ? 'bg-yellow-900 text-yellow-200' : 'bg-yellow-100 text-yellow-800'">Pending</span>
                 <span v-else class="px-2.5 py-0.5 rounded-full text-xs font-medium" :class="isDark ? 'bg-gray-700 text-gray-200' : 'bg-gray-100 text-gray-700'">No Bill</span>
+              </td>
+              <td class="px-4 py-2.5 whitespace-nowrap text-sm font-semibold" :class="getCustomerAmountClass(customer, isDark)">
+                ₱{{ formatMoney(displayCustomerAmount(customer)) }}
               </td>
               <td class="px-4 py-2.5 whitespace-nowrap">
                 <span :class="customer.status === 'active' ? (isDark ? 'bg-green-900 text-green-200' : 'bg-green-100 text-green-800') : (isDark ? 'bg-red-900 text-red-200' : 'bg-red-100 text-red-800')" class="px-2.5 py-0.5 rounded-full text-xs font-medium">
@@ -410,6 +458,50 @@ export default {
       return filtered
     })
 
+    const totalOutstandingBalance = computed(() => customersComposable.customers.value.reduce(
+      (total, customer) => total + Number(customer.account_balance || 0),
+      0
+    ))
+
+    const accountsWithBalance = computed(() => customersComposable.customers.value.filter(
+      customer => Number(customer.account_balance || 0) > 0
+    ).length)
+
+    const displayedAccountsWithBalance = ref(0)
+    const displayedCustomersShown = ref(0)
+    const displayedOutstandingBalance = ref(0)
+    const animationRuns = {}
+    const animateMetric = (key, target, setter, round = false) => {
+      const numericTarget = Number(target) || 0
+      const run = (animationRuns[key] || 0) + 1
+      animationRuns[key] = run
+      const duration = 1000
+      const steps = 60
+      const increment = numericTarget / steps
+      let current = 0
+
+      if (numericTarget === 0) {
+        setter(0)
+        return
+      }
+
+      const animate = () => {
+        if (animationRuns[key] !== run) return
+        current += increment
+        if (current >= numericTarget) current = numericTarget
+        setter(round ? Math.round(current) : current)
+        if (current < numericTarget) {
+          setTimeout(animate, duration / steps)
+        }
+      }
+
+      animate()
+    }
+
+    watch(accountsWithBalance, target => animateMetric('accounts', target, value => { displayedAccountsWithBalance.value = value }, true), { immediate: true })
+    watch(() => filteredCustomers.value.length, target => animateMetric('shown', target, value => { displayedCustomersShown.value = value }, true), { immediate: true })
+    watch(totalOutstandingBalance, target => animateMetric('balance', target, value => { displayedOutstandingBalance.value = value }), { immediate: true })
+
     const handleReadingImportCompleted = async (result) => {
       await fetchCustomersWithFilters()
       modalsComposable.showSuccess(
@@ -670,13 +762,12 @@ export default {
       }
     }
 
-    const markBillPaid = async (readingRow) => {
+    const markBillPaid = async (payload) => {
+      const readingRow = payload?.reading
       if (!readingRow?.bill_id) return
-      const ok = window.confirm('Confirm payment? This will mark the bill as PAID.')
-      if (!ok) return
 
       try {
-        await usageComposable.markBillPaid(readingRow.bill_id)
+        await usageComposable.markBillPaid(readingRow.bill_id, payload)
 
         // Refresh usage data and customer list
         if (modalsComposable.usageCustomer.value) {
@@ -734,6 +825,19 @@ export default {
       if (!deductionId) return ''
       const deduction = customersComposable.deductions.value.find(d => d.deduction_id === deductionId)
       return deduction ? deduction.name : ''
+    }
+
+    const displayCustomerAmount = (customer) => {
+      return customer.latest_bill_state === 'paid'
+        ? (customer.latest_bill_total_due ?? customer.account_balance ?? 0)
+        : (customer.account_balance ?? 0)
+    }
+
+    const getCustomerAmountClass = (customer, isDark) => {
+      if (customer.latest_bill_state === 'paid') return isDark ? 'text-green-300' : 'text-green-600'
+      return Number(customer.account_balance || 0) > 0
+        ? (isDark ? 'text-red-300' : 'text-red-600')
+        : (isDark ? 'text-gray-300' : 'text-gray-600')
     }
 
     const previewAccountNoNew = computed(() => {
@@ -806,6 +910,8 @@ export default {
       getTypeName,
       getBarangayName,
       getDeductionName,
+      displayCustomerAmount,
+      getCustomerAmountClass,
       previewAccountNoNew,
       isViewModalOpen,
       viewingCustomer,
@@ -819,6 +925,11 @@ export default {
       statusFilter,
       billFilter,
       filteredCustomers,
+      totalOutstandingBalance,
+      displayedOutstandingBalance,
+      displayedAccountsWithBalance,
+      displayedCustomersShown,
+      accountsWithBalance,
       isReadingImportOpen,
       handleReadingImportCompleted,
     }

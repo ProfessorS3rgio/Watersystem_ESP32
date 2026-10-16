@@ -17,6 +17,8 @@ class SettingsController extends Controller
         return Setting::create([
             'bill_due_days' => (int) env('BILL_DUE_DAYS', 5),
             'disconnection_days' => (int) env('DISCONNECTION_DAYS', 8),
+            'penalty_after_days' => (int) env('PENALTY_AFTER_DAYS', 0),
+            'penalty_amount' => (float) env('PENALTY_AMOUNT', 0),
         ]);
     }
 
@@ -36,6 +38,8 @@ class SettingsController extends Controller
         $validated = $request->validate([
             'bill_due_days' => ['required', 'integer', 'min:0', 'max:365'],
             'disconnection_days' => ['required', 'integer', 'min:0', 'max:365'],
+            'penalty_after_days' => ['required', 'integer', 'min:0', 'max:365'],
+            'penalty_amount' => ['required', 'numeric', 'min:0', 'max:1000000'],
         ]);
 
         $row->fill($validated);
