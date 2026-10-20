@@ -11,7 +11,7 @@ extern BillData currentBill;
 
 // Keep PRN_TEST experiments in this file so production PRINT_BILL and
 // PRINT_RECEIPT layouts are not changed while the new design is evaluated.
-inline void printPrnTestHeading() {
+inline void printPrnTestHeading(bool keepFontB = false) {
   printer.setDefault();
   printer.justify('C');
   printer.setFont('B');
@@ -26,7 +26,9 @@ inline void printPrnTestHeading() {
   printer.boldOff();
   printer.println(F("Makilas Ipil Zamboanga Sibugay"));
 
-  printer.setFont('A');
+  if (!keepFontB) {
+    printer.setFont('A');
+  }
   printer.justify('L');
   printer.println();
 
@@ -59,8 +61,12 @@ inline void loadPrnTestData() {
 
 inline void printPrnTest() {
   loadPrnTestData();
-  printPrnTestHeading();
+  // Keep the compact header font active throughout the experimental bill.
+  printPrnTestHeading(true);
   printBillContent();
+
+  // Do not let the PRN_TEST font selection leak into later production jobs.
+  printer.setFont('A');
 }
 
 // Header-only test for checking alignment, font size, and special characters
