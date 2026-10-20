@@ -41,6 +41,7 @@ int getDisconnectionDaysSetting() { return g_disconnectionDayOfMonth; }
 #include "printer/prn_test.h"
 #include "printer/prn_test_layout_1.h"
 #include "printer/prn_test_layout_2.h"
+#include "printer/prn_test_layout_3.h"
 
 // ---------- charger detection ----------
 // NPN transistor collector, low when charger active (inverted logic)
@@ -353,7 +354,7 @@ void handleCommand(const String &cmd) {
 void setup() {
     Serial.begin(115200);
     Serial.println("ESP32 Slave BLE Server starting...");
-    Serial.println("Serial commands: RESTART, PRN_SLEEP, PRN_WAKE, PRN_TEST, PRN_TEST_1, PRN_TEST_2, PRN_HEADER, PRINT_LOGO, PAPER_STATUS, BATTERY_STATUS");
+    Serial.println("Serial commands: RESTART, PRN_SLEEP, PRN_WAKE, PRN_TEST, PRN_TEST_1, PRN_TEST_2, PRN_TEST_3, PRN_HEADER, PRINT_LOGO, PAPER_STATUS, BATTERY_STATUS");
     Serial.print("           (printer automatically powers off after ");
     Serial.print(PRINTER_IDLE_TIMEOUT_MINUTES);
     Serial.println(" minutes idle)");
@@ -494,6 +495,11 @@ void loop() {
             printPrnTestLayout2();
             endPrintJob();
             Serial.println("PRN_TEST_2 sent; idle timer reset");
+        } else if (line.equalsIgnoreCase("PRN_TEST_3")) {
+            beginPrintJob();
+            printPrnTestLayout3();
+            endPrintJob();
+            Serial.println("PRN_TEST_3 sent; idle timer reset");
         } else if (line.equalsIgnoreCase("PRN_HEADER")) {
             beginPrintJob();
             printPrnTestLayout1Header();

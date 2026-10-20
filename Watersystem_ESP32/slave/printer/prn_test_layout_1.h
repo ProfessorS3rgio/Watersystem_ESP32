@@ -3,11 +3,15 @@
 
 #include "prn_test.h"
 
-// Layout 1 is the unmodified production bill format from bill_printer.h,
-// supplied with the same sample data as the test layout for comparison.
+// Layout 1 keeps the production bill body but uses the same no-logo Font B
+// association header as Layout 2 for a direct header comparison.
 inline void printPrnTestLayout1() {
   loadPrnTestData();
-  printBill();
+  printPrnTestHeading(true);
+  // The shared test heading leaves Font B selected. Restore Font A so the
+  // remainder exactly follows the production bill body's appearance.
+  printer.setFont('A');
+  printBillContent();
 }
 
 inline void printPrnTestLayout1Header() {

@@ -119,6 +119,14 @@ public:
         _serial.write(font == 'B' ? 1 : 0);
     }
 
+    // ESC { n: rotate standard-mode text 180 degrees. Send this only at a
+    // line boundary; it does not change the printer's physical paper outlet.
+    void setUpsideDown(bool enabled) {
+        _serial.write(0x1B);
+        _serial.write('{');
+        _serial.write(enabled ? 1 : 0);
+    }
+
     void boldOn() {
         _serial.write(0x1B);
         _serial.write('E');
