@@ -11,6 +11,7 @@
 extern ThermalPrinter printer;
 
 void printBill();
+void printBillContent();
 String getPeriodCovered();
 void customFeed(int lines);
 String centerString(String s, int width);
@@ -61,9 +62,6 @@ void printBill() {
   printer.setDefault();
   YIELD_WDT();
 
-  unsigned long used = currentBill.currReading - currentBill.prevReading;
-  float total = currentBill.total;
-
 //   customFeed(1);
   YIELD_WDT();
   printer.setBitmapDarkProfile();
@@ -83,6 +81,14 @@ void printBill() {
   printer.justify('L');
   printer.println();
 
+  printBillContent();
+}
+
+// Shared bill body used by the production layout and the isolated PRN_TEST
+// layout. The caller prints the desired heading before entering here.
+void printBillContent() {
+  unsigned long used = currentBill.currReading - currentBill.prevReading;
+  float total = currentBill.total;
 
   YIELD_WDT();
 

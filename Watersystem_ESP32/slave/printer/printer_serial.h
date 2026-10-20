@@ -112,6 +112,13 @@ public:
         _serial.write(n);
     }
 
+    // ESC/POS font A (normal) or font B (smaller/more characters per line).
+    void setFont(char font) {
+        _serial.write(0x1B);
+        _serial.write('M');
+        _serial.write(font == 'B' ? 1 : 0);
+    }
+
     void boldOn() {
         _serial.write(0x1B);
         _serial.write('E');

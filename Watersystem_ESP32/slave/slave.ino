@@ -38,6 +38,7 @@ int getBillDueDaysSetting() { return g_billDueDayOfMonth; }
 int getDisconnectionDaysSetting() { return g_disconnectionDayOfMonth; }
 
 #include "managers/printer_power_manager.h"
+#include "printer/prn_test.h"
 
 // ---------- charger detection ----------
 // NPN transistor collector, low when charger active (inverted logic)
@@ -350,7 +351,7 @@ void handleCommand(const String &cmd) {
 void setup() {
     Serial.begin(115200);
     Serial.println("ESP32 Slave BLE Server starting...");
-    Serial.println("Serial commands: RESTART, PRN_SLEEP, PRN_WAKE, PRN_TEST, PRINT_LOGO, PAPER_STATUS, BATTERY_STATUS");
+    Serial.println("Serial commands: RESTART, PRN_SLEEP, PRN_WAKE, PRN_TEST, PRN_HEADER, PRINT_LOGO, PAPER_STATUS, BATTERY_STATUS");
     Serial.print("           (printer automatically powers off after ");
     Serial.print(PRINTER_IDLE_TIMEOUT_MINUTES);
     Serial.println(" minutes idle)");
@@ -473,28 +474,19 @@ void loop() {
         } else if (line.equalsIgnoreCase("PRN_TEST")) {
             // perform test print and restart idle countdown once complete
             beginPrintJob();          // this updates g_printerLastActiveMs
-            currentBill.refNumber = "PRN-TEST-0001";
-            currentBill.readingDateTime = getCurrentDateTimeString();
-            currentBill.customerName = "JUAN DELA CRUZ";
-            currentBill.accountNo = "ACC-000123";
-            currentBill.customerType = "Residential";
-            currentBill.address = "Purok 1, Makilas";
-            currentBill.collector = "TEST COLLECTOR";
-            currentBill.prevReading = 1234;
-            currentBill.currReading = 1256;
-            currentBill.rate = 15.50f;
-            currentBill.subtotal = 341.00f; // 22 * 15.50
-            currentBill.deductions = 50.00f;
-            currentBill.deductionName = "Senior";
-            currentBill.penalty = 10.00f;
-            currentBill.total = 301.00f;
-            currentBill.billDate = getCurrentDateTimeString();
-
-            printBill();
+            const unsigned long printStartedMs = millis();
+            printPrnTest();
             endPrintJob();
             // also refresh timer explicitly in case enablePrinter was skipped
             g_printerLastActiveMs = millis();
-            Serial.println("PRN_TEST line sent; idle timer reset");
+            Serial.print("PRN_TEST sent in ");
+            Serial.print(millis() - printStartedMs);
+            Serial.println(" ms; idle timer reset");
+        } else if (line.equalsIgnoreCase("PRN_HEADER")) {
+            beginPrintJob();
+            printPrnHeaderOnly();
+            endPrintJob();
+            Serial.println("PRN_HEADER sent; idle timer reset");
         } else if (line.equalsIgnoreCase("PRINT_LOGO")) {
             beginPrintJob();
             printLogoOnly();
