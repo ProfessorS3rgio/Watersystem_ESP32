@@ -14,6 +14,7 @@ use App\Http\Controllers\BarangaySequenceController;
 use App\Http\Controllers\DeductionController;
 use App\Http\Controllers\SyncController;
 use App\Http\Controllers\AuditLogController;
+use App\Http\Controllers\BackupController;
 
 Route::get('/', function () {
     return view('welcome');
@@ -82,4 +83,5 @@ Route::middleware('auth')->group(function () {
 
     Route::post('/sync/reset-status', [SyncController::class, 'resetStatus']);
     Route::get('/audit-logs', [AuditLogController::class, 'index']);
+    Route::get('/backup/export', [BackupController::class, 'export']);
 });

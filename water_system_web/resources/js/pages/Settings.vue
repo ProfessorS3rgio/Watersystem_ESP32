@@ -129,8 +129,9 @@
                 <p class="font-medium">Backup workflow</p>
                 <p class="mt-1 text-xs" :class="isDark ? 'text-gray-400' : 'text-gray-500'">The backup format and restore process will be added here.</p>
               </div>
-              <button type="button" disabled class="rounded-lg bg-gray-400 px-4 py-2 text-sm font-medium text-white opacity-70 cursor-not-allowed">Backup data</button>
+              <button type="button" :disabled="backupSaving" @click="backupData" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50">{{ backupSaving ? 'Preparing...' : 'Backup data' }}</button>
             </div>
+            <p v-if="backupMessage" class="mt-3 text-sm" :class="backupError ? 'text-red-600' : 'text-green-600'">{{ backupMessage }}</p>
           </div>
         </div>
       </div>
@@ -154,6 +155,9 @@ export default {
       categoriesSaving: false,
       categoriesMessage: '',
       categoriesError: false,
+      backupSaving: false,
+      backupMessage: '',
+      backupError: false,
       errorMessage: '',
       successMessage: '',
       form: {
@@ -223,6 +227,33 @@ export default {
         this.categoriesMessage = e?.message || 'Failed to load customer categories'
       } finally {
         this.categoriesLoading = false
+      }
+    },
+    async backupData() {
+      this.backupSaving = true
+      this.backupMessage = ''
+      this.backupError = false
+      try {
+        const res = await fetch('/backup/export', { headers: { Accept: 'application/json' }, credentials: 'same-origin' })
+        if (!res.ok) throw new Error('Failed to create backup')
+        const blob = await res.blob()
+        const disposition = res.headers.get('content-disposition') || ''
+        const match = disposition.match(/filename="?([^";]+)"?/i)
+        const filename = match?.[1] || `watersystem-backup-${new Date().toISOString().slice(0, 10)}.json`
+        const url = URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = filename
+        document.body.appendChild(link)
+        link.click()
+        link.remove()
+        URL.revokeObjectURL(url)
+        this.backupMessage = 'Backup downloaded successfully.'
+      } catch (e) {
+        this.backupError = true
+        this.backupMessage = e?.message || 'Failed to create backup'
+      } finally {
+        this.backupSaving = false
       }
     },
     async saveCategories() {
