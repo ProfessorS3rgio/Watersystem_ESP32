@@ -39,6 +39,8 @@ int getDisconnectionDaysSetting() { return g_disconnectionDayOfMonth; }
 
 #include "managers/printer_power_manager.h"
 #include "printer/prn_test.h"
+#include "printer/prn_test_layout_1.h"
+#include "printer/prn_test_layout_2.h"
 
 // ---------- charger detection ----------
 // NPN transistor collector, low when charger active (inverted logic)
@@ -351,7 +353,7 @@ void handleCommand(const String &cmd) {
 void setup() {
     Serial.begin(115200);
     Serial.println("ESP32 Slave BLE Server starting...");
-    Serial.println("Serial commands: RESTART, PRN_SLEEP, PRN_WAKE, PRN_TEST, PRN_HEADER, PRINT_LOGO, PAPER_STATUS, BATTERY_STATUS");
+    Serial.println("Serial commands: RESTART, PRN_SLEEP, PRN_WAKE, PRN_TEST, PRN_TEST_1, PRN_TEST_2, PRN_HEADER, PRINT_LOGO, PAPER_STATUS, BATTERY_STATUS");
     Serial.print("           (printer automatically powers off after ");
     Serial.print(PRINTER_IDLE_TIMEOUT_MINUTES);
     Serial.println(" minutes idle)");
@@ -472,19 +474,29 @@ void loop() {
             enablePrinter();
             Serial.println("Printer wake command executed (powered on)");
         } else if (line.equalsIgnoreCase("PRN_TEST")) {
-            // perform test print and restart idle countdown once complete
+            // Keep PRN_TEST as a shortcut for the experimental Layout 2.
             beginPrintJob();          // this updates g_printerLastActiveMs
             const unsigned long printStartedMs = millis();
-            printPrnTest();
+            printPrnTestLayout2();
             endPrintJob();
             // also refresh timer explicitly in case enablePrinter was skipped
             g_printerLastActiveMs = millis();
             Serial.print("PRN_TEST sent in ");
             Serial.print(millis() - printStartedMs);
             Serial.println(" ms; idle timer reset");
+        } else if (line.equalsIgnoreCase("PRN_TEST_1")) {
+            beginPrintJob();
+            printPrnTestLayout1();
+            endPrintJob();
+            Serial.println("PRN_TEST_1 sent; idle timer reset");
+        } else if (line.equalsIgnoreCase("PRN_TEST_2")) {
+            beginPrintJob();
+            printPrnTestLayout2();
+            endPrintJob();
+            Serial.println("PRN_TEST_2 sent; idle timer reset");
         } else if (line.equalsIgnoreCase("PRN_HEADER")) {
             beginPrintJob();
-            printPrnHeaderOnly();
+            printPrnTestLayout1Header();
             endPrintJob();
             Serial.println("PRN_HEADER sent; idle timer reset");
         } else if (line.equalsIgnoreCase("PRINT_LOGO")) {
