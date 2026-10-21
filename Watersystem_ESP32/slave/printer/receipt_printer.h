@@ -135,9 +135,7 @@ void printReceipt() {
   printer.print(F("Address  : "));
   printer.println(limitPrintChars(receipt.address, 21));
   printer.print(F("Barangay : "));
-  // printer.println(F("Makilas"));
-  // printer.println(F("Caparan"));
-  printer.println(F("Dona Josefa"));
+  printer.println(limitPrintChars(receipt.barangay, 21));
   printer.println(F("--------------------------------"));
 
   // Collector

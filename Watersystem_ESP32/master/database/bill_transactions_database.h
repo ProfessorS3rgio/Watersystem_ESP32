@@ -17,6 +17,7 @@ struct ReceiptData {
   String accountNo;
   String customerType;
   String address;
+  String barangay;
   String collector;
 
   unsigned long prevReading;

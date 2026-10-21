@@ -73,6 +73,13 @@ Barangay* getBarangayAt(int index) {
   return nullptr;
 }
 
+// Return the human-readable barangay name stored for a customer brgy_id.
+String getBarangayNameById(unsigned long brgyId) {
+  const int index = findBarangayById(brgyId);
+  Barangay* barangay = getBarangayAt(index);
+  return barangay ? barangay->barangay : "";
+}
+
 // ===== GET BARANGAY COUNT =====
 int getBarangayCount() {
   return barangays.size();

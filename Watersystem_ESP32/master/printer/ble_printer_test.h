@@ -17,6 +17,7 @@ static void prepareSampleBillForBlePrintTest() {
   currentBill.accountNo = F("MKL-001");
   currentBill.customerType = F("Residential");
   currentBill.address = F("Purok 1, Makilas");
+  currentBill.barangay = F("Dona Josefa");
   currentBill.collector = g_collectorName;
   currentBill.prevReading = 120;
   currentBill.currReading = 138;

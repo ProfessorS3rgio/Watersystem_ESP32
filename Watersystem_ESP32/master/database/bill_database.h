@@ -3,6 +3,7 @@
 
 #include "../configuration/config.h"
 #include "customers_database.h"
+#include "barangay_database.h"
 #include "customer_type_database.h"
 #include "deduction_database.h"
 #include "device_info.h"
@@ -151,6 +152,7 @@ struct BillData {
   float total;
   unsigned long usage;
   String customerType;
+  String barangay;
   float minCharge;
   unsigned long minM3;
   String deductionName;
@@ -760,6 +762,7 @@ bool generateBillForCustomer(String accountNo, unsigned long currentReading) {
     currentBill.customerName = customer->customer_name;
     currentBill.accountNo = customer->account_no;
     currentBill.address = customer->address;
+    currentBill.barangay = getBarangayNameById(customer->brgy_id);
     currentBill.collector = g_collectorName;
     currentBill.dueDate = calculateDueDate(existingBillDate, getBillDueDaysSetting());
     currentBill.billDate = existingBillDate;
@@ -839,6 +842,7 @@ bool generateBillForCustomer(String accountNo, unsigned long currentReading) {
         currentBill.customerName = customer->customer_name;
         currentBill.accountNo = customer->account_no;
         currentBill.address = customer->address;
+        currentBill.barangay = getBarangayNameById(customer->brgy_id);
         currentBill.collector = g_collectorName;
         currentBill.dueDate = dueDateStr;
         currentBill.billDate = bill.bill_date;
@@ -915,6 +919,7 @@ bool getBillForCustomer(String accountNo) {
     currentBill.customerName = customer->customer_name;
     currentBill.accountNo = customer->account_no;
     currentBill.address = customer->address;
+    currentBill.barangay = getBarangayNameById(customer->brgy_id);
     // Always populate collector name for downstream printing.
     currentBill.collector = g_collectorName;
     currentBill.refNumber = (const char*)sqlite3_column_text(stmt, 0);

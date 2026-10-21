@@ -27,10 +27,17 @@ void printReceipt() {
     }
 
     ReceiptData receipt = currentReceipt;
+    auto sanitizeField = [](String value) {
+      value.replace("|", "/");
+      value.replace("\r", " ");
+      value.replace("\n", " ");
+      return value;
+    };
+    const String barangay = sanitizeField(receipt.barangay);
     String msg = String("PRINT_RECEIPT|") + receipt.receiptNumber + "|" + receipt.paymentDateTime
            + "|" + receipt.billDate + "|" + receipt.customerName + "|" + receipt.accountNo
                  + "|" + receipt.customerType + "|" + receipt.address
-                 + "|" + receipt.collector + "|" + String(receipt.prevReading)
+                 + "|" + barangay + "|" + receipt.collector + "|" + String(receipt.prevReading)
                  + "|" + String(receipt.currReading) + "|" + String(receipt.rate, 2)
                  + "|" + String(receipt.subtotal, 2) + "|" + String(receipt.deductions, 2)
                  + "|" + String(receipt.penalty, 2) + "|" + String(receipt.total, 2)

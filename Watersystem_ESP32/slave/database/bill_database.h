@@ -10,6 +10,7 @@ struct BillData {
     String accountNo;
     String customerType;
     String address;
+    String barangay;
     String collector;
     unsigned long prevReading;
     unsigned long currReading;

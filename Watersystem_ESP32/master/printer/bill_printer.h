@@ -42,6 +42,7 @@ void printBill() {
     String accountNo = sanitizeField(currentBill.accountNo);
     String customerType = sanitizeField(currentBill.customerType);
     String address = sanitizeField(currentBill.address);
+    String barangay = sanitizeField(currentBill.barangay);
     String collector = sanitizeField(currentBill.collector);
 
     if (billDate.length() < 10 && readingDateTime.length() >= 10) {
@@ -64,7 +65,7 @@ void printBill() {
     }
 
     String msg;
-    msg.reserve(384);
+    msg.reserve(448);
     msg += "PRINT_BILL";
     msg += "|";
     msg += sanitizeField(currentBill.refNumber);
@@ -78,6 +79,8 @@ void printBill() {
     msg += customerType;
     msg += "|";
     msg += address;
+    msg += "|";
+    msg += barangay;
     msg += "|";
     msg += collector;
     msg += "|";

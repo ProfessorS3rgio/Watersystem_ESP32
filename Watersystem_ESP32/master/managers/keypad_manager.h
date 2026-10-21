@@ -733,6 +733,7 @@ void handleKeypadInput(char key) {
           currentReceipt.accountNo = currentBill.accountNo;
           currentReceipt.customerType = currentBill.customerType;
           currentReceipt.address = currentBill.address;
+          currentReceipt.barangay = currentBill.barangay;
           currentReceipt.collector = currentBill.collector;
           if (currentReceipt.collector.length() == 0) {
             currentReceipt.collector = g_collectorName;
@@ -811,6 +812,7 @@ void handleKeypadInput(char key) {
       currentReceipt.accountNo = currentBill.accountNo;
       currentReceipt.customerType = currentBill.customerType;
       currentReceipt.address = currentBill.address;
+      currentReceipt.barangay = currentBill.barangay;
       currentReceipt.collector = currentBill.collector;
       if (currentReceipt.collector.length() == 0) {
         currentReceipt.collector = g_collectorName;
