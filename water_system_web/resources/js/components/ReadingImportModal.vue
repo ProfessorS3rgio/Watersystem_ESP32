@@ -6,7 +6,7 @@
         <div class="flex items-center justify-between border-b px-6 py-4" :class="isDark ? 'border-gray-800' : 'border-gray-200'">
           <div>
             <h3 class="text-lg font-semibold">Import Meter Readings</h3>
-            <p class="mt-1 text-sm" :class="isDark ? 'text-gray-400' : 'text-gray-600'">Upload a meter-reading workbook and review every row before applying it.</p>
+            <p class="mt-1 text-sm" :class="isDark ? 'text-gray-400' : 'text-gray-600'">Upload a meter-reading workbook with one or more barangay sheets and review every row before applying it.</p>
           </div>
           <button type="button" class="text-2xl leading-none" :class="isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'" aria-label="Close" @click="closeModal">&times;</button>
         </div>
@@ -29,6 +29,16 @@
               </label>
               <p v-if="selectedFile" class="mt-4 font-medium text-green-600">Selected: {{ selectedFile.name }}</p>
               <p class="mt-3 text-xs" :class="mutedClass">Best results: Account Number, Previous Reading, and Present Reading. Numbered legacy customer lists are also supported. Maximum file size: 5 MB.</p>
+            </div>
+
+            <div v-if="sheetOptions.length" class="border p-4" :class="panelClass">
+              <label for="reading-import-sheet" class="block text-sm font-semibold">Worksheet</label>
+              <select id="reading-import-sheet" v-model="selectedSheet" class="mt-2 w-full border px-3 py-2" :class="isDark ? 'border-gray-700 bg-gray-900 text-white' : 'border-gray-300 bg-white text-gray-900'">
+                <option v-for="sheet in sheetOptions" :key="sheet.name" :value="sheet.name">
+                  {{ sheet.name }} - {{ sheet.barangay }} ({{ sheet.rows }} rows, {{ sheet.billing_month_label }})
+                </option>
+              </select>
+              <p class="mt-2 text-xs" :class="mutedClass">Only the selected worksheet will be reviewed and applied.</p>
             </div>
 
             <div class="border-l-4 border-amber-500 px-4 py-3 text-sm" :class="isDark ? 'bg-amber-950/40 text-amber-100' : 'bg-amber-50 text-amber-900'">
@@ -91,6 +101,8 @@
                       <span class="mt-1 block text-xs font-medium">Apply</span>
                     </th>
                     <th class="px-3 py-2 text-left">Row</th>
+                    <th class="px-3 py-2 text-left">Sheet</th>
+                    <th class="px-3 py-2 text-left">Barangay</th>
                     <th class="px-3 py-2 text-left">Account</th>
                     <th class="px-3 py-2 text-left">Customer</th>
                     <th class="px-3 py-2 text-right">DB Prev</th>
@@ -116,6 +128,8 @@
                       />
                     </td>
                     <td class="px-3 py-2" :class="mutedClass">{{ row.row }}</td>
+                    <td class="px-3 py-2 font-medium">{{ row.sheet_name }}</td>
+                    <td class="whitespace-nowrap px-3 py-2">{{ row.barangay }}</td>
                     <td class="whitespace-nowrap px-3 py-2 font-semibold">{{ row.account_no }}</td>
                     <td class="min-w-48 px-3 py-2">{{ row.customer_name }}</td>
                     <td class="px-3 py-2 text-right">{{ valueOrDash(row.database_previous) }}</td>
@@ -150,7 +164,7 @@
         <div class="flex items-center justify-end gap-3 border-t px-6 py-4" :class="isDark ? 'border-gray-800' : 'border-gray-200'">
           <button type="button" class="px-4 py-2" :disabled="isReviewing || isConfirming" @click="closeModal">Cancel</button>
           <button v-if="!preview" type="button" class="bg-indigo-600 px-4 py-2 font-medium text-white hover:bg-indigo-700 disabled:opacity-50" :disabled="!selectedFile || isReviewing" @click="reviewFile">
-            {{ isReviewing ? 'Reviewing...' : 'Review File' }}
+            {{ isReviewing ? 'Reviewing...' : (sheetOptions.length ? 'Review Selected Worksheet' : 'Review File') }}
           </button>
           <button v-else type="button" class="bg-green-600 px-4 py-2 font-medium text-white hover:bg-green-700 disabled:opacity-50" :disabled="!canConfirm || isConfirming" @click="confirmImport">
             {{ isConfirming ? 'Applying...' : (selectedImportableCount === 0 ? 'No Marked Changes' : `Apply ${selectedImportableCount} Marked Changes`) }}
@@ -178,6 +192,8 @@ const isReviewing = ref(false)
 const isConfirming = ref(false)
 const isDragging = ref(false)
 const selectedRowKeys = ref([])
+const sheetOptions = ref([])
+const selectedSheet = ref('')
 
 const importableCount = computed(() => (preview.value?.summary?.changes || 0) + (preview.value?.summary?.warnings || 0))
 const markableRows = computed(() => preview.value?.rows?.filter(isRowMarkable) || [])
@@ -210,6 +226,8 @@ function acceptFile(file) {
   preview.value = null
   error.value = ''
   selectedFile.value = null
+  sheetOptions.value = []
+  selectedSheet.value = ''
 
   if (!file) return
   if (!file.name.toLowerCase().endsWith('.xlsx')) {
@@ -231,9 +249,15 @@ async function reviewFile() {
   try {
     const formData = new FormData()
     formData.append('file', selectedFile.value)
+    if (selectedSheet.value) formData.append('sheet_name', selectedSheet.value)
     const response = await window.axios.post('/customers/readings-import/preview', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
+    if (response.data.requires_sheet_selection) {
+      sheetOptions.value = response.data.sheets || []
+      selectedSheet.value = sheetOptions.value[0]?.name || ''
+      return
+    }
     preview.value = response.data
     selectedRowKeys.value = markableRows.value.map(rowSelectionKey)
   } catch (requestError) {
@@ -272,6 +296,8 @@ function resetPreview() {
   selectedRowKeys.value = []
   selectedFile.value = null
   error.value = ''
+  sheetOptions.value = []
+  selectedSheet.value = ''
   if (fileInput.value) fileInput.value.value = ''
 }
 
