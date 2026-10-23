@@ -10,11 +10,13 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Services\AuditLogService;
+use App\Services\BillingStatusService;
 
 class ReadingController extends Controller
 {
    public function indexByCustomer(Request $request, Customer $customer)
 {
+    app(BillingStatusService::class)->refreshDueBills($customer->customer_id);
     $validated = $request->validate([
         'limit' => ['nullable', 'integer', 'min:1', 'max:200'],
     ]);
@@ -45,6 +47,8 @@ class ReadingController extends Controller
             DB::raw('b.reference_number as reference_number'),
             DB::raw('b.bill_date as bill_date'),
             DB::raw('b.due_date as due_date'),
+            DB::raw('b.charges as charges'),
+            DB::raw('b.penalty as penalty'),
             DB::raw('b.total_due as total_due'),
             DB::raw('b.amount_paid as amount_paid'),
             DB::raw('b.balance_due as balance_due'),
@@ -95,7 +99,12 @@ class ReadingController extends Controller
                 continue;
             }
 
-            $readingAt = !empty($row['reading_at']) ? Carbon::createFromTimestamp((int)$row['reading_at']) : now();
+            // Device epochs represent the RTC's Philippine calendar time.
+            // Persist them in the same timezone so an Aug 30 device reading is
+            // not stored/displayed as Aug 29 after a UTC conversion.
+            $readingAt = !empty($row['reading_at'])
+                ? Carbon::createFromTimestamp((int) $row['reading_at'], 'Asia/Manila')
+                : now('Asia/Manila');
             
             // A device reading ID is only meaningful together with its device UID.
             // This makes retries idempotent even when timestamps differ.

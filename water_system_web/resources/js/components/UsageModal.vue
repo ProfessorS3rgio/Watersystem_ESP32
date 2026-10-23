@@ -2,8 +2,8 @@
   <div v-if="isOpen" class="fixed inset-0 z-50">
     <div class="absolute inset-0 bg-black/50" @click="$emit('close')"></div>
     <div class="absolute inset-0 flex items-center justify-center p-4">
-      <div class="flex max-h-[88vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl shadow-2xl" :class="isDark ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'">
-        <div class="shrink-0 px-6 py-4 border-b" :class="isDark ? 'border-gray-800' : 'border-gray-200'">
+      <div class="flex max-h-[96vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl shadow-2xl" :class="isDark ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'">
+        <div class="shrink-0 px-6 py-3 border-b" :class="isDark ? 'border-gray-800' : 'border-gray-200'">
           <div class="flex items-center justify-between">
             <div>
               <h3 class="text-lg font-semibold">Usage History</h3>
@@ -17,17 +17,17 @@
           </div>
         </div>
 
-        <div class="min-h-0 overflow-y-auto px-6 py-5">
-          <div class="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <div class="rounded-xl p-4" :class="isDark ? 'bg-gray-800' : 'bg-gray-50'">
+        <div class="min-h-0 overflow-y-auto px-6 py-3">
+          <div class="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div class="rounded-xl p-3" :class="isDark ? 'bg-gray-800' : 'bg-gray-50'">
               <p class="text-xs uppercase tracking-wide" :class="isDark ? 'text-gray-400' : 'text-gray-500'">Account balance</p>
               <p class="mt-1 text-xl font-bold" :class="Number(customer?.account_balance || 0) > 0 ? 'text-red-600' : 'text-green-600'">₱{{ formatMoney(customer?.account_balance || 0) }}</p>
             </div>
-            <div class="rounded-xl p-4" :class="isDark ? 'bg-gray-800' : 'bg-gray-50'">
+            <div class="rounded-xl p-3" :class="isDark ? 'bg-gray-800' : 'bg-gray-50'">
               <p class="text-xs uppercase tracking-wide" :class="isDark ? 'text-gray-400' : 'text-gray-500'">Latest bill</p>
               <p class="mt-1 text-xl font-bold" :class="isDark ? 'text-white' : 'text-gray-900'">₱{{ formatMoney(customer?.latest_bill_total_due || 0) }}</p>
             </div>
-            <div class="rounded-xl p-4" :class="isDark ? 'bg-gray-800' : 'bg-gray-50'">
+            <div class="rounded-xl p-3" :class="isDark ? 'bg-gray-800' : 'bg-gray-50'">
               <p class="text-xs uppercase tracking-wide" :class="isDark ? 'text-gray-400' : 'text-gray-500'">Latest remaining</p>
               <p class="mt-1 text-xl font-bold text-amber-600">₱{{ formatMoney(customer?.latest_bill_balance_due || 0) }}</p>
             </div>
@@ -46,6 +46,8 @@
                   <th class="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider" :class="isDark ? 'text-gray-200' : 'text-gray-500'">Current</th>
                   <th class="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider" :class="isDark ? 'text-gray-200' : 'text-gray-500'">Usage (m³)</th>
                   <th class="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider" :class="isDark ? 'text-gray-200' : 'text-gray-500'">Bill</th>
+                  <th class="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider" :class="isDark ? 'text-gray-200' : 'text-gray-500'">Water Bill</th>
+                  <th class="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider" :class="isDark ? 'text-gray-200' : 'text-gray-500'">Penalty</th>
                   <th class="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider" :class="isDark ? 'text-gray-200' : 'text-gray-500'">Bill Total</th>
                   <th class="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider" :class="isDark ? 'text-gray-200' : 'text-gray-500'">Balance</th>
                   <th class="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider" :class="isDark ? 'text-gray-200' : 'text-gray-500'">Actions</th>
@@ -64,6 +66,14 @@
                     <span v-else-if="String(reading.status || '').toLowerCase() === 'partially paid'" class="px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">Partially Paid</span>
                     <span v-else-if="isBillDue(reading)" class="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">Due</span>
                     <span v-else class="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">Pending</span>
+                  </td>
+                  <td class="px-4 py-3 text-sm font-medium text-green-600">
+                    <span v-if="reading.bill_id">₱{{ formatMoney(reading.charges || 0) }}</span>
+                    <span v-else class="text-gray-400">-</span>
+                  </td>
+                  <td class="px-4 py-3 text-sm font-medium" :class="Number(reading.penalty || 0) > 0 ? 'text-red-600' : 'text-gray-400'">
+                    <span v-if="reading.bill_id">₱{{ formatMoney(reading.penalty || 0) }}</span>
+                    <span v-else>-</span>
                   </td>
                   <td class="px-4 py-3 text-sm font-medium text-green-600">
                     <span v-if="reading.bill_id">₱{{ formatMoney(reading.total_due || 0) }}</span>

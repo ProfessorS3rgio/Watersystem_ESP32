@@ -10,6 +10,7 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Services\AuditLogService;
+use App\Services\BillingStatusService;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
@@ -646,8 +647,10 @@ public function monthlyReport(Request $request)
         ]);
     }
 
-    public function pay(Request $request, Bill $bill, AuditLogService $audit)
+    public function pay(Request $request, Bill $bill, AuditLogService $audit, BillingStatusService $billingStatus)
     {
+        $billingStatus->refreshDueBills($bill->customer_id);
+        $bill->refresh();
         if (in_array(strtolower((string) $bill->status), ['paid', 'void'], true)) {
             return response()->json([
                 'message' => 'This bill cannot receive a payment.'
@@ -661,24 +664,12 @@ public function monthlyReport(Request $request)
             'payment_method' => ['required', 'string', 'in:cash'],
         ]);
 
-        // Apply the configured additional charge before calculating the remaining balance.
-        $settings = Setting::query()->orderBy('id')->first();
-        $penaltyAfterDays = $settings ? (int) $settings->penalty_after_days : (int) env('PENALTY_AFTER_DAYS', 0);
-        $penaltyAmount = $this->resolvePenaltyAmount($bill, $settings);
-        $penalty = 0.0;
-        if ($bill->due_date && now()->greaterThan(Carbon::parse($bill->due_date)->addDays($penaltyAfterDays))) {
-            $penalty = max(0, $penaltyAmount);
-        }
-
-        DB::transaction(function () use ($bill, $validated, $penalty, $audit) {
+        // The cashier modal collects the balance currently shown to the user.
+        // Never add a new hidden penalty after that amount has been entered.
+        // Any penalty already recorded on the bill remains part of its balance.
+        DB::transaction(function () use ($bill, $validated, $audit) {
             $bill->refresh();
-            if ($penalty > 0 && (float) $bill->penalty < $penalty) {
-                $bill->penalty = $penalty;
-                $bill->total_due = (float) $bill->charges + $penalty;
-            }
-            $balance = $penalty > 0
-                ? max((float) $bill->total_due - (float) ($bill->amount_paid ?? 0), 0)
-                : (float) ($bill->balance_due ?? $bill->total_due);
+            $balance = max((float) ($bill->balance_due ?? $bill->total_due), 0);
             $amount = (float) $validated['amount_paid'];
 
             if ($amount <= 0 || $amount > $balance + 0.01) {
@@ -1009,9 +1000,17 @@ public function monthlyReport(Request $request)
             ]
         );
 
+        // A Due bill receives its configured penalty before it is displayed to
+        // the cashier. The breakdown remains explicit: charges + penalty = total.
+        if (strcasecmp((string) $bill->status, 'due') === 0) {
+            $bill->penalty = $this->resolvePenaltyAmount($bill);
+            $bill->total_due = (float) $bill->charges + (float) $bill->penalty;
+            $bill->balance_due = max((float) $bill->total_due - (float) ($bill->amount_paid ?? 0), 0);
+            $bill->status = $bill->balance_due <= 0.01 ? 'Paid' : 'Due';
+            $bill->save();
         // Device status is authoritative. A paid device bill must never retain
         // an unpaid derived balance in the website database.
-        if (strcasecmp((string) $bill->status, 'paid') === 0) {
+        } elseif (strcasecmp((string) $bill->status, 'paid') === 0) {
             $bill->amount_paid = (float) $bill->total_due;
             $bill->balance_due = 0;
             $bill->save();
