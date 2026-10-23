@@ -700,6 +700,7 @@ public function monthlyReport(Request $request)
                 'transaction_date' => now(),
                 'payment_method' => $validated['payment_method'],
                 'processed_by_user_id' => auth()->id(),
+                'notes' => 'Payment recorded via web system in the office.',
             ]);
         });
 
@@ -775,11 +776,12 @@ public function monthlyReport(Request $request)
 
         // Apply penalty at payment time (if overdue beyond grace days).
         $settings = Setting::query()->orderBy('id')->first();
+        $penaltyEnabled = $settings?->penalty_enabled ?? true;
         $penaltyAfterDays = $settings ? (int) $settings->penalty_after_days : (int) env('PENALTY_AFTER_DAYS', 0);
         $penaltyAmount = $this->resolvePenaltyAmount($bill, $settings);
 
         $penalty = 0.0;
-        if ($bill->due_date) {
+        if ($penaltyEnabled && $bill->due_date) {
             $threshold = Carbon::parse($bill->due_date)->addDays($penaltyAfterDays);
             if (now()->greaterThan($threshold) && $penaltyAmount > 0) {
                 $penalty = $penaltyAmount;
@@ -813,6 +815,7 @@ public function monthlyReport(Request $request)
                 'transaction_date' => now(),
                 'payment_method' => 'cash',
                 'processed_by_user_id' => auth()->id(),
+                'notes' => 'Payment recorded via web system in the office.',
             ]);
         });
 
@@ -921,6 +924,8 @@ public function monthlyReport(Request $request)
     $bills = $validated['bills'];
     $processed = 0;
     $skipped = 0;
+    $settings = Setting::query()->orderBy('id')->first();
+    $penaltyEnabled = $settings?->penalty_enabled ?? true;
 
     foreach ($bills as $row) {
         // ONLY use account_no - NEVER trust customer_id from device!
@@ -1002,7 +1007,12 @@ public function monthlyReport(Request $request)
 
         // A Due bill receives its configured penalty before it is displayed to
         // the cashier. The breakdown remains explicit: charges + penalty = total.
-        if (strcasecmp((string) $bill->status, 'due') === 0) {
+        if (!$penaltyEnabled) {
+            $bill->penalty = 0;
+            $bill->total_due = (float) $bill->charges;
+            $bill->balance_due = max((float) $bill->total_due - (float) ($bill->amount_paid ?? 0), 0);
+            $bill->save();
+        } elseif (strcasecmp((string) $bill->status, 'due') === 0) {
             $bill->penalty = $this->resolvePenaltyAmount($bill);
             $bill->total_due = (float) $bill->charges + (float) $bill->penalty;
             $bill->balance_due = max((float) $bill->total_due - (float) ($bill->amount_paid ?? 0), 0);

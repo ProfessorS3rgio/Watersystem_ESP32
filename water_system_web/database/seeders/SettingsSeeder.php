@@ -18,6 +18,7 @@ class SettingsSeeder extends Seeder
                 'disconnection_days' => 8,
                 'penalty_after_days' => 0,
                 'penalty_amount' => 0,
+                'penalty_enabled' => true,
                 'Synced' => false,
                 'last_sync' => null,
                 'created_at' => now(),

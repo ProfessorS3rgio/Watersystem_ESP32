@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Bill;
 use App\Models\CustomerType;
 use App\Models\Deduction;
+use App\Models\Setting;
 use Carbon\Carbon;
 
 class BillingStatusService
@@ -12,6 +13,7 @@ class BillingStatusService
     /** Apply the website's due-date and customer-type penalty rules once. */
     public function refreshDueBills(?int $customerId = null): int
     {
+        $penaltyEnabled = (bool) (Setting::query()->orderBy('id')->value('penalty_enabled') ?? true);
         $today = Carbon::today('Asia/Manila');
         $query = Bill::query()
             ->with('customer')
@@ -28,7 +30,7 @@ class BillingStatusService
             $customer = $bill->customer;
             if (!$customer) continue;
 
-            $penalty = $this->penaltyFor($customer->type_id, $customer->deduction_id);
+            $penalty = $penaltyEnabled ? $this->penaltyFor($customer->type_id, $customer->deduction_id) : 0.0;
             $total = (float) $bill->charges + $penalty;
             $balance = max($total - (float) ($bill->amount_paid ?? 0), 0);
 

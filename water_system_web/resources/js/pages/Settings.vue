@@ -66,6 +66,18 @@
               />
               <p class="text-xs mt-1" :class="isDark ? 'text-gray-400' : 'text-gray-500'">This charge is added when an overdue bill is paid.</p>
             </div></div>
+            <div class="rounded-xl border p-4" :class="isDark ? 'border-gray-700 bg-gray-800/50' : 'border-gray-200 bg-gray-50/70'">
+              <div class="flex items-center justify-between gap-4">
+                <div>
+                  <label class="flex items-center gap-2 text-sm font-medium"><svg class="h-4 w-4 text-violet-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 3.75a8.25 8.25 0 1 0 0 16.5 8.25 8.25 0 0 0 0-16.5ZM8.5 12h7" /></svg>Enable penalty charges</label>
+                  <p class="mt-1 text-xs" :class="isDark ? 'text-gray-400' : 'text-gray-500'">When disabled, marking a bill as paid will not add an overdue penalty.</p>
+                </div>
+                <button type="button" role="switch" :aria-checked="form.penalty_enabled" @click="form.penalty_enabled = !form.penalty_enabled" class="relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors" :class="form.penalty_enabled ? 'bg-indigo-600' : (isDark ? 'bg-gray-600' : 'bg-gray-300')">
+                  <span class="inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform" :class="form.penalty_enabled ? 'translate-x-6' : 'translate-x-1'"></span>
+                </button>
+              </div>
+              <p class="mt-3 text-xs font-medium" :class="form.penalty_enabled ? 'text-green-600' : 'text-amber-600'">{{ form.penalty_enabled ? 'Penalty charges are enabled.' : 'Penalty charges are disabled.' }}</p>
+            </div>
 
             <div class="pt-2 flex items-center justify-end gap-3">
               <button
@@ -186,6 +198,7 @@ export default {
         disconnection_days: 8,
         penalty_after_days: 0,
         penalty_amount: 0,
+        penalty_enabled: true,
       }
     }
   },
@@ -230,6 +243,7 @@ export default {
           disconnection_days: Number(d.disconnection_days ?? 8),
           penalty_after_days: Number(d.penalty_after_days ?? 0),
           penalty_amount: Number(d.penalty_amount ?? 0),
+          penalty_enabled: d.penalty_enabled !== false,
         }
       } catch (e) {
         this.errorMessage = e?.message || 'Failed to load settings'

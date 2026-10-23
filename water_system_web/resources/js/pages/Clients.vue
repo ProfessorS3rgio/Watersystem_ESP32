@@ -584,7 +584,9 @@ export default {
 
     const openUsageModal = async (customer) => {
       modalsComposable.openUsageModal(customer)
-      await usageComposable.fetchUsageReadings(customer.id)
+      await refreshUsageCustomer()
+      const refreshedCustomer = modalsComposable.usageCustomer.value || customer
+      await usageComposable.fetchUsageReadings(refreshedCustomer.id)
     }
 
     const closeUsageModal = () => {
@@ -762,6 +764,20 @@ export default {
       }
     }
 
+    const refreshUsageCustomer = async () => {
+      const currentCustomer = modalsComposable.usageCustomer.value
+      if (!currentCustomer) return
+
+      await customersComposable.fetchCustomers()
+
+      const refreshedCustomer = customersComposable.customers.value.find(
+        customer => Number(customer.id) === Number(currentCustomer.id)
+      )
+      if (refreshedCustomer) {
+        modalsComposable.usageCustomer.value = refreshedCustomer
+      }
+    }
+
     const markBillPaid = async (payload) => {
       const readingRow = payload?.reading
       if (!readingRow?.bill_id) return
@@ -769,11 +785,10 @@ export default {
       try {
         await usageComposable.markBillPaid(readingRow.bill_id, payload)
 
-        // Refresh usage data and customer list
         if (modalsComposable.usageCustomer.value) {
           await usageComposable.fetchUsageReadings(modalsComposable.usageCustomer.value.id)
         }
-        await customersComposable.fetchCustomers()
+        await refreshUsageCustomer()
 
         modalsComposable.showSuccess(
           'Bill Marked as Paid',
@@ -790,11 +805,10 @@ export default {
       try {
         await usageComposable.voidBill(readingRow.bill_id, reason)
 
-        // Refresh usage data and customer list
         if (modalsComposable.usageCustomer.value) {
           await usageComposable.fetchUsageReadings(modalsComposable.usageCustomer.value.id)
         }
-        await customersComposable.fetchCustomers()
+        await refreshUsageCustomer()
 
         modalsComposable.showSuccess(
           'Bill Voided',

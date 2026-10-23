@@ -13,6 +13,7 @@ class Setting extends Model
         'bill_due_days',
         'penalty_after_days',
         'penalty_amount',
+        'penalty_enabled',
     ];
 
     protected $casts = [
@@ -20,5 +21,6 @@ class Setting extends Model
         'bill_due_days' => 'integer',
         'penalty_after_days' => 'integer',
         'penalty_amount' => 'decimal:2',
+        'penalty_enabled' => 'boolean',
     ];
 }

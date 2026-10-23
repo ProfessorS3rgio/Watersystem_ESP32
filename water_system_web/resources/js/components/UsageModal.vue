@@ -80,7 +80,7 @@
                     <span v-else class="text-gray-400">-</span>
                   </td>
                   <td class="px-4 py-3 text-sm font-semibold text-amber-600">
-                    <span v-if="reading.bill_id">₱{{ formatMoney(reading.balance_due ?? reading.total_due ?? 0) }}</span>
+                    <span v-if="reading.bill_id">₱{{ formatMoney(cumulativeBalance(reading)) }}</span>
                     <span v-else class="text-gray-400">-</span>
                   </td>
                   <td class="px-4 py-3 text-sm">
@@ -196,6 +196,23 @@ export default {
         return Number(second.id || 0) - Number(first.id || 0)
       })
     },
+    cumulativeBalances() {
+      const balances = {}
+      let outstanding = 0
+
+      for (let index = this.orderedReadings.length - 1; index >= 0; index -= 1) {
+        const reading = this.orderedReadings[index]
+        const status = String(reading.status || '').toLowerCase()
+
+        if (reading.bill_id && status !== 'paid' && status !== 'void') {
+          outstanding += Number(reading.balance_due ?? reading.total_due ?? 0)
+        }
+
+        balances[reading.id] = outstanding
+      }
+
+      return balances
+    },
     cashierAmountDue() {
       return Number(this.cashierReading?.balance_due ?? this.cashierReading?.total_due ?? 0)
     },
@@ -240,6 +257,9 @@ export default {
       const n = Number(value)
       if (Number.isNaN(n)) return '0.00'
       return n.toFixed(2)
+    },
+    cumulativeBalance(reading) {
+      return this.cumulativeBalances[reading.id] ?? 0
     },
     isBillDue(reading) {
       if (!reading?.due_date) return false
