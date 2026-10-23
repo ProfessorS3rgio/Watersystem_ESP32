@@ -17,6 +17,12 @@
 // gate pin for IRLZ44N MOSFET controlling printer 5V supply
 #define PRINTER_ENABLE_PIN 1  // drive high to power the printer, low to cut power
 
+// Let the thermal printer controller finish booting after its MOSFET power
+// supply is enabled. This runs only when transitioning from off to on.
+#ifndef PRINTER_POWER_ON_WARMUP_MS
+#define PRINTER_POWER_ON_WARMUP_MS 1000UL
+#endif
+
 // pre-print paper check (1 = enabled, 0 = disabled)
 #ifndef PRE_PRINT_PAPER_CHECK
 #define PRE_PRINT_PAPER_CHECK 0

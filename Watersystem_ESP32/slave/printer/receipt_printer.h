@@ -3,8 +3,9 @@
 #define RECEIPT_PRINTER_H
 
 #include "printer/printer_serial.h"
+#include "association_header.h"
 #include "../database/bill_transactions_database.h"
-#include "bill_printer.h"  // centerString(), formatDateTime12Hour(), getPeriodCovered(), customFeed(), logo
+#include "bill_printer.h"  // centerString(), formatDateTime12Hour(), getPeriodCovered(), customFeed()
 
 static String digitsOnly(const String& s) {
   String out;
@@ -77,7 +78,7 @@ static void printOfficeCopyBarcodeSection(const ReceiptData& receipt) {
     printer.boldOn();
   }
   printer.println(F("Payment Method : Cash"));
-  printer.print(F("Temp Collector: "));
+  printer.print(F("Collector: "));
   printer.println(receipt.collector);
   printer.boldOff();
   printer.println();
@@ -100,21 +101,8 @@ void printReceipt() {
 
 //   customFeed(1);
 
-//   printer.justify('C');
-  printer.setBitmapDarkProfile();
-  printer.printBitmap(LOGO_WIDTH, LOGO_HEIGHT, logo);
-  printer.setDefault();
-
-
-  printer.println();
-  printer.justify('C');
-  printer.setSize('M');
-  printer.boldOn();
-  printer.println(F("OFFICIAL RECEIPT"));
-  printer.setSize('S');
-  printer.boldOff();
-  printer.justify('L');
-  printer.println();
+  // Keep the receipt document title at its original medium height.
+  printAssociationHeader(F("OFFICIAL RECEIPT"), false, 'M');
 //   printer.println(F("--------------------------------"));
 
   printer.justify('L');
@@ -140,7 +128,7 @@ void printReceipt() {
 
   // Collector
   printer.justify('L');
-  printer.print(F("Temp Collector : "));
+  printer.print(F("Collector : "));
   printer.println(receipt.collector);
   printer.println(F("--------------------------------"));
 

@@ -3,6 +3,7 @@
 
 #include <Arduino.h>
 #include "printer_serial.h"
+#include "association_header.h"
 #include "bill_printer.h"
 #include "../database/bill_database.h"
 
@@ -13,31 +14,7 @@ extern BillData currentBill;
 // PRINT_RECEIPT layouts are not changed while the new design is evaluated.
 inline void printPrnTestHeading(bool keepFontB = false) {
   printer.setDefault();
-  printer.justify('C');
-  printer.setFont('B');
-  printer.boldOn();
-
-  // QR204 serial text is not UTF-8. Its common CP437-compatible character
-  // table uses byte 0xA4 for the lowercase n with tilde in "Doña".
-  printer.print(F("Do"));
-  printer.write(0xA4);
-  printer.println(F("a Josefa Makilas Buluan Caparan"));
-  printer.println(F("Water System Association"));
-  printer.boldOff();
-  printer.println(F("Makilas Ipil Zamboanga Sibugay"));
-
-  if (!keepFontB) {
-    printer.setFont('A');
-  }
-  printer.justify('L');
-  printer.println();
-
-  printer.justify('C');
-  printer.boldOn();
-  printer.println(F("STATEMENT OF ACCOUNT"));
-  printer.boldOff();
-  printer.justify('L');
-  printer.println();
+  printAssociationHeader(F("STATEMENT OF ACCOUNT"), keepFontB);
 }
 
 inline void loadPrnTestData() {

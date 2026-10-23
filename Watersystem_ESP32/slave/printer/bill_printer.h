@@ -2,10 +2,10 @@
 #define BILL_PRINTER_H
 
 #include "printer/printer_serial.h"
+#include "association_header.h"
 #include "../database/bill_database.h"  // For BillData currentBill
 #include "../database/device_info.h"   // For getDeviceInfoValue
 #include "../configuration/config.h"    // For YIELD_WDT
-#include "../configuration/logo.h"      // For LOGO_WIDTH, LOGO_HEIGHT, logo bitmap
 
 // External printer object (defined in main .ino)
 extern ThermalPrinter printer;
@@ -62,24 +62,8 @@ void printBill() {
   printer.setDefault();
   YIELD_WDT();
 
-//   customFeed(1);
+  printAssociationHeader(F("STATEMENT OF ACCOUNT"));
   YIELD_WDT();
-  printer.setBitmapDarkProfile();
-  printer.printBitmap(LOGO_WIDTH, LOGO_HEIGHT, logo);
-  printer.setDefault();
-  YIELD_WDT();  // 🚨 REQUIRED
-
-  // blank line after logo
-  printer.println();
-  printer.justify('C');
-  // try medium height for the headline
-  printer.setSize('S');
-  printer.boldOn();
-  printer.println(F("STATEMENT OF ACCOUNT"));
-  printer.boldOff();
-  printer.setSize('S');   // restore normal for following lines
-  printer.justify('L');
-  printer.println();
 
   printBillContent();
 }

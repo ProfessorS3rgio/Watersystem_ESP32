@@ -6,6 +6,7 @@
 #include <BLEUtils.h>
 #include <BLE2902.h>
 #include "printer/printer_serial.h"
+#include "configuration/logo.h"  // Used only by the PRINT_LOGO diagnostic command.
 #include "battery_monitor.h"
 
 

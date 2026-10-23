@@ -18,7 +18,7 @@ struct DeviceProfileOption {
 
 static const DeviceProfileOption DEVICE_PROFILE_OPTIONS[] = {
   {1, "Dona Josefa", "ESMERALDA S. REBONANZA", "e0:72:a1:6e:3f:ba", 1},
-  {2, "Makilas", "DIESERHEY BARANDA", "48:F6:EE:13:F6:EE", 1},
+  {2, "Makilas", "DIESELYN BARANDA", "48:f6:ee:13:f6:ee", 1},
   {3, "Buluan", "DIOSDADO A. BALANSAG", "9c:cc:01:7d:38:62", 1},
   {4, "Caparan", "EXPEDITA R. BANAGUA", "ac:a7:04:d7:5d:0e", 3}
 };
@@ -76,13 +76,21 @@ bool saveDeviceProfile(uint32_t deviceId) {
   const DeviceProfileOption* option = findDeviceProfileOption(deviceId);
   if (option == nullptr) return false;
 
+  // A new device/barangay selection must begin by printing to its paired
+  // Slave.  Previously this only updated g_slaveMac, while g_printerMac kept
+  // its old saved value (or the Buluan default), so a Makilas Master could
+  // still connect to the Buluan printer.
   g_deviceProfilePreferences.putUInt("device_id", deviceId);
   g_deviceProfilePreferences.putString("slave_mac", option->slaveMac);
   g_deviceProfilePreferences.putString("collector", option->collector);
+  g_deviceProfilePreferences.putString("printer_mac", option->slaveMac);
+  g_deviceProfilePreferences.putString("printer_name", option->barangay);
   g_deviceProfilePreferences.putBool("configured", true);
   g_deviceId = deviceId;
   g_slaveMac = option->slaveMac;
   g_collectorName = option->collector;
+  g_printerMac = option->slaveMac;
+  g_printerName = option->barangay;
   return true;
 }
 

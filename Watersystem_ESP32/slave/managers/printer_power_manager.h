@@ -35,6 +35,10 @@ void ensureActiveCpuMode() {
 void enablePrinter() {
     if (!g_printerIsEnabled) {
         printer.wake();
+        // Do not send ESC/POS commands until the printer's controller has
+        // completed its power-on startup. printer.wake() already handles the
+        // electrical rail settling delay; this is the required full warm-up.
+        delay(PRINTER_POWER_ON_WARMUP_MS);
         printer.setDefault();
         g_printerIsEnabled = true;
         Serial.println("Printer powered on");
