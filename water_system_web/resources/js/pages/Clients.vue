@@ -282,6 +282,7 @@
       :is-dark="isDark"
       @close="closeUsageModal"
       @mark-paid="markBillPaid"
+      @print-receipt="printUsageReceipt"
       @void-bill="voidBill"
     />
 
@@ -592,6 +593,84 @@ export default {
     const closeUsageModal = () => {
       if (usageComposable.usageLoading.value) return
       modalsComposable.closeUsageModal()
+    }
+
+    const printUsageReceipt = async (reading) => {
+      if (!reading?.bill_id) return
+
+      const printWindow = window.open('', '_blank', 'width=420,height=700')
+      if (!printWindow) {
+        alert('Please allow pop-ups to reprint the receipt.')
+        return
+      }
+
+      try {
+        const response = await fetch(`/bills/${reading.bill_id}/payment`, {
+          headers: { Accept: 'application/json' },
+          credentials: 'same-origin',
+        })
+
+        if (!response.ok) {
+          throw new Error('No payment transaction was found for this bill.')
+        }
+
+        const payment = await response.json()
+        const customer = modalsComposable.usageCustomer.value
+        const escapeHtml = value => String(value ?? '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#039;')
+        const money = value => Number(value || 0).toFixed(2)
+        const transactionDate = payment.transaction_date || payment.created_at
+
+        printWindow.document.write(`
+          <!doctype html>
+          <html>
+            <head>
+              <title>Receipt ${escapeHtml(reading.reference_number || reading.bill_id)}</title>
+              <style>
+                @page { size: 58mm auto; margin: 0; }
+                * { box-sizing: border-box; }
+                body { width: 58mm; margin: 0; padding: 4mm; font: 12px/1.35 Arial, sans-serif; color: #000; }
+                h1 { margin: 0 0 3mm; text-align: center; font-size: 16px; }
+                .center { text-align: center; }
+                .line { border-top: 1px dashed #000; margin: 3mm 0; }
+                .row { display: flex; justify-content: space-between; gap: 3mm; }
+                .label { color: #333; }
+                .total { font-size: 14px; font-weight: bold; }
+                @media print { body { padding: 3mm; } }
+              </style>
+            </head>
+            <body>
+              <h1>WATER SYSTEM</h1>
+              <div class="center">PAYMENT RECEIPT</div>
+              <div class="line"></div>
+              <div>Customer: ${escapeHtml(customer?.customer_name)}</div>
+              <div>Account: ${escapeHtml(customer?.account_no)}</div>
+              <div>Bill No: ${escapeHtml(reading.reference_number || reading.bill_id)}</div>
+              <div>Date: ${escapeHtml(transactionDate ? new Date(transactionDate).toLocaleString('en-PH') : 'N/A')}</div>
+              <div class="line"></div>
+              <div class="row"><span class="label">Amount paid</span><span>₱${money(payment.amount)}</span></div>
+              <div class="row"><span class="label">Cash received</span><span>₱${money(payment.cash_received)}</span></div>
+              <div class="row"><span class="label">Change</span><span>₱${money(payment.change)}</span></div>
+              <div class="line"></div>
+              <div class="row total"><span>PAID</span><span>₱${money(payment.amount)}</span></div>
+              <div class="line"></div>
+              <div class="center">Thank you!</div>
+            </body>
+          </html>
+        `)
+        printWindow.document.close()
+        printWindow.focus()
+        printWindow.onload = () => {
+          printWindow.print()
+        }
+      } catch (error) {
+        printWindow.close()
+        alert(error?.message || 'Failed to load the bill receipt.')
+      }
     }
 
     // Customer operations
@@ -908,6 +987,7 @@ export default {
       closeDeleteModal,
       openUsageModal,
       closeUsageModal,
+      printUsageReceipt,
       openViewModal,
       closeViewModal,
       openSwapModal,

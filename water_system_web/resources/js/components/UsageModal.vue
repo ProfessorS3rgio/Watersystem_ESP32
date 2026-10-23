@@ -92,7 +92,22 @@
                       >
                         Mark Paid
                       </button>
-                      <span v-else class="text-xs" :class="isDark ? 'text-gray-400' : 'text-gray-500'">-</span>
+                      <button
+                        v-if="reading.bill_id && String(reading.status || '').toLowerCase() === 'paid'"
+                        @click="$emit('print-receipt', reading)"
+                        class="text-blue-600 hover:text-blue-900 font-medium text-xs px-2 py-1 rounded"
+                        title="Reprint bill receipt"
+                        aria-label="Reprint bill receipt"
+                      >
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 9V4h12v5M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v6H6v-6z" />
+                        </svg>
+                      </button>
+                      <span
+                        v-if="!reading.bill_id || String(reading.status || '').toLowerCase() === 'void'"
+                        class="text-xs"
+                        :class="isDark ? 'text-gray-400' : 'text-gray-500'"
+                      >-</span>
                     </div>
                   </td>
                 </tr>
@@ -171,7 +186,7 @@ export default {
       default: false
     }
   },
-  emits: ['close', 'mark-paid'],
+  emits: ['close', 'mark-paid', 'print-receipt'],
   data() {
     return {
       cashierReading: null,
