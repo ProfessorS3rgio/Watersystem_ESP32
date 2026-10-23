@@ -1,5 +1,40 @@
 // Database service for handling API calls to the backend
+let activeSyncRunId = null
+
 export const databaseService = {
+  async startSyncRun() {
+    const res = await window.axios.post('/sync-runs')
+    activeSyncRunId = res.data?.run_id || null
+    if (!activeSyncRunId) throw new Error('Sync run did not return an ID')
+    window.axios.defaults.headers.common['X-Sync-Run-ID'] = activeSyncRunId
+    return activeSyncRunId
+  },
+
+  async finishSyncRun(status = 'completed', details = {}) {
+    if (!activeSyncRunId) return
+    const runId = activeSyncRunId
+    try {
+      await window.axios.post(`/sync-runs/${runId}/finish`, {
+        status,
+        summary: details.summary || null,
+        error: details.error || null,
+      })
+    } finally {
+      activeSyncRunId = null
+      delete window.axios.defaults.headers.common['X-Sync-Run-ID']
+    }
+  },
+
+  async createRestorePoint(label = 'Before device sync') {
+    try {
+      const res = await window.axios.post('/backup/restore-points', { label, source: 'sync' })
+      return res.data
+    } catch (error) {
+      if (error.response?.status === 401) throw new Error('Unauthorized (login required)')
+      throw new Error('Restore point failed: ' + (error.response?.data?.message || error.message))
+    }
+  },
+
   async fetchCustomersFromDatabase(options = {}) {
     const url = new URL('/customers', window.location.origin)
     if (options.updated_after) url.searchParams.set('updated_after', options.updated_after)
@@ -91,6 +126,11 @@ export const databaseService = {
       if (error.response?.status === 401) throw new Error('Unauthorized (login required)')
       throw new Error('Readings sync failed: ' + (error.response?.data?.message || error.message))
     }
+  },
+
+  async inspectDeviceReadings(readings) {
+    const res = await window.axios.post('/readings/inspect', { readings })
+    return res.data
   },
 
   async upsertBillsToDatabase(bills) {

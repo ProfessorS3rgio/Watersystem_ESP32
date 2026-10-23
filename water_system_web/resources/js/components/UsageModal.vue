@@ -2,8 +2,8 @@
   <div v-if="isOpen" class="fixed inset-0 z-50">
     <div class="absolute inset-0 bg-black/50" @click="$emit('close')"></div>
     <div class="absolute inset-0 flex items-center justify-center p-4">
-      <div class="w-full max-w-4xl rounded-lg shadow-lg" :class="isDark ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'">
-        <div class="px-6 py-4 border-b" :class="isDark ? 'border-gray-800' : 'border-gray-200'">
+      <div class="flex max-h-[88vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl shadow-2xl" :class="isDark ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'">
+        <div class="shrink-0 px-6 py-4 border-b" :class="isDark ? 'border-gray-800' : 'border-gray-200'">
           <div class="flex items-center justify-between">
             <div>
               <h3 class="text-lg font-semibold">Usage History</h3>
@@ -17,17 +17,17 @@
           </div>
         </div>
 
-        <div class="px-6 py-4">
-          <div class="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <div class="rounded-lg p-3" :class="isDark ? 'bg-gray-800' : 'bg-gray-50'">
+        <div class="min-h-0 overflow-y-auto px-6 py-5">
+          <div class="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div class="rounded-xl p-4" :class="isDark ? 'bg-gray-800' : 'bg-gray-50'">
               <p class="text-xs uppercase tracking-wide" :class="isDark ? 'text-gray-400' : 'text-gray-500'">Account balance</p>
               <p class="mt-1 text-xl font-bold" :class="Number(customer?.account_balance || 0) > 0 ? 'text-red-600' : 'text-green-600'">₱{{ formatMoney(customer?.account_balance || 0) }}</p>
             </div>
-            <div class="rounded-lg p-3" :class="isDark ? 'bg-gray-800' : 'bg-gray-50'">
+            <div class="rounded-xl p-4" :class="isDark ? 'bg-gray-800' : 'bg-gray-50'">
               <p class="text-xs uppercase tracking-wide" :class="isDark ? 'text-gray-400' : 'text-gray-500'">Latest bill</p>
               <p class="mt-1 text-xl font-bold" :class="isDark ? 'text-white' : 'text-gray-900'">₱{{ formatMoney(customer?.latest_bill_total_due || 0) }}</p>
             </div>
-            <div class="rounded-lg p-3" :class="isDark ? 'bg-gray-800' : 'bg-gray-50'">
+            <div class="rounded-xl p-4" :class="isDark ? 'bg-gray-800' : 'bg-gray-50'">
               <p class="text-xs uppercase tracking-wide" :class="isDark ? 'text-gray-400' : 'text-gray-500'">Latest remaining</p>
               <p class="mt-1 text-xl font-bold text-amber-600">₱{{ formatMoney(customer?.latest_bill_balance_due || 0) }}</p>
             </div>
@@ -37,9 +37,9 @@
           <div v-else-if="readings.length === 0" class="text-sm" :class="isDark ? 'text-gray-300' : 'text-gray-600'">
             No readings yet for this customer.
           </div>
-          <div v-else class="overflow-x-auto">
+          <div v-else class="overflow-x-auto rounded-lg border" :class="isDark ? 'border-gray-800' : 'border-gray-200'">
             <table class="w-full">
-              <thead :class="isDark ? 'bg-gray-800' : 'bg-gray-50'">
+              <thead class="sticky top-0 z-10" :class="isDark ? 'bg-gray-800' : 'bg-gray-50'">
                 <tr>
                   <th class="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider" :class="isDark ? 'text-gray-200' : 'text-gray-500'">Date</th>
                   <th class="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider" :class="isDark ? 'text-gray-200' : 'text-gray-500'">Previous</th>
@@ -52,12 +52,12 @@
                 </tr>
               </thead>
               <tbody :class="isDark ? 'divide-y divide-gray-800' : 'divide-y divide-gray-200'">
-                <tr v-for="reading in readings" :key="reading.id" :class="isDark ? 'hover:bg-gray-800/60' : 'hover:bg-gray-50'">
-                  <td class="px-4 py-2 text-sm">{{ formatReadingAt(reading.reading_at) }}</td>
-                  <td class="px-4 py-2 text-sm">{{ reading.previous_reading }}</td>
-                  <td class="px-4 py-2 text-sm">{{ reading.current_reading }}</td>
-                  <td class="px-4 py-2 text-sm font-medium">{{ reading.usage_m3 }}</td>
-                  <td class="px-4 py-2 text-sm">
+                <tr v-for="reading in orderedReadings" :key="reading.id" :class="isDark ? 'hover:bg-gray-800/60' : 'hover:bg-gray-50'">
+                  <td class="px-4 py-3 text-sm whitespace-nowrap">{{ formatReadingAt(reading.reading_at) }}</td>
+                  <td class="px-4 py-3 text-sm">{{ reading.previous_reading }}</td>
+                  <td class="px-4 py-3 text-sm">{{ reading.current_reading }}</td>
+                  <td class="px-4 py-3 text-sm font-medium">{{ reading.usage_m3 }}</td>
+                  <td class="px-4 py-3 text-sm">
                     <span v-if="!reading.bill_id" class="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700">No Bill</span>
                     <span v-else-if="String(reading.status || '').toLowerCase() === 'paid'" class="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">Paid</span>
                     <span v-else-if="String(reading.status || '').toLowerCase() === 'void'" class="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700">Void</span>
@@ -65,15 +65,15 @@
                     <span v-else-if="isBillDue(reading)" class="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">Due</span>
                     <span v-else class="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">Pending</span>
                   </td>
-                  <td class="px-4 py-2 text-sm font-medium text-green-600">
+                  <td class="px-4 py-3 text-sm font-medium text-green-600">
                     <span v-if="reading.bill_id">₱{{ formatMoney(reading.total_due || 0) }}</span>
                     <span v-else class="text-gray-400">-</span>
                   </td>
-                  <td class="px-4 py-2 text-sm font-semibold text-amber-600">
+                  <td class="px-4 py-3 text-sm font-semibold text-amber-600">
                     <span v-if="reading.bill_id">₱{{ formatMoney(reading.balance_due ?? reading.total_due ?? 0) }}</span>
                     <span v-else class="text-gray-400">-</span>
                   </td>
-                  <td class="px-4 py-2 text-sm">
+                  <td class="px-4 py-3 text-sm">
                     <div class="flex gap-2">
                       <button
                         v-if="reading.bill_id && String(reading.status || '').toLowerCase() !== 'paid' && String(reading.status || '').toLowerCase() !== 'void'"
@@ -169,6 +169,23 @@ export default {
     }
   },
   computed: {
+    // Meter values are the authoritative sequence. A corrected or normalized
+    // timestamp must not make a lower meter reading appear above a later one.
+    orderedReadings() {
+      return [...this.readings].sort((first, second) => {
+        const currentDifference = Number(second.current_reading || 0) - Number(first.current_reading || 0)
+        if (currentDifference !== 0) return currentDifference
+
+        const previousDifference = Number(second.previous_reading || 0) - Number(first.previous_reading || 0)
+        if (previousDifference !== 0) return previousDifference
+
+        const secondDate = new Date(second.reading_at || 0).getTime() || 0
+        const firstDate = new Date(first.reading_at || 0).getTime() || 0
+        if (secondDate !== firstDate) return secondDate - firstDate
+
+        return Number(second.id || 0) - Number(first.id || 0)
+      })
+    },
     cashierAmountDue() {
       return Number(this.cashierReading?.balance_due ?? this.cashierReading?.total_due ?? 0)
     },
@@ -199,7 +216,15 @@ export default {
       if (!value) return '-'
       const d = new Date(value)
       if (Number.isNaN(d.getTime())) return String(value)
-      return d.toLocaleString()
+      return d.toLocaleString('en-PH', {
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true,
+      })
     },
     formatMoney(value) {
       const n = Number(value)

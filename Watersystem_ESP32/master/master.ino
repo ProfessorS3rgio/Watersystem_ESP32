@@ -626,14 +626,35 @@ void loop() {
       rtc.adjust(DateTime(year, month, day, hour, minute, second));
       Serial.println(F("RTC time set"));
     }
+    else if (cmd.startsWith("NORMALIZE_READING_IDS ")) {
+      String payload = cmd.substring(String("NORMALIZE_READING_IDS ").length());
+      const int separator = payload.indexOf('|');
+      if (separator < 0) {
+        Serial.println(F("Usage: NORMALIZE_READING_IDS YYYY-MM-DD|1,2,3"));
+      } else {
+        String targetDate = payload.substring(0, separator); targetDate.trim();
+        String readingIds = payload.substring(separator + 1); readingIds.trim();
+        if (normalizeReadingAndLinkedBillDatesByIds(targetDate.c_str(), readingIds.c_str())) Serial.println(F("Selected date repair done."));
+        else Serial.println(F("Selected date repair failed."));
+      }
+    }
     else if (cmd.startsWith("NORMALIZE_DATES ") || cmd.startsWith("NORMALITE_DATES ")) {
       String payload = cmd.startsWith("NORMALIZE_DATES ")
         ? cmd.substring(String("NORMALIZE_DATES ").length())
         : cmd.substring(String("NORMALITE_DATES ").length());
       payload.trim();
-      if (payload.length() != 10) {
-        Serial.println(F("Usage: NORMALIZE_DATES YYYY-MM-DD"));
-      } else if (normalizeAllReadingAndBillDatesToDate(payload.c_str())) {
+      String targetDate = payload;
+      String selectedDates;
+      const int separator = payload.indexOf('|');
+      if (separator >= 0) {
+        targetDate = payload.substring(0, separator);
+        selectedDates = payload.substring(separator + 1);
+        selectedDates.trim();
+      }
+      targetDate.trim();
+      if (targetDate.length() != 10) {
+        Serial.println(F("Usage: NORMALIZE_DATES YYYY-MM-DD|YYYY-MM-DD,YYYY-MM-DD"));
+      } else if (normalizeAllReadingAndBillDatesToDate(targetDate.c_str(), selectedDates.c_str())) {
         Serial.println(F("Date normalize done."));
       } else {
         Serial.println(F("Date normalize failed."));
@@ -642,7 +663,7 @@ void loop() {
     else if (cmd.length() > 0) {
       Serial.print(F("Unknown: "));
       Serial.println(cmd);
-      Serial.println(F("Commands: P, D, S, L, DD, CT, B, BT, DB, DB_ALL, DROPDB, DROPR, DROPB, DROPBT, DROPC, RESET, RESET_BILL_TRANSACTION, START, TIME, HEAP, SET_TIME <YYYY-MM-DD HH:MM:SS>, CHANGE_DEVICE_ID, NORMALIZE_DATES <YYYY-MM-DD>, PURGE_DATE <YYYY-MM-DD>"));
+      Serial.println(F("Commands: P, D, S, L, DD, CT, B, BT, DB, DB_ALL, DROPDB, DROPR, DROPB, DROPBT, DROPC, RESET, RESET_BILL_TRANSACTION, START, TIME, HEAP, SET_TIME <YYYY-MM-DD HH:MM:SS>, CHANGE_DEVICE_ID, NORMALIZE_DATES <YYYY-MM-DD>|<YYYY-MM-DD,...>, PURGE_DATE <YYYY-MM-DD>"));
     }
   }
   

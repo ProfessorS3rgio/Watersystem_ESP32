@@ -110,7 +110,16 @@
           </transition>
         </div>
 
+        <div class="space-y-1">
+          <button @click="toggleSync" class="w-full flex items-center justify-between px-4 py-3 rounded-lg transition-all duration-200" :class="(isActive('/sync') || isActive('/sync/normalize-dates')) ? (isDark ? 'bg-indigo-600 text-white shadow-lg' : 'bg-indigo-600 text-white shadow-lg') : (isDark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100')">
+            <span class="flex items-center space-x-3">
+              <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5v12a2 2 0 002 2z" /></svg>
+              <span class="font-medium">Sync Device</span>
+            </span>
+            <svg class="h-4 w-4 transition-transform duration-200" :class="isSyncOpen ? 'rotate-90' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m9 5 7 7-7 7" /></svg>
+          </button>
         <router-link
+          v-if="isSyncOpen"
           to="/sync"
           class="flex items-center space-x-3 px-4 py-3 rounded-lg transition-all duration-200"
           :class="isActive('/sync') ? (isDark ? 'bg-indigo-600 text-white shadow-lg' : 'bg-indigo-600 text-white shadow-lg') : (isDark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100')"
@@ -120,6 +129,11 @@
           </svg>
           <span class="font-medium">Sync Device</span>
         </router-link>
+        <router-link to="/sync/normalize-dates" v-if="isSyncOpen" class="flex items-center space-x-3 px-4 py-2 rounded-lg transition-all duration-200 ml-6" :class="isActive('/sync/normalize-dates') ? (isDark ? 'bg-indigo-600 text-white shadow-lg' : 'bg-indigo-600 text-white shadow-lg') : (isDark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100')">
+          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 3v18m10-18v18M3 7h18M3 17h18" /></svg>
+          <span class="font-medium text-sm">Normalize Dates</span>
+        </router-link>
+        </div>
 
         <div class="space-y-1">
           <button @click="toggleSettings" class="w-full flex items-center justify-between px-4 py-3 rounded-lg transition-all duration-200" :class="(isActive('/settings') || isActive('/settings/billing') || isActive('/settings/categories') || isActive('/settings/backup')) ? (isDark ? 'bg-indigo-600 text-white shadow-lg' : 'bg-indigo-600 text-white shadow-lg') : (isDark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100')">
@@ -213,6 +227,7 @@ export default {
     const isDark = ref(localStorage.getItem('theme') === 'dark')
     const isBillingOpen = ref(route.path.startsWith('/billing'))
     const isSettingsOpen = ref(route.path.startsWith('/settings'))
+    const isSyncOpen = ref(route.path.startsWith('/sync'))
 
     const isActive = (path) => {
       return route.path === path
@@ -243,6 +258,10 @@ export default {
       isSettingsOpen.value = !isSettingsOpen.value
     }
 
+    const toggleSync = () => {
+      isSyncOpen.value = !isSyncOpen.value
+    }
+
     const logout = async () => {
       try {
         await fetch('/logout', {
@@ -270,7 +289,9 @@ export default {
       isBillingOpen,
       toggleBilling,
       isSettingsOpen,
-      toggleSettings
+      toggleSettings,
+      isSyncOpen,
+      toggleSync
     }
   }
 }

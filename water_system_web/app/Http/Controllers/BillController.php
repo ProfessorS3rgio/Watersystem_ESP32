@@ -910,7 +910,7 @@ public function monthlyReport(Request $request)
      * Bulk upsert bills coming from the device.
      * Expects: { bills: [ {bill_id, reference_number, customer_id, reading_id, bill_date, rate_per_m3, charges, penalty, total_due, status, created_at, updated_at} ] }
      */
- public function sync(Request $request)
+ public function sync(Request $request, AuditLogService $audit)
 {
     $validated = $request->validate([
         'bills' => ['required', 'array', 'max:2000'],
@@ -943,9 +943,23 @@ public function monthlyReport(Request $request)
             continue;
         }
 
-        // Find correct reading_id from OUR database
+        // The ESP32 bill carries its local reading ID. Once paired with the
+        // device UID this is the exact reading identity; matching by month is
+        // only a legacy fallback and can map several bills to one reading.
         $readingId = null;
-        if (!empty($row['bill_date'])) {
+        if (!empty($row['device_uid']) && !empty($row['reading_id'])) {
+            $reading = Reading::where('device_uid', $row['device_uid'])
+                ->where('device_reading_id', (int) $row['reading_id'])
+                ->first();
+
+            if ($reading) {
+                $readingId = $reading->reading_id;
+            }
+        }
+
+        // Legacy rows imported before device_reading_id existed can only be
+        // matched approximately. New syncs must resolve above instead.
+        if (!$readingId && !empty($row['bill_date'])) {
             $billDate = Carbon::parse($row['bill_date']);
             
             // Try to find reading by customer_account_number and same month/year
@@ -995,11 +1009,17 @@ public function monthlyReport(Request $request)
             ]
         );
 
-        // Initialize the new derived balance for bills created by device sync.
-        if ($bill->wasRecentlyCreated
+        // Device status is authoritative. A paid device bill must never retain
+        // an unpaid derived balance in the website database.
+        if (strcasecmp((string) $bill->status, 'paid') === 0) {
+            $bill->amount_paid = (float) $bill->total_due;
+            $bill->balance_due = 0;
+            $bill->save();
+        // Initialize the derived balance for unpaid bills created by sync.
+        } elseif ($bill->wasRecentlyCreated
             || ((float) ($bill->amount_paid ?? 0) === 0.0
                 && (float) ($bill->balance_due ?? 0) === 0.0
-                && strtolower((string) $bill->status) !== 'paid')) {
+                )) {
             $bill->amount_paid = 0;
             $bill->balance_due = (float) $bill->total_due;
             $bill->save();
@@ -1009,6 +1029,8 @@ public function monthlyReport(Request $request)
     }
 
     \Log::info('Bills synced', ['processed' => $processed, 'skipped' => $skipped]);
+
+    $audit->syncOperation('bills', count($bills), ['processed' => $processed, 'skipped' => $skipped]);
 
     return response()->json([
         'processed' => $processed,
@@ -1054,7 +1076,7 @@ private function resolvePenaltyAmount(Bill $bill, ?Setting $settings = null): fl
      * Bulk upsert bill transactions coming from the device.
      * Expects: { bill_transactions: [ {...} ] }
      */
-    public function syncTransactions(Request $request)
+    public function syncTransactions(Request $request, AuditLogService $audit)
     {
         \Log::info('Syncing bill transactions', ['count' => count($request->bill_transactions ?? [])]);
 
@@ -1082,6 +1104,11 @@ private function resolvePenaltyAmount(Bill $bill, ?Setting $settings = null): fl
 
         foreach ($transactions as $row) {
             try {
+                $bill = Bill::where('reference_number', $row['bill_reference_number'])->first();
+                if (!$bill) {
+                    throw new \RuntimeException('Bill not found for transaction reference');
+                }
+
                 BillTransaction::updateOrCreate(
                     [
                         'bill_reference_number' => $row['bill_reference_number'],
@@ -1089,6 +1116,7 @@ private function resolvePenaltyAmount(Bill $bill, ?Setting $settings = null): fl
                         'amount' => $row['amount'],
                     ],
                     [
+                        'bill_id' => $bill->bill_id,
                         'device_uid' => $row['processed_by_device_uid'] ?? null,
                         'type' => $row['type'],
                         'source' => $row['source'],
@@ -1116,6 +1144,8 @@ private function resolvePenaltyAmount(Bill $bill, ?Setting $settings = null): fl
         }
 
         \Log::info('Bill transactions synced', ['processed' => $processed]);
+
+        $audit->syncOperation('bill_transactions', count($transactions), ['processed' => $processed]);
 
         return response()->json([
             'processed' => $processed,

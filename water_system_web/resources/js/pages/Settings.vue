@@ -127,9 +127,28 @@
             <div class="mt-6 flex items-center justify-between gap-4 rounded-lg border p-4" :class="isDark ? 'border-gray-700 bg-gray-900' : 'border-gray-200 bg-white'">
               <div>
                 <p class="font-medium">Backup workflow</p>
-                <p class="mt-1 text-xs" :class="isDark ? 'text-gray-400' : 'text-gray-500'">The backup format and restore process will be added here.</p>
+                <p class="mt-1 text-xs" :class="isDark ? 'text-gray-400' : 'text-gray-500'">Device sync automatically creates a server-side restore point before changing web data.</p>
               </div>
               <button type="button" :disabled="backupSaving" @click="backupData" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50">{{ backupSaving ? 'Preparing...' : 'Backup data' }}</button>
+            </div>
+            <div class="mt-4 rounded-lg border p-4" :class="isDark ? 'border-gray-700 bg-gray-900' : 'border-gray-200 bg-white'">
+              <div class="flex items-center justify-between gap-4">
+                <div>
+                  <p class="font-medium">Restore points</p>
+                  <p class="mt-1 text-xs" :class="isDark ? 'text-gray-400' : 'text-gray-500'">Restore the web database to a snapshot created before a sync.</p>
+                </div>
+                <button type="button" @click="loadRestorePoints" class="rounded-lg border px-3 py-2 text-sm">Refresh</button>
+              </div>
+              <div v-if="restorePoints.length" class="mt-3 space-y-2">
+                <div v-for="point in restorePoints" :key="point.id" class="flex items-center justify-between gap-3 rounded border p-3 text-sm">
+                  <div>
+                    <p class="font-medium">{{ point.label }}</p>
+                    <p class="text-xs" :class="isDark ? 'text-gray-400' : 'text-gray-500'">{{ formatRestorePointDate(point.created_at) }} · {{ point.row_count }} rows</p>
+                  </div>
+                  <button type="button" :disabled="restoringPointId === point.id" @click="restorePoint(point)" class="rounded-lg bg-amber-600 px-3 py-2 text-white disabled:opacity-50">{{ restoringPointId === point.id ? 'Restoring...' : 'Restore' }}</button>
+                </div>
+              </div>
+              <p v-else class="mt-3 text-sm" :class="isDark ? 'text-gray-400' : 'text-gray-500'">No restore points yet.</p>
             </div>
             <p v-if="backupMessage" class="mt-3 text-sm" :class="backupError ? 'text-red-600' : 'text-green-600'">{{ backupMessage }}</p>
           </div>
@@ -158,6 +177,8 @@ export default {
       backupSaving: false,
       backupMessage: '',
       backupError: false,
+      restorePoints: [],
+      restoringPointId: null,
       errorMessage: '',
       successMessage: '',
       form: {
@@ -171,6 +192,7 @@ export default {
   mounted() {
     void this.reload()
     void this.loadCategories()
+    void this.loadRestorePoints()
   },
   watch: {
     '$route.path'(path) {
@@ -254,6 +276,42 @@ export default {
         this.backupMessage = e?.message || 'Failed to create backup'
       } finally {
         this.backupSaving = false
+      }
+    },
+    async loadRestorePoints() {
+      try {
+        const res = await fetch('/backup/restore-points', { headers: { Accept: 'application/json' }, credentials: 'same-origin' })
+        if (!res.ok) throw new Error('Failed to load restore points')
+        const json = await res.json()
+        this.restorePoints = Array.isArray(json?.data) ? json.data : []
+      } catch (e) {
+        this.backupError = true
+        this.backupMessage = e?.message || 'Failed to load restore points'
+      }
+    },
+    formatRestorePointDate(value) {
+      return value ? new Date(value).toLocaleString() : 'Unknown date'
+    },
+    async restorePoint(point) {
+      if (!window.confirm(`Restore "${point.label}"? Current web data will be replaced.`)) return
+      this.restoringPointId = point.id
+      this.backupMessage = ''
+      this.backupError = false
+      try {
+        const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+        const res = await fetch(`/backup/restore-points/${point.id}/restore`, {
+          method: 'POST',
+          headers: { Accept: 'application/json', ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {}) },
+          credentials: 'same-origin',
+        })
+        const json = await res.json()
+        if (!res.ok) throw new Error(json?.message || 'Failed to restore point')
+        this.backupMessage = 'Restore point restored successfully. Reload the page to see restored data.'
+      } catch (e) {
+        this.backupError = true
+        this.backupMessage = e?.message || 'Failed to restore point'
+      } finally {
+        this.restoringPointId = null
       }
     },
     async saveCategories() {

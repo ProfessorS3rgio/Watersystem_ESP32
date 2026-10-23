@@ -70,8 +70,15 @@ export function useSyncData() {
 
     isSyncing.value = true
     syncStartTime.value = Date.now()
+    let syncRunStarted = false
+    let syncRunStatus = 'completed'
 
     try {
+      await databaseService.startSyncRun()
+      syncRunStarted = true
+      addLog('Creating restore point for current web data...')
+      const restorePoint = await databaseService.createRestorePoint()
+      addLog(`✓ Restore point created (${restorePoint.row_count} rows)`)
       addLog('Starting customer sync...')
 
       // Get device info first to know which barangay this device belongs to
@@ -256,8 +263,15 @@ export function useSyncData() {
         onSyncSuccess()
       }
     } catch (error) {
+      syncRunStatus = 'failed'
       addLog('Sync failed: ' + (error?.message || String(error)))
     } finally {
+      if (syncRunStarted) {
+        await databaseService.finishSyncRun(syncRunStatus, {
+          summary: syncRunStatus === 'completed' ? { elapsed_ms: Date.now() - syncStartTime.value } : null,
+          error: syncRunStatus === 'failed' ? 'Sync failed; see browser sync log for details.' : null,
+        })
+      }
       isSyncing.value = false
       syncStartTime.value = null
     }

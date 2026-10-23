@@ -460,13 +460,33 @@ static bool getCurrentYearMonthFromRtc(int &year, int &month) {
   return (year > 0 && month >= 1 && month <= 12);
 }
 
-// Readings entered during the first week are late readings for the previous cycle.
+// A billing cycle runs from the 8th of one month through the 7th of the next.
+// Readings entered during the first week therefore belong to the prior cycle.
 static const int LATE_READING_CUTOFF_DAY = 7;
 
 static String currentReadingCycleFilter(const String& yearMonth) {
+  String nowStr = getCurrentDateTimeString();
+  const int day = nowStr.length() >= 10 ? nowStr.substring(8, 10).toInt() : 0;
+
+  // On days 1–7, include both the tail of last month and this month's first
+  // week. Without this branch, every early-month reading is treated as new.
+  if (day >= 1 && day <= LATE_READING_CUTOFF_DAY) {
+    int year = yearMonth.substring(0, 4).toInt();
+    int month = yearMonth.substring(5, 7).toInt();
+    if (--month == 0) {
+      month = 12;
+      --year;
+    }
+    char previousYearMonth[8];
+    snprintf(previousYearMonth, sizeof(previousYearMonth), "%04d-%02d", year, month);
+    return "((strftime('%Y-%m', created_at) = '" + String(previousYearMonth)
+         + "' AND CAST(strftime('%d', created_at) AS INTEGER) > " + String(LATE_READING_CUTOFF_DAY)
+         + ") OR (strftime('%Y-%m', created_at) = '" + yearMonth
+         + "' AND CAST(strftime('%d', created_at) AS INTEGER) <= " + String(LATE_READING_CUTOFF_DAY) + "))";
+  }
+
   return "strftime('%Y-%m', created_at) = '" + yearMonth
-       + "' AND CAST(strftime('%d', created_at) AS INTEGER) > "
-       + String(LATE_READING_CUTOFF_DAY);
+       + "' AND CAST(strftime('%d', created_at) AS INTEGER) > " + String(LATE_READING_CUTOFF_DAY);
 }
 
 bool getLatestReadingForCustomer(int customerId,

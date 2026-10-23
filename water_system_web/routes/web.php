@@ -15,6 +15,7 @@ use App\Http\Controllers\DeductionController;
 use App\Http\Controllers\SyncController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\BackupController;
+use App\Http\Controllers\SyncRunController;
 
 Route::get('/', function () {
     return view('welcome');
@@ -71,6 +72,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/bill-transactions/mark-synced', [BillController::class, 'markTransactionsSynced']);
 
     Route::post('/readings/sync', [ReadingController::class, 'sync']);
+    Route::post('/readings/inspect', [ReadingController::class, 'inspect']);
     Route::post('/bills/sync', [BillController::class, 'sync']);
     Route::post('/devices/sync', [DeviceController::class, 'sync']);
 
@@ -82,6 +84,11 @@ Route::middleware('auth')->group(function () {
     Route::post('/settings/mark-synced', [SettingsController::class, 'markSynced']);
 
     Route::post('/sync/reset-status', [SyncController::class, 'resetStatus']);
+    Route::post('/sync-runs', [SyncRunController::class, 'start']);
+    Route::post('/sync-runs/{run}/finish', [SyncRunController::class, 'finish']);
     Route::get('/audit-logs', [AuditLogController::class, 'index']);
     Route::get('/backup/export', [BackupController::class, 'export']);
+    Route::post('/backup/restore-points', [BackupController::class, 'createRestorePoint']);
+    Route::get('/backup/restore-points', [BackupController::class, 'restorePoints']);
+    Route::post('/backup/restore-points/{snapshot}/restore', [BackupController::class, 'restore']);
 });

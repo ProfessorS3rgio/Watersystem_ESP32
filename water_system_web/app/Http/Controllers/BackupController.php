@@ -10,6 +10,92 @@ use ZipArchive;
 
 class BackupController extends Controller
 {
+    private const SNAPSHOT_TABLES = [
+        'settings', 'customer_type', 'deduction', 'barangay_sequence', 'customer',
+        'customer_deduction', 'device', 'reading', 'bill', 'bill_deduction',
+        'bill_transaction', 'audit_logs',
+    ];
+
+    public function createRestorePoint(Request $request, AuditLogService $audit)
+    {
+        $payload = $this->buildJsonPayload();
+        $rowCount = collect($payload['tables'])->sum(fn ($rows) => count($rows));
+        $snapshot = DB::table('backup_snapshots')->insertGetId([
+            'label' => $request->input('label', 'Before device sync'),
+            'source' => $request->input('source', 'sync'),
+            'created_by' => $request->user()?->id,
+            'table_count' => count($payload['tables']),
+            'row_count' => $rowCount,
+            'payload' => json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $audit->record('restore_point_created', 'BackupSnapshot', null, ['id' => $snapshot], [
+            'auditable_id' => $snapshot,
+            'source' => $request->input('source', 'sync'),
+            'row_count' => $rowCount,
+        ]);
+
+        return response()->json([
+            'id' => $snapshot,
+            'label' => $request->input('label', 'Before device sync'),
+            'row_count' => $rowCount,
+        ], 201);
+    }
+
+    public function restorePoints()
+    {
+        return response()->json([
+            'data' => DB::table('backup_snapshots')
+                ->select(['id', 'label', 'source', 'table_count', 'row_count', 'created_at'])
+                ->latest()
+                ->limit(50)
+                ->get(),
+        ]);
+    }
+
+    public function restore(Request $request, int $snapshot, AuditLogService $audit)
+    {
+        $record = DB::table('backup_snapshots')->where('id', $snapshot)->first();
+        if (!$record) {
+            return response()->json(['message' => 'Restore point not found.'], 404);
+        }
+
+        $payload = json_decode($record->payload, true, 512, JSON_THROW_ON_ERROR);
+        if (($payload['format'] ?? null) !== 'watersystem-backup' || !is_array($payload['tables'] ?? null)) {
+            return response()->json(['message' => 'Restore point is invalid.'], 422);
+        }
+
+        DB::transaction(function () use ($payload) {
+            $this->setForeignKeyChecks(false);
+            try {
+                foreach (array_reverse(self::SNAPSHOT_TABLES) as $table) {
+                    if (DB::getSchemaBuilder()->hasTable($table)) {
+                        DB::table($table)->delete();
+                    }
+                }
+
+                foreach (self::SNAPSHOT_TABLES as $table) {
+                    if (!DB::getSchemaBuilder()->hasTable($table)) continue;
+                    $rows = $payload['tables'][$table] ?? [];
+                    foreach (array_chunk($rows, 500) as $chunk) {
+                        if ($chunk) DB::table($table)->insert($chunk);
+                    }
+                }
+            } finally {
+                $this->setForeignKeyChecks(true);
+            }
+        });
+
+        $audit->record('restore_point_restored', 'BackupSnapshot', null, ['id' => $snapshot], [
+            'auditable_id' => $snapshot,
+            'row_count' => $record->row_count,
+        ]);
+
+        return response()->json(['message' => 'Restore point restored successfully.']);
+    }
+
     public function export(Request $request, AuditLogService $audit)
     {
         if (config('database.default') !== 'mysql') {
@@ -43,27 +129,30 @@ class BackupController extends Controller
 
     private function buildJsonPayload(): array
     {
-        $tables = [
-            'settings', 'customer_type', 'deduction', 'barangay', 'customer',
-            'customer_deduction', 'reading', 'bill', 'bill_deduction',
-            'bill_transaction', 'device', 'audit_logs',
-        ];
-
         $payload = [
             'format' => 'watersystem-backup',
-            'version' => 1,
+            'version' => 2,
             'created_at' => now()->toIso8601String(),
             'application' => config('app.name'),
             'tables' => [],
         ];
 
-        foreach ($tables as $table) {
+        foreach (self::SNAPSHOT_TABLES as $table) {
             if (DB::getSchemaBuilder()->hasTable($table)) {
                 $payload['tables'][$table] = DB::table($table)->get()->map(fn ($row) => (array) $row)->all();
             }
         }
 
         return $payload;
+    }
+
+    private function setForeignKeyChecks(bool $enabled): void
+    {
+        if (DB::connection()->getDriverName() === 'mysql') {
+            DB::statement('SET FOREIGN_KEY_CHECKS=' . ($enabled ? '1' : '0'));
+        } elseif (DB::connection()->getDriverName() === 'sqlite') {
+            DB::statement('PRAGMA foreign_keys = ' . ($enabled ? 'ON' : 'OFF'));
+        }
     }
 
     private function createSqlDump(): string

@@ -17,6 +17,7 @@
 // Include organized sync handlers
 #include "sync/device_sync.h"
 #include "sync/reading_sync.h"
+#include "sync/reading_query.h"
 #include "sync/bill_sync.h"
 #include "sync/bill_transaction_sync.h"
 #include "sync/deduction_sync.h"
@@ -62,6 +63,15 @@ bool handleSyncCommands(String raw) {
 
   if (raw == "EXPORT_READINGS") {
     return handleExportReadings();
+  }
+
+  if (raw == "EXPORT_ALL_READINGS") {
+    return handleExportReadings(true);
+  }
+
+  if (raw.startsWith("QUERY_READINGS|")) {
+    raw.remove(0, String("QUERY_READINGS|").length());
+    return handleQueryReadingsForAccount(raw);
   }
 
   if (raw == "EXPORT_BILLS") {
@@ -138,6 +148,47 @@ bool handleSyncCommands(String raw) {
 
   if (raw == "RESTART_DEVICE") {
     return handleRestartDevice();
+  }
+
+  if (raw.startsWith("NORMALIZE_READING_IDS ")) {
+    String payload = raw.substring(String("NORMALIZE_READING_IDS ").length());
+    const int separator = payload.indexOf('|');
+    if (separator < 0) { Serial.println(F("Usage: NORMALIZE_READING_IDS YYYY-MM-DD|1,2,3")); return true; }
+    String targetDate = payload.substring(0, separator); targetDate.trim();
+    String readingIds = payload.substring(separator + 1); readingIds.trim();
+    if (normalizeReadingAndLinkedBillDatesByIds(targetDate.c_str(), readingIds.c_str())) Serial.println(F("Selected date repair done."));
+    else Serial.println(F("Selected date repair failed."));
+    return true;
+  }
+
+  if (raw.startsWith("NORMALIZE_DATES ") || raw.startsWith("NORMALITE_DATES ")) {
+    const String command = raw.startsWith("NORMALIZE_DATES ")
+      ? "NORMALIZE_DATES "
+      : "NORMALITE_DATES ";
+    String payload = raw.substring(command.length());
+    payload.trim();
+
+    String targetDate = payload;
+    String selectedDates;
+    const int separator = payload.indexOf('|');
+    if (separator >= 0) {
+      targetDate = payload.substring(0, separator);
+      selectedDates = payload.substring(separator + 1);
+      selectedDates.trim();
+    }
+    targetDate.trim();
+
+    if (targetDate.length() != 10) {
+      Serial.println(F("Usage: NORMALIZE_DATES YYYY-MM-DD|YYYY-MM-DD,YYYY-MM-DD"));
+      return true;
+    }
+
+    if (normalizeAllReadingAndBillDatesToDate(targetDate.c_str(), selectedDates.c_str())) {
+      Serial.println(F("Date normalize done."));
+    } else {
+      Serial.println(F("Date normalize failed."));
+    }
+    return true;
   }
 
   // If command not recognized, log it for debugging

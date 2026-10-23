@@ -8,6 +8,7 @@ use App\Models\Reading;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use App\Services\AuditLogService;
 use Illuminate\Support\Str;
 
 class CustomerController extends Controller
@@ -60,35 +61,39 @@ class CustomerController extends Controller
             $query->where('customer.updated_at', '>', Carbon::createFromTimestamp($updatedAfter));
         }
 
-        $latestReadingAt = DB::table('reading')
-            ->select('customer_id', DB::raw('MAX(reading_at) as latest_reading_at'))
+        // IDs make the selected row deterministic. Joining by a maximum date
+        // can return more than one reading/bill when rows share that date.
+        $latestReading = DB::table('reading')
+            ->select('customer_id', DB::raw('MAX(reading_id) as latest_reading_id'))
             ->groupBy('customer_id');
 
-        $latestBillDate = DB::table('bill')
-            ->select('customer_id', DB::raw('MAX(bill_date) as latest_bill_date'))
+        $latestBill = DB::table('bill')
+            ->select('customer_id', DB::raw('MAX(bill_id) as latest_bill_id'))
             ->groupBy('customer_id');
 
         $accountBalances = DB::table('bill')
             ->select(
                 'customer_id',
-                DB::raw("SUM(CASE WHEN status NOT IN ('Void', 'void') THEN COALESCE(balance_due, total_due) ELSE 0 END) as account_balance")
+                // Paid bills should not contribute to outstanding balance even
+                // if an older synced row has a stale derived balance value.
+                DB::raw("SUM(CASE WHEN LOWER(status) NOT IN ('void', 'paid') THEN COALESCE(balance_due, total_due) ELSE 0 END) as account_balance")
             )
             ->groupBy('customer_id');
 
         $customers = $query
-            ->leftJoinSub($latestReadingAt, 'lr', function ($join) {
+            ->leftJoinSub($latestReading, 'lr', function ($join) {
                 $join->on('lr.customer_id', '=', 'customer.customer_id');
             })
             ->leftJoin('reading as r', function ($join) {
                 $join->on('r.customer_id', '=', 'customer.customer_id')
-                    ->on('r.reading_at', '=', 'lr.latest_reading_at');
+                    ->on('r.reading_id', '=', 'lr.latest_reading_id');
             })
-            ->leftJoinSub($latestBillDate, 'lb', function ($join) {
+            ->leftJoinSub($latestBill, 'lb', function ($join) {
                 $join->on('lb.customer_id', '=', 'customer.customer_id');
             })
             ->leftJoin('bill as b', function ($join) {
                 $join->on('b.customer_id', '=', 'customer.customer_id')
-                    ->on('b.bill_date', '=', 'lb.latest_bill_date');
+                    ->on('b.bill_id', '=', 'lb.latest_bill_id');
             })
             ->leftJoinSub($accountBalances, 'ab', function ($join) {
                 $join->on('ab.customer_id', '=', 'customer.customer_id');
@@ -213,7 +218,7 @@ class CustomerController extends Controller
      * Bulk upsert customers coming from the device.
      * Expects: { customers: [ {account_no, customer_name, address, previous_reading, is_active} ] }
      */
-    public function sync(Request $request)
+    public function sync(Request $request, AuditLogService $audit)
     {
         $validated = $request->validate([
             'customers' => ['required', 'array', 'max:200'],
@@ -256,6 +261,8 @@ class CustomerController extends Controller
 
             $processed++;
         }
+
+        $audit->syncOperation('customers', count($customers), ['processed' => $processed]);
 
         return response()->json([
             'processed' => $processed,

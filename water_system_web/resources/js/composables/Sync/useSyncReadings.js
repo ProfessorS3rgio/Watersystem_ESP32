@@ -29,7 +29,7 @@ export function useSyncReadings() {
     return Math.floor(ts / 1000)
   }
 
-  const exportReadingsFromDevice = async () => {
+  const exportReadingsFromDevice = async (includeSynced = false) => {
     if (exportInProgress.value) {
       throw new Error('Export already in progress')
     }
@@ -49,7 +49,7 @@ export function useSyncReadings() {
       }, 60000)
     })
 
-    await sendLine('EXPORT_READINGS')
+    await sendLine(includeSynced ? 'EXPORT_ALL_READINGS' : 'EXPORT_READINGS')
 
     const lines = await promise
     return parseReadingsExportLines(lines)
@@ -79,13 +79,14 @@ export function useSyncReadings() {
     let chunkBuffer = ''
     for (const line of lines) {
       const t = String(line).trim()
+      let startedChunk = false
 
       if (t.startsWith('READINGS_CHUNK|')) {
         const parts = t.split('|', 3)
         if (parts.length >= 3) {
           chunkBuffer = parts[2] || ''
+          startedChunk = true
         }
-        continue
       }
 
       // If there's no explicit chunk prefix, start accumulation when a line
@@ -99,7 +100,7 @@ export function useSyncReadings() {
           // nothing to accumulate yet
           continue
         }
-      } else {
+      } else if (!startedChunk) {
         if (t.startsWith('Heap free') || t === 'END_READINGS_JSON' || t === 'BEGIN_READINGS_JSON') {
           // skip meta
         } else {
@@ -111,8 +112,8 @@ export function useSyncReadings() {
         try {
           const chunkReadings = JSON.parse(chunkBuffer)
           for (const reading of chunkReadings) {
-            const createdAtEpoch = parseCreatedAtToEpoch(reading.created_at)
             const readingAtEpoch = Number(reading.reading_at || 0)
+            const createdAtEpoch = parseCreatedAtToEpoch(reading.created_at)
             readings.push({
               reading_id: Number(reading.reading_id || 0),
               customer_id: Number(reading.customer_id || 0),
@@ -120,7 +121,9 @@ export function useSyncReadings() {
               previous_reading: Number(reading.previous_reading || 0),
               current_reading: Number(reading.current_reading || 0),
               usage_m3: Number(reading.usage_m3 || 0),
-              reading_at: createdAtEpoch > 0 ? createdAtEpoch : readingAtEpoch,
+              // Preserve the actual device meter-reading time. `created_at`
+              // is only a fallback for older device rows with invalid epochs.
+              reading_at: readingAtEpoch >= 1577836800 ? readingAtEpoch : createdAtEpoch,
               customer_account_number: reading.customer_account_number || '',
             })
           }
@@ -156,16 +159,15 @@ export function useSyncReadings() {
 
       if (skipped > 0) {
         console.warn('Some exported readings were skipped because the matching customer was missing in the web database:', skipped)
+        throw new Error(`${skipped} reading(s) could not be matched to a website customer; device records were left unsynced`)
       }
 
       if (totalHandled !== Number(deviceReadings.length)) {
         throw new Error(`Reading export mismatch: device exported ${deviceReadings.length}, handled ${totalHandled}`)
       }
 
-      // Mark readings as synced in web database
-      const readingIds = deviceReadings.map(r => r.reading_id)
-      const marked = await databaseService.markReadingsSynced(readingIds)
-      console.log('Readings marked as synced in web database:', marked)
+      // The import marks its own website rows synced. Device IDs are not
+      // website primary keys, so never use them in a server-side WHERE IN.
     } catch (err) {
       console.error('Failed to upsert readings to database:', err)
       throw err
@@ -177,10 +179,40 @@ export function useSyncReadings() {
     return syncResult.processed
   }
 
+  const inspectReadingsFromDevice = async () => {
+    const readings = await exportReadingsFromDevice(true)
+    return databaseService.inspectDeviceReadings(readings)
+  }
+
+  const inspectReadingsForAccount = async (accountNo) => {
+    const account = String(accountNo || '').trim().toUpperCase()
+    if (!/^[A-Z0-9-]{1,64}$/.test(account)) {
+      throw new Error('Enter a valid account number, for example B-001')
+    }
+    if (exportInProgress.value) throw new Error('Export already in progress')
+
+    exportInProgress.value = true
+    exportLines.value = []
+    exportBeginMarker.value = 'BEGIN_READINGS_QUERY_JSON'
+    exportEndMarker.value = 'END_READINGS_QUERY_JSON'
+    exportLinePrefix.value = 'READINGS_CHUNK|'
+    const promise = new Promise((resolve, reject) => {
+      exportResolve.value = resolve
+      exportReject.value = reject
+      exportTimeoutId.value = setTimeout(() => finishExport(new Error('Timed out waiting for device query')), 15000)
+    })
+    await sendLine('QUERY_READINGS|' + account)
+    return databaseService.inspectDeviceReadings(parseReadingsExportLines(await promise))
+  }
+
   const handleDeviceLine = (line) => {
     if (!line) return
 
     if (!exportInProgress.value) return
+
+    // Human-readable diagnostics sent by QUERY_READINGS. They are shown in
+    // the serial log but must not be appended to a JSON export chunk.
+    if (line.startsWith('QUERY_RESULT|')) return
 
     // Begin marker: start collecting
     if (exportBeginMarker.value && line.startsWith(exportBeginMarker.value)) {
@@ -210,6 +242,8 @@ export function useSyncReadings() {
 
   return {
     syncReadingsFromDevice,
+    inspectReadingsFromDevice,
+    inspectReadingsForAccount,
     exportReadingsFromDevice,
     handleDeviceLine
   }

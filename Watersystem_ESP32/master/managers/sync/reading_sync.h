@@ -8,11 +8,15 @@
 // ===== READING SYNC OPERATIONS =====
 
 // Handle EXPORT_READINGS command
-bool handleExportReadings() {
+// Inspection exports are deliberately read-only and include already-synced rows.
+// Normal sync exports only pending rows; neither export changes SQLite state.
+bool handleExportReadings(bool includeSynced = false) {
   Serial.println(F("Exporting readings..."));
   // Get total count
   sqlite3_stmt* countStmt;
-  const char* countSql = "SELECT COUNT(*) FROM readings WHERE synced = 0 AND last_sync IS NULL;";
+  const char* countSql = includeSynced
+    ? "SELECT COUNT(*) FROM readings;"
+    : "SELECT COUNT(*) FROM readings WHERE synced = 0 AND last_sync IS NULL;";
   int rc = sqlite3_prepare_v2(db, countSql, -1, &countStmt, NULL);
   if (rc != SQLITE_OK) {
     Serial.println(F("Failed to prepare count query"));
@@ -31,7 +35,9 @@ bool handleExportReadings() {
 
   // Prepare statement for chunked query
   sqlite3_stmt* stmt;
-  const char* sql = "SELECT reading_id, customer_id, device_uid, previous_reading, current_reading, usage_m3, reading_at, synced, last_sync, customer_account_number, CAST(strftime('%s', created_at) AS INTEGER) AS created_at_epoch, created_at FROM readings WHERE synced = 0 AND last_sync IS NULL ORDER BY reading_id LIMIT ? OFFSET ?;";
+  const char* sql = includeSynced
+    ? "SELECT reading_id, customer_id, device_uid, previous_reading, current_reading, usage_m3, reading_at, synced, last_sync, customer_account_number, CAST(strftime('%s', created_at) AS INTEGER) AS created_at_epoch, created_at FROM readings ORDER BY reading_id LIMIT ? OFFSET ?;"
+    : "SELECT reading_id, customer_id, device_uid, previous_reading, current_reading, usage_m3, reading_at, synced, last_sync, customer_account_number, CAST(strftime('%s', created_at) AS INTEGER) AS created_at_epoch, created_at FROM readings WHERE synced = 0 AND last_sync IS NULL ORDER BY reading_id LIMIT ? OFFSET ?;";
   int rc2 = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
   if (rc2 != SQLITE_OK) {
     Serial.println(F("Failed to prepare readings query"));
@@ -57,8 +63,12 @@ bool handleExportReadings() {
       obj["usage_m3"] = (unsigned long)sqlite3_column_int64(stmt, 5);
       unsigned long originalReadingAt = (unsigned long)sqlite3_column_int64(stmt, 6);
       unsigned long createdAtEpoch = (unsigned long)sqlite3_column_int64(stmt, 10);
-      // Prefer created_at epoch because some legacy reading_at values are invalid.
-      obj["reading_at"] = createdAtEpoch > 0 ? createdAtEpoch : originalReadingAt;
+      // `reading_at` is the meter-reading time. Legacy rows sometimes contain
+      // values such as 87, so use their device-created timestamp only then.
+      const unsigned long MIN_VALID_EPOCH = 1577836800UL; // 2020-01-01 UTC
+      obj["reading_at"] = originalReadingAt >= MIN_VALID_EPOCH
+        ? originalReadingAt
+        : createdAtEpoch;
       obj["synced"] = (int)sqlite3_column_int(stmt, 7);
       obj["last_sync"] = sqlite3_column_text(stmt, 8) ? String((const char*)sqlite3_column_text(stmt, 8)) : "";
       obj["customer_account_number"] = String((const char*)sqlite3_column_text(stmt, 9));
@@ -82,16 +92,8 @@ bool handleExportReadings() {
   sqlite3_finalize(stmt);
   Serial.println(F("END_READINGS_JSON"));
   
-  // Mark all exported readings as synced
-  const char* updateSql = "UPDATE readings SET synced = 1, last_sync = datetime('now') WHERE synced = 0;";
-  int updateRc = sqlite3_exec(db, updateSql, NULL, NULL, NULL);
-  if (updateRc != SQLITE_OK) {
-    Serial.print(F("Failed to mark readings as synced: "));
-    Serial.println(sqlite3_errmsg(db));
-  } else {
-    Serial.println(F("Marked exported readings as synced"));
-  }
-  
+  // Sync state is changed only by READINGS_SYNCED after the web app confirms
+  // that it committed the import successfully.
   return true;
 }
 

@@ -3,6 +3,7 @@
 
 #include <SD.h>
 #include <time.h>
+#include <stdlib.h>
 #include <sys/time.h>
 #include "../configuration/config.h"
 #include "../managers/sdcard_manager.h"
@@ -143,17 +144,86 @@ void initReadingsDatabase() {
 // ===== NORMALIZE DATES TO YYYY-MM-DD =====
 static bool parseYmdDate(const char *ymd, int &year, int &month, int &day) {
   if (!ymd || strlen(ymd) != 10) return false;
+  if (ymd[4] != '-' || ymd[7] != '-') return false;
   year = String(ymd).substring(0, 4).toInt();
   month = String(ymd).substring(5, 7).toInt();
   day = String(ymd).substring(8, 10).toInt();
   if (year < 2000 || year > 2099) return false;
   if (month < 1 || month > 12) return false;
-  if (day < 1 || day > 31) return false;
+  const int daysInMonth[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+  const bool leapYear = (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
+  if (day < 1 || day > daysInMonth[month - 1] + (month == 2 && leapYear ? 1 : 0)) return false;
   return true;
 }
 
-bool normalizeAllReadingAndBillDatesToDate(const char *ymd) {
+static bool normalizeDateIsSelected(const char *sourceDate, const char *selectedDates) {
+  if (!selectedDates || !selectedDates[0]) return true;
+  char dates[256];
+  strncpy(dates, selectedDates, sizeof(dates) - 1);
+  dates[sizeof(dates) - 1] = '\0';
+  char *token = strtok(dates, ",");
+  while (token) {
+    while (*token == ' ') ++token;
+    if (strcmp(sourceDate, token) == 0) return true;
+    token = strtok(nullptr, ",");
+  }
+  return false;
+}
+
+// The web inspector displays device epochs in Philippine time. Set the same
+// timezone before localtime()/mktime() so a date chosen in the UI matches the
+// date used by the ESP32 normalizer.
+static void normalizeUsePhilippineTime() {
+  setenv("TZ", "PST-8", 1); // Philippine Standard Time: UTC+08:00
+  tzset();
+}
+
+// Keep source-date selection consistent with the reading exporter. Some legacy
+// rows have an invalid reading_at value (for example, 87), while created_at is
+// the only reliable date available for those rows.
+static bool normalizeIsValidEpoch(time_t epoch) {
+  return epoch >= (time_t)1577836800 && epoch < (time_t)4102444800;
+}
+
+static bool normalizeSqlDateTime(const char *value, struct tm &result) {
+  if (!value || strlen(value) < 19) return false;
+  int year, month, day, hour, minute, second;
+  if (sscanf(value, "%4d-%2d-%2d %2d:%2d:%2d", &year, &month, &day, &hour, &minute, &second) != 6) return false;
+  int validatedYear, validatedMonth, validatedDay;
+  char datePart[11];
+  snprintf(datePart, sizeof(datePart), "%04d-%02d-%02d", year, month, day);
+  if (!parseYmdDate(datePart, validatedYear, validatedMonth, validatedDay)
+      || hour < 0 || hour > 23 || minute < 0 || minute > 59 || second < 0 || second > 59) return false;
+  memset(&result, 0, sizeof(result));
+  result.tm_year = year - 1900;
+  result.tm_mon = month - 1;
+  result.tm_mday = day;
+  result.tm_hour = hour;
+  result.tm_min = minute;
+  result.tm_sec = second;
+  result.tm_isdst = -1;
+  return true;
+}
+
+static bool normalizeReadingSource(const char *readingAt, const char *createdAt, char *sourceDate, size_t sourceDateSize, struct tm &sourceTime) {
+  const time_t epoch = (time_t)atoll(readingAt ? readingAt : "0");
+  if (normalizeIsValidEpoch(epoch)) {
+    struct tm *localTime = localtime(&epoch);
+    if (localTime) {
+      sourceTime = *localTime;
+      snprintf(sourceDate, sourceDateSize, "%04d-%02d-%02d", sourceTime.tm_year + 1900, sourceTime.tm_mon + 1, sourceTime.tm_mday);
+      return true;
+    }
+  }
+
+  if (!normalizeSqlDateTime(createdAt, sourceTime)) return false;
+  snprintf(sourceDate, sourceDateSize, "%04d-%02d-%02d", sourceTime.tm_year + 1900, sourceTime.tm_mon + 1, sourceTime.tm_mday);
+  return true;
+}
+
+bool normalizeAllReadingAndBillDatesToDate(const char *ymd, const char *selectedDates = nullptr) {
   if (!db) return false;
+  normalizeUsePhilippineTime();
   int targetYear = 0;
   int targetMonth = 0;
   int targetDay = 0;
@@ -193,7 +263,7 @@ bool normalizeAllReadingAndBillDatesToDate(const char *ymd) {
   sqlite3_stmt *updateReadings = nullptr;
   const char *selReadingsSql = "SELECT reading_id, reading_at, created_at, updated_at FROM readings;";
   const char *updReadingsSql =
-    "UPDATE readings SET reading_at = ?, created_at = ?, updated_at = ? WHERE reading_id = ?;";
+    "UPDATE readings SET reading_at = ?, created_at = ?, updated_at = ?, synced = 0, last_sync = NULL WHERE reading_id = ?;";
 
   int rc = sqlite3_prepare_v2(db, selReadingsSql, -1, &selectReadings, nullptr);
   if (rc != SQLITE_OK) {
@@ -214,17 +284,20 @@ bool normalizeAllReadingAndBillDatesToDate(const char *ymd) {
     const char *createdAt = (const char*)sqlite3_column_text(selectReadings, 2);
     const char *updatedAt = (const char*)sqlite3_column_text(selectReadings, 3);
 
-    time_t epoch = (time_t)atol(readingAt ? readingAt : "0");
-    struct tm *t = localtime(&epoch);
-    if (t) {
-      t->tm_year = targetYear - 1900;
-      t->tm_mon = targetMonth - 1;
-      t->tm_mday = targetDay;
-      epoch = mktime(t);
-    }
+    char sourceDate[11] = "";
+    struct tm sourceTime;
+    if (!normalizeReadingSource(readingAt, createdAt, sourceDate, sizeof(sourceDate), sourceTime)
+        || !normalizeDateIsSelected(sourceDate, selectedDates)) continue;
+
+    sourceTime.tm_year = targetYear - 1900;
+    sourceTime.tm_mon = targetMonth - 1;
+    sourceTime.tm_mday = targetDay;
+    sourceTime.tm_isdst = -1;
+    const time_t targetEpoch = mktime(&sourceTime);
+    if (!normalizeIsValidEpoch(targetEpoch)) continue;
 
     char readingAtBuf[16];
-    snprintf(readingAtBuf, sizeof(readingAtBuf), "%ld", (long)epoch);
+    snprintf(readingAtBuf, sizeof(readingAtBuf), "%ld", (long)targetEpoch);
 
     char createdBuf[20];
     char updatedBuf[20];
@@ -251,9 +324,14 @@ bool normalizeAllReadingAndBillDatesToDate(const char *ymd) {
 
   sqlite3_stmt *selectBills = nullptr;
   sqlite3_stmt *updateBills = nullptr;
-  const char *selBillsSql = "SELECT bill_id, created_at, updated_at FROM bills;";
+  // A bill follows the date of the reading it was generated from. Use that
+  // linked reading for selected-date matching so a late-issued bill moves with
+  // its reading instead of being compared against a different bill_date.
+  const char *selBillsSql =
+    "SELECT b.bill_id, b.bill_date, b.created_at, b.updated_at, r.reading_at, r.created_at "
+    "FROM bills b LEFT JOIN readings r ON r.reading_id = b.reading_id;";
   const char *updBillsSql =
-    "UPDATE bills SET bill_date = ?, created_at = ?, updated_at = ? WHERE bill_id = ?;";
+    "UPDATE bills SET bill_date = ?, created_at = ?, updated_at = ?, synced = 0, last_sync = NULL WHERE bill_id = ?;";
 
   rc = sqlite3_prepare_v2(db, selBillsSql, -1, &selectBills, nullptr);
   if (rc != SQLITE_OK) {
@@ -270,11 +348,29 @@ bool normalizeAllReadingAndBillDatesToDate(const char *ymd) {
   int updatedBills = 0;
   while ((rc = sqlite3_step(selectBills)) == SQLITE_ROW) {
     int billId = sqlite3_column_int(selectBills, 0);
-    const char *createdAt = (const char*)sqlite3_column_text(selectBills, 1);
-    const char *updatedAt = (const char*)sqlite3_column_text(selectBills, 2);
+    const char *billDate = (const char*)sqlite3_column_text(selectBills, 1);
+    const char *createdAt = (const char*)sqlite3_column_text(selectBills, 2);
+    const char *updatedAt = (const char*)sqlite3_column_text(selectBills, 3);
+    const char *readingAt = (const char*)sqlite3_column_text(selectBills, 4);
+    const char *readingCreatedAt = (const char*)sqlite3_column_text(selectBills, 5);
 
     char createdBuf[20];
     char updatedBuf[20];
+    char sourceDate[11] = "";
+    struct tm sourceTime;
+    const bool linkedReadingHasSelectedDate = normalizeReadingSource(readingAt, readingCreatedAt, sourceDate, sizeof(sourceDate), sourceTime)
+      && normalizeDateIsSelected(sourceDate, selectedDates);
+    if (!linkedReadingHasSelectedDate
+        && billDate && strlen(billDate) >= 10) {
+      strncpy(sourceDate, billDate, 10);
+      sourceDate[10] = '\0';
+    }
+    // Readings are normalized before their bills. Match the bill's own original
+    // date as well, otherwise a linked reading has already moved off the
+    // selected source date by the time this loop runs.
+    const bool billDateIsSelected = billDate && strlen(billDate) >= 10
+      && normalizeDateIsSelected(billDate, selectedDates);
+    if (!linkedReadingHasSelectedDate && !billDateIsSelected) continue;
     buildTargetDateTime(createdAt, createdBuf, sizeof(createdBuf));
     buildTargetDateTime(updatedAt, updatedBuf, sizeof(updatedBuf));
 
@@ -303,6 +399,92 @@ bool normalizeAllReadingAndBillDatesToDate(const char *ymd) {
   Serial.print(F(", Bills updated: "));
   Serial.println(updatedBills);
   return true;
+}
+
+// Repairs explicitly selected device readings. This is intentionally ID-based:
+// after a bulk normalization, source dates are no longer safe identifiers.
+bool normalizeReadingAndLinkedBillDatesByIds(const char *ymd, const char *readingIds) {
+  if (!db || !readingIds || !readingIds[0]) return false;
+  normalizeUsePhilippineTime();
+  int targetYear = 0, targetMonth = 0, targetDay = 0;
+  if (!parseYmdDate(ymd, targetYear, targetMonth, targetDay)) return false;
+
+  char *error = nullptr;
+  if (sqlite3_exec(db, "BEGIN;", nullptr, nullptr, &error) != SQLITE_OK) {
+    if (error) sqlite3_free(error);
+    return false;
+  }
+  auto rollback = []() { sqlite3_exec(db, "ROLLBACK;", nullptr, nullptr, nullptr); };
+
+  sqlite3_stmt *findReading = nullptr, *updateReading = nullptr, *findBills = nullptr, *updateBill = nullptr;
+  const char *findReadingSql = "SELECT reading_at, created_at, updated_at FROM readings WHERE reading_id = ?;";
+  const char *updateReadingSql = "UPDATE readings SET reading_at = ?, created_at = ?, updated_at = ?, synced = 0, last_sync = NULL WHERE reading_id = ?;";
+  const char *findBillsSql = "SELECT bill_id, created_at, updated_at FROM bills WHERE reading_id = ?;";
+  const char *updateBillSql = "UPDATE bills SET bill_date = ?, created_at = ?, updated_at = ?, synced = 0, last_sync = NULL WHERE bill_id = ?;";
+  if (sqlite3_prepare_v2(db, findReadingSql, -1, &findReading, nullptr) != SQLITE_OK
+      || sqlite3_prepare_v2(db, updateReadingSql, -1, &updateReading, nullptr) != SQLITE_OK
+      || sqlite3_prepare_v2(db, findBillsSql, -1, &findBills, nullptr) != SQLITE_OK
+      || sqlite3_prepare_v2(db, updateBillSql, -1, &updateBill, nullptr) != SQLITE_OK) {
+    if (findReading) sqlite3_finalize(findReading); if (updateReading) sqlite3_finalize(updateReading);
+    if (findBills) sqlite3_finalize(findBills); if (updateBill) sqlite3_finalize(updateBill);
+    rollback(); return false;
+  }
+
+  char ids[1024];
+  strncpy(ids, readingIds, sizeof(ids) - 1); ids[sizeof(ids) - 1] = '\0';
+  int updatedReadings = 0, updatedBills = 0;
+  bool completed = false;
+  for (char *token = strtok(ids, ","); token; token = strtok(nullptr, ",")) {
+    char *end = nullptr;
+    const long readingId = strtol(token, &end, 10);
+    if (readingId <= 0 || !end || *end != '\0') continue;
+
+    sqlite3_reset(findReading); sqlite3_clear_bindings(findReading);
+    sqlite3_bind_int(findReading, 1, (int)readingId);
+    if (sqlite3_step(findReading) != SQLITE_ROW) continue;
+    const char *readingAt = (const char*)sqlite3_column_text(findReading, 0);
+    const char *createdAt = (const char*)sqlite3_column_text(findReading, 1);
+    const char *updatedAt = (const char*)sqlite3_column_text(findReading, 2);
+    char sourceDate[11] = ""; struct tm sourceTime;
+    if (!normalizeReadingSource(readingAt, createdAt, sourceDate, sizeof(sourceDate), sourceTime)) continue;
+    sourceTime.tm_year = targetYear - 1900; sourceTime.tm_mon = targetMonth - 1; sourceTime.tm_mday = targetDay; sourceTime.tm_isdst = -1;
+    const time_t targetEpoch = mktime(&sourceTime);
+    if (!normalizeIsValidEpoch(targetEpoch)) continue;
+    char epoch[16], created[20], updated[20];
+    snprintf(epoch, sizeof(epoch), "%ld", (long)targetEpoch);
+    char timePart[9] = "00:00:00";
+    if (createdAt && strlen(createdAt) >= 19) { memcpy(timePart, createdAt + 11, 8); timePart[8] = '\0'; }
+    snprintf(created, sizeof(created), "%s %s", ymd, timePart);
+    strncpy(timePart, "00:00:00", sizeof(timePart));
+    if (updatedAt && strlen(updatedAt) >= 19) { memcpy(timePart, updatedAt + 11, 8); timePart[8] = '\0'; }
+    snprintf(updated, sizeof(updated), "%s %s", ymd, timePart);
+    sqlite3_reset(updateReading); sqlite3_clear_bindings(updateReading);
+    sqlite3_bind_text(updateReading, 1, epoch, -1, SQLITE_TRANSIENT); sqlite3_bind_text(updateReading, 2, created, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(updateReading, 3, updated, -1, SQLITE_TRANSIENT); sqlite3_bind_int(updateReading, 4, (int)readingId);
+    if (sqlite3_step(updateReading) != SQLITE_DONE) { rollback(); goto cleanup; }
+    updatedReadings++;
+
+    sqlite3_reset(findBills); sqlite3_clear_bindings(findBills); sqlite3_bind_int(findBills, 1, (int)readingId);
+    while (sqlite3_step(findBills) == SQLITE_ROW) {
+      const int billId = sqlite3_column_int(findBills, 0);
+      const char *billCreated = (const char*)sqlite3_column_text(findBills, 1);
+      const char *billUpdated = (const char*)sqlite3_column_text(findBills, 2);
+      char billCreatedDate[20], billUpdatedDate[20];
+      snprintf(billCreatedDate, sizeof(billCreatedDate), "%s %s", ymd, billCreated && strlen(billCreated) >= 19 ? billCreated + 11 : "00:00:00");
+      snprintf(billUpdatedDate, sizeof(billUpdatedDate), "%s %s", ymd, billUpdated && strlen(billUpdated) >= 19 ? billUpdated + 11 : "00:00:00");
+      sqlite3_reset(updateBill); sqlite3_clear_bindings(updateBill);
+      sqlite3_bind_text(updateBill, 1, ymd, -1, SQLITE_TRANSIENT); sqlite3_bind_text(updateBill, 2, billCreatedDate, -1, SQLITE_TRANSIENT);
+      sqlite3_bind_text(updateBill, 3, billUpdatedDate, -1, SQLITE_TRANSIENT); sqlite3_bind_int(updateBill, 4, billId);
+      if (sqlite3_step(updateBill) != SQLITE_DONE) { rollback(); goto cleanup; }
+      updatedBills++;
+    }
+  }
+  if (sqlite3_exec(db, "COMMIT;", nullptr, nullptr, &error) != SQLITE_OK) { if (error) sqlite3_free(error); rollback(); goto cleanup; }
+  completed = true;
+  Serial.printf("Date repair complete. Readings updated: %d, Bills updated: %d\n", updatedReadings, updatedBills);
+cleanup:
+  sqlite3_finalize(findReading); sqlite3_finalize(updateReading); sqlite3_finalize(findBills); sqlite3_finalize(updateBill);
+  return completed && updatedReadings > 0;
 }
 
 // ===== HAS READING FOR ACCOUNT THIS MONTH =====

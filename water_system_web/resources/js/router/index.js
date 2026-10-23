@@ -73,6 +73,12 @@ export const router = createRouter({
       meta: { requiresAuth: true }
     },
     {
+      path: '/sync/normalize-dates',
+      name: 'sync-normalize-dates',
+      component: SyncDevice,
+      meta: { requiresAuth: true }
+    },
+    {
       path: '/settings',
       name: 'settings',
       component: Settings,

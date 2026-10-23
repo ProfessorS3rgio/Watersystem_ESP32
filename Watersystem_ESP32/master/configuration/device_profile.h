@@ -18,7 +18,7 @@ struct DeviceProfileOption {
 
 static const DeviceProfileOption DEVICE_PROFILE_OPTIONS[] = {
   {1, "Dona Josefa", "ESMERALDA S. REBONANZA", "e0:72:a1:6e:3f:ba", 1},
-  {2, "Makilas", "DIESERHEY BARANDA", "d4:05:92:e6:a7:ee", 1},
+  {2, "Makilas", "DIESERHEY BARANDA", "48:F6:EE:13:F6:EE", 1},
   {3, "Buluan", "DIOSDADO A. BALANSAG", "9c:cc:01:7d:38:62", 1},
   {4, "Caparan", "EXPEDITA R. BANAGUA", "ac:a7:04:d7:5d:0e", 3}
 };

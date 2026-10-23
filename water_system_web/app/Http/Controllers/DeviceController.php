@@ -4,10 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Models\Device;
 use Illuminate\Http\Request;
+use App\Services\AuditLogService;
 
 class DeviceController extends Controller
 {
-    public function sync(Request $request)
+    public function sync(Request $request, AuditLogService $audit)
     {
         \Log::info('Device sync request received', $request->all());
 
@@ -40,6 +41,11 @@ class DeviceController extends Controller
         );
 
         \Log::info('Device synced', ['device_id' => $device->device_id]);
+
+        $audit->syncOperation('device_info', 1, [
+            'device_id' => $device->device_id,
+            'device_uid' => $device->device_uid,
+        ], $device->device_uid);
 
         return response()->json([
             'message' => 'Device info synced successfully',
