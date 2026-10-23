@@ -107,6 +107,8 @@
                   <col style="width: 8%" />
                   <col style="width: 8%" />
                   <col style="width: 8%" />
+                  <col style="width: 8%" />
+                  <col style="width: 8%" />
                   <col style="width: 14%" />
                 </colgroup>
                 <thead class="sticky top-0 z-10" :class="isDark ? 'bg-gray-800' : 'bg-gray-100'">
@@ -126,6 +128,8 @@
                     <th class="px-1 py-2 text-left">Bill Date</th>
                     <th class="px-1 py-2 text-left">DB Payment</th>
                     <th class="px-1 py-2 text-left">File Payment</th>
+                    <th class="px-1 py-2 text-left">Bill action</th>
+                    <th class="px-1 py-2 text-right">Proposed bill</th>
                     <th class="px-1 py-2 text-left">Review</th>
                   </tr>
                 </thead>
@@ -157,6 +161,8 @@
                       <span v-if="row.file_payment_status" class="inline-block px-1 py-0.5 font-semibold" :class="paymentStatusClass(row.file_payment_status)">{{ row.file_payment_status }}</span>
                       <span v-else :class="mutedClass">-</span>
                     </td>
+                    <td class="px-1 py-2">{{ row.bill_action || '-' }}</td>
+                    <td class="px-1 py-2 text-right">{{ formatCurrency(row.proposed_bill_amount) }}</td>
                     <td class="break-words px-1 py-2 leading-tight">
                       <span class="inline-block px-1 py-0.5 font-semibold" :class="statusClass(row.status)">{{ statusLabel(row.status) }}</span>
                       <p class="mt-1" :class="mutedClass">{{ row.message }}</p>
@@ -166,7 +172,7 @@
               </table>
             </div>
 
-            <p class="text-xs" :class="mutedClass">Blank workbook payment status means Paid; Not Paid and Not Pad mean Pending. Applying a payment change updates the latest existing bill and records an audit transaction. Customers without a bill are left unchanged.</p>
+            <p class="text-xs" :class="mutedClass">Valid reading rows create one Pending bill for the workbook month, or update that month's existing unpaid bill. The proposed bill includes the customer type rate, minimum-charge rule, and deduction. Blank workbook payment status means Paid; Not Paid and Not Pad mean Pending.</p>
           </div>
 
           <p v-if="error" class="mt-4 text-sm text-red-600">{{ error }}</p>
@@ -330,6 +336,11 @@ function valueOrDash(value) {
 function formatBillDate(value) {
   if (!value) return '-'
   return new Intl.DateTimeFormat('en-PH', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}T00:00:00Z`))
+}
+
+function formatCurrency(value) {
+  if (value === null || value === undefined) return '-'
+  return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(value)
 }
 
 function paymentStatusClass(status) {

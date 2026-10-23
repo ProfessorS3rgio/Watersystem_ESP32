@@ -6,7 +6,11 @@ use App\Models\BarangaySequence;
 use App\Models\Bill;
 use App\Models\BillTransaction;
 use App\Models\Customer;
+use App\Models\CustomerType;
+use App\Models\Deduction;
+use App\Models\Device;
 use App\Models\Reading;
+use App\Models\Setting;
 use App\Services\AuditLogService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -104,7 +108,23 @@ class ReadingImportController extends Controller
                 ->get()
                 ->unique('customer_id')
                 ->keyBy('customer_id');
-            $latestBills = Bill::whereIn('customer_id', $customerIds)
+            $billingMonth = $metadata['month'];
+            if (! $billingMonth) {
+                throw ValidationException::withMessages([
+                    'file' => "The billing month could not be detected for sheet '{$sheet->getTitle()}'.",
+                ]);
+            }
+            $monthStart = $billingMonth->copy()->startOfMonth();
+            $monthEnd = $billingMonth->copy()->endOfMonth();
+            $monthReadings = Reading::whereIn('customer_id', $customerIds)
+                ->whereBetween('reading_at', [$monthStart->copy()->startOfDay(), $monthEnd->copy()->endOfDay()])
+                ->orderByDesc('reading_at')
+                ->orderByDesc('reading_id')
+                ->get()
+                ->unique('customer_id')
+                ->keyBy('customer_id');
+            $monthBills = Bill::whereIn('customer_id', $customerIds)
+                ->whereBetween('bill_date', [$monthStart->toDateString(), $monthEnd->toDateString()])
                 ->orderByDesc('bill_date')
                 ->orderByDesc('bill_id')
                 ->get()
@@ -117,13 +137,20 @@ class ReadingImportController extends Controller
                 'barangay' => $barangay,
                 'source_rows' => $sourceRows,
                 'latest_readings' => $latestReadings,
-                'latest_bills' => $latestBills,
-                'default_device_uid' => $latestReadings->pluck('device_uid')
-                    ->filter()
-                    ->countBy()
-                    ->sortDesc()
-                    ->keys()
-                    ->first(),
+                'month_readings' => $monthReadings,
+                'month_bills' => $monthBills,
+                // A fresh import has no historical reading from which to infer
+                // a device. Prefer the barangay's registered device, then use
+                // historical readings only for legacy barangays without one.
+                'default_device_uid' => Device::where('brgy_id', $barangay->brgy_id)
+                    ->orderByDesc('last_sync')
+                    ->value('device_uid')
+                    ?: $latestReadings->pluck('device_uid')
+                        ->filter()
+                        ->countBy()
+                        ->sortDesc()
+                        ->keys()
+                        ->first(),
             ];
         }
 
@@ -143,14 +170,15 @@ class ReadingImportController extends Controller
             $sheet = $context['sheet'];
             $barangay = $context['barangay'];
             $latestReadings = $context['latest_readings'];
-            $latestBills = $context['latest_bills'];
+            $monthReadings = $context['month_readings'];
+            $monthBills = $context['month_bills'];
             $defaultDeviceUid = $context['default_device_uid'];
 
             foreach ($context['source_rows'] as $source) {
                 $accountNo = $source['account_no'];
                 $customer = $source['customer'];
-                $reading = $customer ? $latestReadings->get($customer->customer_id) : null;
-                $bill = $customer ? $latestBills->get($customer->customer_id) : null;
+                $reading = $customer ? $monthReadings->get($customer->customer_id) : null;
+                $bill = $customer ? $monthBills->get($customer->customer_id) : null;
                 $status = 'change';
                 $message = 'Ready to update';
                 $importRow = null;
@@ -211,6 +239,8 @@ class ReadingImportController extends Controller
                         'old_present' => null,
                         'new_previous' => $previous,
                         'new_present' => $present,
+                        'billing_month' => $context['metadata']['month']->format('Y-m'),
+                        'bill_id' => $bill?->bill_id,
                     ];
                 } elseif ($status !== 'error') {
                     $nameDiffers = $this->normalizeName($source['customer_name']) !== $this->normalizeName($customer->customer_name);
@@ -236,8 +266,20 @@ class ReadingImportController extends Controller
                             'old_present' => (int) $reading->current_reading,
                             'new_previous' => $previous,
                             'new_present' => $present,
+                            'billing_month' => $context['metadata']['month']->format('Y-m'),
+                            'bill_id' => $bill?->bill_id,
                         ];
                     }
+                }
+
+                if ($status !== 'error'
+                    && $importRow
+                    && ($importRow['apply_reading'] ?? false)
+                    && $bill
+                    && in_array(Str::lower((string) $bill->status), ['paid', 'void'], true)) {
+                    $status = 'error';
+                    $message = "The {$context['metadata']['month']->format('F Y')} bill is already {$bill->status} and cannot be recalculated.";
+                    $importRow = null;
                 }
 
                 $filePaymentStatus = $source['has_payment_status']
@@ -290,6 +332,12 @@ class ReadingImportController extends Controller
                     'database_previous' => $reading ? (int) $reading->previous_reading : null,
                     'database_present' => $reading ? (int) $reading->current_reading : null,
                     'bill_date' => $bill?->bill_date?->format('Y-m-d'),
+                    'proposed_bill_amount' => $importRow && ($importRow['apply_reading'] ?? false)
+                        ? $this->calculateBillPreview($customer, $present - $previous)
+                        : null,
+                    'bill_action' => $importRow && ($importRow['apply_reading'] ?? false)
+                        ? ($bill ? 'Update bill' : 'Create bill')
+                        : null,
                     'database_payment_status' => $databasePaymentStatus,
                     'file_payment_status' => $filePaymentStatus === 'Ignored' ? null : $filePaymentStatus,
                     'payment_status_changes' => $paymentStatusChanges,
@@ -377,6 +425,8 @@ class ReadingImportController extends Controller
         $result = DB::transaction(function () use ($selectedRows, $sourceFile, $userId, $payload, $audit) {
             $updated = 0;
             $created = 0;
+            $billsCreated = 0;
+            $billsUpdated = 0;
             $billStatusesUpdated = 0;
             $importedRows = [];
 
@@ -420,7 +470,7 @@ class ReadingImportController extends Controller
                         $reading->customer_id = $customer->customer_id;
                         $reading->customer_account_number = $customer->account_no;
                         $reading->device_uid = $row['device_uid'];
-                        $reading->reading_at = now();
+                        $reading->reading_at = Carbon::createFromFormat('Y-m', $row['billing_month'])->endOfMonth()->setTime(12, 0);
                         $created++;
                     } else {
                         $updated++;
@@ -431,14 +481,69 @@ class ReadingImportController extends Controller
                     $reading->usage_m3 = $row['new_present'] - $row['new_previous'];
                     $reading->Synced = false;
                     $reading->save();
+
+                    $billDate = Carbon::createFromFormat('Y-m', $row['billing_month'])->endOfMonth();
+                    $billing = $this->calculateBillingValues($customer, $reading->usage_m3);
+                    $bill = ! empty($row['bill_id'])
+                        ? Bill::whereKey($row['bill_id'])->lockForUpdate()->first()
+                        : null;
+
+                    if ($bill && (int) $bill->customer_id !== (int) $customer->customer_id) {
+                        throw ValidationException::withMessages([
+                            'token' => "Bill for {$row['account_no']} changed after preview. Upload the workbook again.",
+                        ]);
+                    }
+
+                    if ($bill && in_array(Str::lower((string) $bill->status), ['paid', 'void'], true)) {
+                        throw ValidationException::withMessages([
+                            'token' => "The {$row['billing_month']} bill for {$row['account_no']} is already {$bill->status} and cannot be recalculated by import.",
+                        ]);
+                    }
+
+                    if ($bill) {
+                        $bill->reading_id = $reading->reading_id;
+                        $bill->device_uid = $reading->device_uid;
+                        $bill->rate_per_m3 = $billing['rate'];
+                        $bill->charges = $billing['charges'];
+                        $bill->penalty = 0;
+                        $bill->total_due = $billing['total_due'];
+                        $bill->amount_paid = 0;
+                        $bill->balance_due = $billing['total_due'];
+                        $bill->due_date = $this->dueDateFor($billDate);
+                        $bill->status = 'Pending';
+                        $bill->Synced = false;
+                        $bill->save();
+                        $billsUpdated++;
+                    } else {
+                        $bill = Bill::create([
+                            'reference_number' => $this->importReferenceNumber($customer->account_no, $row['billing_month'], $reading->reading_id),
+                            'customer_id' => $customer->customer_id,
+                            'customer_account_number' => $customer->account_no,
+                            'reading_id' => $reading->reading_id,
+                            'device_uid' => $reading->device_uid,
+                            'bill_date' => $billDate->toDateString(),
+                            'due_date' => $this->dueDateFor($billDate),
+                            'rate_per_m3' => $billing['rate'],
+                            'charges' => $billing['charges'],
+                            'penalty' => 0,
+                            'total_due' => $billing['total_due'],
+                            'amount_paid' => 0,
+                            'balance_due' => $billing['total_due'],
+                            'status' => 'Pending',
+                            'Synced' => false,
+                        ]);
+                        $billsCreated++;
+                    }
                 }
 
-                if (! empty($row['bill_id'])) {
+                if (! empty($row['new_bill_status'])) {
                     $bill = Bill::whereKey($row['bill_id'])->lockForUpdate()->first();
                     if (! $bill
                         || (int) $bill->customer_id !== (int) $row['customer_id']
-                        || Str::lower($bill->status) !== Str::lower($row['old_bill_status'])
-                        || (string) $bill->total_due !== (string) $row['old_bill_total_due']) {
+                        || (! $row['apply_reading'] && (
+                            Str::lower($bill->status) !== Str::lower($row['old_bill_status'])
+                            || (string) $bill->total_due !== (string) $row['old_bill_total_due']
+                        ))) {
                         throw ValidationException::withMessages([
                             'token' => "Bill status for {$row['account_no']} changed after preview. Upload the workbook again.",
                         ]);
@@ -497,6 +602,8 @@ class ReadingImportController extends Controller
             $result = [
                 'updated' => $updated,
                 'created' => $created,
+                'bills_created' => $billsCreated,
+                'bills_updated' => $billsUpdated,
                 'bill_statuses_updated' => $billStatusesUpdated,
             ];
 
@@ -519,11 +626,65 @@ class ReadingImportController extends Controller
             'applied' => $applied,
             'updated' => $result['updated'],
             'created' => $result['created'],
+            'bills_created' => $result['bills_created'],
+            'bills_updated' => $result['bills_updated'],
             'bill_statuses_updated' => $result['bill_statuses_updated'],
             'barangay' => $payload['barangay'],
             'billing_month' => $payload['billing_month'],
             'message' => "{$applied} workbook rows were applied.",
         ]);
+    }
+
+    private function calculateBillPreview(Customer $customer, int $usage): float
+    {
+        return $this->calculateBillingValues($customer, $usage)['total_due'];
+    }
+
+    /** Match the meter device's customer-type and deduction billing rules. */
+    private function calculateBillingValues(Customer $customer, int $usage): array
+    {
+        $type = CustomerType::find($customer->type_id);
+        if (! $type) {
+            throw ValidationException::withMessages([
+                'file' => "Customer {$customer->account_no} has no valid customer type for bill calculation.",
+            ]);
+        }
+
+        $rate = (float) $type->rate_per_m3;
+        $minimumUsage = (int) $type->min_m3;
+        $minimumCharge = (float) $type->min_charge;
+        $isOfficer = Str::lower(trim((string) $type->type_name)) === 'officers';
+        $grossCharge = $usage <= $minimumUsage
+            ? $minimumCharge
+            : ($isOfficer ? $minimumCharge + ($usage * $rate) : $usage * $rate);
+
+        $deduction = $customer->deduction_id ? Deduction::find($customer->deduction_id) : null;
+        $deductionAmount = 0.0;
+        if ($deduction) {
+            $deductionAmount = Str::lower((string) $deduction->type) === 'percentage'
+                ? $grossCharge * ((float) $deduction->value / 100)
+                : (float) $deduction->value;
+        }
+
+        return [
+            'rate' => $rate,
+            'charges' => round($grossCharge, 2),
+            'total_due' => round(max(0, $grossCharge - $deductionAmount), 2),
+        ];
+    }
+
+    private function dueDateFor(Carbon $billDate): string
+    {
+        $days = (int) (Setting::query()->orderBy('id')->value('bill_due_days') ?? 5);
+
+        return $billDate->copy()->addDays(max(0, $days))->toDateString();
+    }
+
+    private function importReferenceNumber(string $accountNo, string $billingMonth, int $readingId): string
+    {
+        $account = preg_replace('/[^A-Za-z0-9]+/', '-', strtoupper($accountNo));
+
+        return "IMP-" . str_replace('-', '', $billingMonth) . "-{$account}-{$readingId}";
     }
 
     private function locateReadingSheets(Spreadsheet $spreadsheet): array

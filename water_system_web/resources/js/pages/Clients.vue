@@ -41,7 +41,7 @@
           </div>
           <div>
             <p class="text-xs uppercase tracking-wide" :class="isDark ? 'text-gray-400' : 'text-gray-500'">Outstanding balance</p>
-            <p class="mt-1 text-2xl font-bold" :class="isDark ? 'text-red-300' : 'text-red-600'">₱{{ formatMoney(displayedOutstandingBalance) }}</p>
+            <p class="mt-1 text-2xl font-bold" :class="isDark ? 'text-red-300' : 'text-red-600'">₱{{ formatWholePesos(displayedOutstandingBalance) }}</p>
           </div>
         </div>
       </div>
@@ -156,7 +156,7 @@
                 <span v-else class="px-2.5 py-0.5 rounded-full text-xs font-medium" :class="isDark ? 'bg-gray-700 text-gray-200' : 'bg-gray-100 text-gray-700'">No Bill</span>
               </td>
               <td class="px-4 py-2.5 whitespace-nowrap text-sm font-semibold" :class="getCustomerAmountClass(customer, isDark)">
-                ₱{{ formatMoney(displayCustomerAmount(customer)) }}
+                ₱{{ formatWholePesos(displayCustomerAmount(customer)) }}
               </td>
               <td class="px-4 py-2.5 whitespace-nowrap">
                 <span :class="customer.status === 'active' ? (isDark ? 'bg-green-900 text-green-200' : 'bg-green-100 text-green-800') : (isDark ? 'bg-red-900 text-red-200' : 'bg-red-100 text-red-800')" class="px-2.5 py-0.5 rounded-full text-xs font-medium">
@@ -926,6 +926,14 @@ export default {
         : (customer.account_balance ?? 0)
     }
 
+    const formatWholePesos = (value) => {
+      const amount = Number(value) || 0
+      return Math.round(amount).toLocaleString('en-PH', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      })
+    }
+
     const getCustomerAmountClass = (customer, isDark) => {
       if (customer.latest_bill_state === 'paid') return isDark ? 'text-green-300' : 'text-green-600'
       return Number(customer.account_balance || 0) > 0
@@ -1005,6 +1013,7 @@ export default {
       getBarangayName,
       getDeductionName,
       displayCustomerAmount,
+      formatWholePesos,
       getCustomerAmountClass,
       previewAccountNoNew,
       isViewModalOpen,

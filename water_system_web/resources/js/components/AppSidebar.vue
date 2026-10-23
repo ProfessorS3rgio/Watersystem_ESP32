@@ -3,16 +3,12 @@
     <!-- Sidebar -->
     <aside class="w-64 flex flex-col shadow-2xl transition-colors duration-200" :class="isDark ? 'bg-gray-800 text-gray-100' : 'bg-white text-gray-900 border-r border-gray-200'">
       <!-- Logo/Header -->
-      <div class="p-6 border-b transition-colors duration-200" :class="isDark ? 'border-gray-700' : 'border-gray-200'">
+      <div class="p-5 border-b transition-colors duration-200" :class="isDark ? 'border-gray-700' : 'border-gray-200'">
         <div class="flex items-center space-x-3">
-          <div class="h-10 w-10 rounded-lg flex items-center justify-center transition-colors duration-200" :class="isDark ? 'bg-indigo-600' : 'bg-indigo-600'">
-            <svg class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
-            </svg>
-          </div>
+          <div class="h-11 w-11 shrink-0 overflow-hidden rounded-full bg-white p-0.5 shadow-sm"><img :src="'/images/dmbc-seal.png'" alt="DMBC seal" class="h-full w-full rounded-full object-contain" /></div>
           <div>
-            <h1 class="text-xl font-bold">Water System</h1>
-            <p class="text-xs transition-colors duration-200" :class="isDark ? 'text-gray-400' : 'text-gray-500'">Management Portal</p>
+            <h1 class="text-lg font-extrabold tracking-tight">DMBC Water</h1>
+            <p class="text-[11px] font-medium uppercase tracking-[0.12em] transition-colors duration-200" :class="isDark ? 'text-teal-300' : 'text-teal-700'">Water System Association</p>
           </div>
         </div>
       </div>
@@ -170,7 +166,7 @@
         <button
           @click="toggleTheme"
           class="w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-all duration-200"
-          :class="isDark ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'"
+          :class="isDark ? 'bg-teal-950/70 hover:bg-teal-900 text-cyan-100' : 'bg-teal-50 hover:bg-cyan-50 text-teal-800'"
         >
           <svg v-if="isDark" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
@@ -184,19 +180,15 @@
 
       <!-- User Profile -->
       <div class="p-4 border-t transition-colors duration-200" :class="isDark ? 'border-gray-700' : 'border-gray-200'">
-        <div class="flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors duration-200" :class="isDark ? 'bg-gray-700' : 'bg-gray-100'">
-          <div class="h-8 w-8 bg-indigo-600 rounded-full flex items-center justify-center">
-            <svg class="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-            </svg>
-          </div>
+        <div class="flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors duration-200" :class="isDark ? 'bg-teal-950/60' : 'bg-teal-50/70'">
+          <div class="h-9 w-9 shrink-0 overflow-hidden rounded-full bg-white p-0.5 ring-2 ring-teal-500/30"><img :src="'/images/dmbc-seal.png'" alt="DMBC seal" class="h-full w-full rounded-full object-contain" /></div>
           <div class="flex-1">
             <p class="text-sm font-medium">{{ user?.name || 'Admin' }}</p>
             <p class="text-xs transition-colors duration-200" :class="isDark ? 'text-gray-400' : 'text-gray-500'">Administrator</p>
           </div>
           <button
             @click="logout"
-            class="transition-colors duration-200" :class="isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'"
+            class="transition-colors duration-200" :class="isDark ? 'text-cyan-300 hover:text-cyan-100' : 'text-teal-700 hover:text-cyan-700'"
             title="Logout"
           >
             <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
