@@ -331,29 +331,29 @@ public function monthlyReport(Request $request)
             $sheet->getSheetView()->setZoomScale(90);
             $sheet->getTabColor()->setRGB($colors['teal']);
 
-            foreach (['A' => 8, 'B' => 30, 'C' => 4, 'D' => 17, 'E' => 18, 'F' => 18, 'G' => 14, 'H' => 15, 'I' => 20, 'J' => 22] as $column => $width) {
+            foreach (['A' => 8, 'B' => 30, 'C' => 4, 'D' => 17, 'E' => 18, 'F' => 18, 'G' => 14, 'H' => 15, 'I' => 20, 'J' => 22, 'K' => 14] as $column => $width) {
                 $sheet->getColumnDimension($column)->setWidth($width);
             }
 
-            $sheet->mergeCells('A1:J1');
+            $sheet->mergeCells('A1:K1');
             $sheet->setCellValue('A1', 'DMBC WATER BILLING REPORT');
-            $sheet->mergeCells('A2:J2');
+            $sheet->mergeCells('A2:K2');
             $sheet->setCellValue('A2', strtoupper($barangay->barangay));
-            $sheet->mergeCells('A3:J3');
+            $sheet->mergeCells('A3:K3');
             $sheet->setCellValue('A3', 'Billing period: ' . $billingStart->format('M d, Y') . ' - ' . $billingEnd->format('M d, Y') . '  |  Report month: ' . $month->format('F Y'));
             $sheet->getRowDimension(1)->setRowHeight(32);
             $sheet->getRowDimension(2)->setRowHeight(26);
-            $sheet->getStyle('A1:J1')->applyFromArray([
+            $sheet->getStyle('A1:K1')->applyFromArray([
                 'font' => ['bold' => true, 'size' => 18, 'color' => ['rgb' => $colors['white']]],
                 'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => $colors['navy']]],
                 'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER],
             ]);
-            $sheet->getStyle('A2:J2')->applyFromArray([
+            $sheet->getStyle('A2:K2')->applyFromArray([
                 'font' => ['bold' => true, 'size' => 13, 'color' => ['rgb' => $colors['white']]],
                 'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => $colors['teal']]],
                 'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER],
             ]);
-            $sheet->getStyle('A3:J3')->applyFromArray([
+            $sheet->getStyle('A3:K3')->applyFromArray([
                 'font' => ['italic' => true, 'size' => 10, 'color' => ['rgb' => $colors['slate']]],
                 'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => $colors['soft']]],
                 'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER],
@@ -381,10 +381,10 @@ public function monthlyReport(Request $request)
                 }
 
                 $row++;
-                $sheet->mergeCells("A{$row}:J{$row}");
+                $sheet->mergeCells("A{$row}:K{$row}");
                 $sheet->setCellValue("A{$row}", $section);
                 $sheet->getRowDimension($row)->setRowHeight(24);
-                $sheet->getStyle("A{$row}:J{$row}")->applyFromArray([
+                $sheet->getStyle("A{$row}:K{$row}")->applyFromArray([
                     'font' => ['bold' => true, 'size' => 11, 'color' => ['rgb' => $colors['white']]],
                     'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => $colors['teal']]],
                     'alignment' => ['horizontal' => Alignment::HORIZONTAL_LEFT, 'vertical' => Alignment::VERTICAL_CENTER, 'indent' => 1],
@@ -403,16 +403,16 @@ public function monthlyReport(Request $request)
                     '',
                     $billingEnd->copy()->addMonth()->format('M. Y'),
                 ], null, "A{$row}");
-                $sheet->getStyle("A{$row}:J{$row}")->applyFromArray([
+                $sheet->getStyle("A{$row}:K{$row}")->applyFromArray([
                     'font' => ['size' => 9, 'color' => ['rgb' => $colors['muted']]],
                     'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => $colors['soft']]],
                     'alignment' => ['vertical' => Alignment::VERTICAL_CENTER],
                 ]);
 
                 $row++;
-                $sheet->fromArray(['NO.', 'CUSTOMER NAME', '', 'ACCOUNT / METER', 'PREVIOUS READING', 'CURRENT READING', 'USAGE (m3)', 'PENALTY', 'MONTHLY COLLECTION', 'OUTSTANDING BALANCE'], null, "A{$row}");
+                $sheet->fromArray(['NO.', 'CUSTOMER NAME', '', 'ACCOUNT / METER', 'PREVIOUS READING', 'CURRENT READING', 'USAGE (m3)', 'PENALTY', 'MONTHLY COLLECTION', 'OUTSTANDING BALANCE', 'STATUS'], null, "A{$row}");
                 $sheet->getRowDimension($row)->setRowHeight(34);
-                $sheet->getStyle("A{$row}:J{$row}")->applyFromArray([
+                $sheet->getStyle("A{$row}:K{$row}")->applyFromArray([
                     'font' => ['bold' => true, 'size' => 9, 'color' => ['rgb' => $colors['white']]],
                     'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => $colors['navy']]],
                     'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER, 'wrapText' => true],
@@ -436,6 +436,9 @@ public function monthlyReport(Request $request)
                     $monthlyCollection = $bill && $status === 'paid' ? $amount : null;
                     $collectable = $bill && in_array($status, ['pending', 'due'], true) ? $amount : null;
                     $displayName = $customer->customer_name;
+                    $statusLabel = $bill
+                        ? ucfirst($status)
+                        : (strtolower((string) $customer->status) === 'disconnected' ? 'Disconnected' : 'No Bill');
 
                     if (!$bill && $customer->status === 'disconnected') {
                         $displayName .= ' CLOSED';
@@ -452,8 +455,9 @@ public function monthlyReport(Request $request)
                         $penalty > 0 ? $penalty : null,
                         $monthlyCollection,
                         $collectable,
+                        $statusLabel,
                     ], null, "A{$row}");
-                    $sheet->getStyle("A{$row}:J{$row}")->applyFromArray([
+                    $sheet->getStyle("A{$row}:K{$row}")->applyFromArray([
                         'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => $number % 2 === 0 ? $colors['soft'] : $colors['white']]],
                         'borders' => ['bottom' => ['borderStyle' => Border::BORDER_HAIR, 'color' => ['rgb' => $colors['line']]]],
                         'alignment' => ['vertical' => Alignment::VERTICAL_CENTER],
@@ -462,6 +466,15 @@ public function monthlyReport(Request $request)
                     $sheet->getStyle("D{$row}:G{$row}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
                     $sheet->getStyle("H{$row}:J{$row}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
                     $sheet->getStyle("H{$row}:J{$row}")->getNumberFormat()->setFormatCode($moneyFormat);
+                    $sheet->getStyle("K{$row}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                    $statusColor = match ($statusLabel) {
+                        'Paid' => $colors['teal'],
+                        'Due' => $colors['gold'],
+                        'Pending' => $colors['danger'],
+                        'Disconnected' => $colors['danger'],
+                        default => $colors['muted'],
+                    };
+                    $sheet->getStyle("K{$row}")->getFont()->setBold(true)->setColor(new Color($statusColor));
                     if (str_ends_with($displayName, ' CLOSED')) {
                         $sheet->getStyle("B{$row}")->getFont()->setColor(new Color($colors['danger']))->setItalic(true);
                     }
@@ -478,8 +491,8 @@ public function monthlyReport(Request $request)
                     $row++;
                 }
 
-                $sheet->fromArray(['TOTAL', '', '', '', '', '', $sectionUsage, $sectionPenalty, $sectionCollection, $sectionCollectable], null, "A{$row}");
-                $sheet->getStyle("A{$row}:J{$row}")->applyFromArray([
+                $sheet->fromArray(['TOTAL', '', '', '', '', '', $sectionUsage, $sectionPenalty, $sectionCollection, $sectionCollectable, ''], null, "A{$row}");
+                $sheet->getStyle("A{$row}:K{$row}")->applyFromArray([
                     'font' => ['bold' => true, 'color' => ['rgb' => $colors['navy']]],
                     'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => $colors['goldLight']]],
                     'borders' => [
@@ -502,7 +515,7 @@ public function monthlyReport(Request $request)
                 ->setFitToWidth(1)
                 ->setFitToHeight(0);
             $sheet->getPageSetup()->setRowsToRepeatAtTopByStartAndEnd(1, 3);
-            $sheet->getPageSetup()->setPrintArea("A1:J{$row}");
+            $sheet->getPageSetup()->setPrintArea("A1:K{$row}");
             $sheet->getPageMargins()->setTop(0.5)->setRight(0.3)->setLeft(0.3)->setBottom(0.5);
             $sheet->getHeaderFooter()->setOddFooter('&LDMBC Water System  |  ' . $sheet->getTitle() . '&RPage &P of &N');
             $summary[] = $barangaySummary;
