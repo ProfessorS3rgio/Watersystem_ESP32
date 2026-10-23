@@ -7,6 +7,7 @@ use App\Models\Bill;
 use App\Models\BillTransaction;
 use App\Models\Customer;
 use App\Models\Reading;
+use App\Services\AuditLogService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -317,6 +318,8 @@ class ReadingImportController extends Controller
                 'barangay' => $barangayNames->implode(', '),
                 'billing_month' => $billingMonth,
                 'source_file' => $validated['file']->getClientOriginalName(),
+                'sheet_names' => $sheetNames->all(),
+                'preview_summary' => $summary,
                 'rows' => $importRows,
             ]);
         }
@@ -339,7 +342,7 @@ class ReadingImportController extends Controller
         ]);
     }
 
-    public function confirm(Request $request)
+    public function confirm(Request $request, AuditLogService $audit)
     {
         $validated = $request->validate([
             'token' => ['required', 'uuid'],
@@ -371,10 +374,11 @@ class ReadingImportController extends Controller
         $sourceFile = $payload['source_file'] ?? 'workbook import';
         $userId = auth()->id();
 
-        $result = DB::transaction(function () use ($selectedRows, $sourceFile, $userId) {
+        $result = DB::transaction(function () use ($selectedRows, $sourceFile, $userId, $payload, $audit) {
             $updated = 0;
             $created = 0;
             $billStatusesUpdated = 0;
+            $importedRows = [];
 
             foreach ($selectedRows as $row) {
                 $customer = Customer::whereKey($row['customer_id'])->lockForUpdate()->first();
@@ -472,13 +476,41 @@ class ReadingImportController extends Controller
                     ]);
                     $billStatusesUpdated++;
                 }
+
+                $importedRows[] = [
+                    'account_no' => $row['account_no'],
+                    'source_row' => $row['source_row'],
+                    'reading' => $row['apply_reading'] ? [
+                        'operation' => $row['reading_id'] ? 'updated' : 'created',
+                        'previous_from' => $row['old_previous'],
+                        'present_from' => $row['old_present'],
+                        'previous_to' => $row['new_previous'],
+                        'present_to' => $row['new_present'],
+                    ] : null,
+                    'bill_status' => ! empty($row['bill_id']) ? [
+                        'from' => $row['old_bill_status'],
+                        'to' => $row['new_bill_status'],
+                    ] : null,
+                ];
             }
 
-            return [
+            $result = [
                 'updated' => $updated,
                 'created' => $created,
                 'bill_statuses_updated' => $billStatusesUpdated,
             ];
+
+            $audit->record('meter_readings_imported', 'ReadingImport', null, $result, [
+                'source_file' => $sourceFile,
+                'worksheets' => $payload['sheet_names'] ?? [],
+                'barangay' => $payload['barangay'] ?? null,
+                'billing_month' => $payload['billing_month'] ?? null,
+                'applied_rows' => $selectedRows->count(),
+                'preview_summary' => $payload['preview_summary'] ?? [],
+                'imported_rows' => $importedRows,
+            ]);
+
+            return $result;
         });
 
         $applied = $selectedRows->count();

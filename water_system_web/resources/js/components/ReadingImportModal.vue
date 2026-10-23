@@ -1,8 +1,8 @@
 <template>
   <div v-if="isOpen" class="fixed inset-0 z-50">
     <div class="absolute inset-0 bg-black/50" @click="closeModal"></div>
-    <div class="absolute inset-0 flex items-center justify-center p-4">
-      <div class="flex max-h-[92vh] w-full max-w-6xl flex-col rounded-lg shadow-xl" :class="isDark ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'">
+    <div class="absolute inset-0 flex items-center justify-center p-2 lg:p-4">
+      <div class="flex max-h-[96vh] w-[98vw] max-w-[1800px] flex-col rounded-lg shadow-xl" :class="isDark ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'">
         <div class="flex items-center justify-between border-b px-6 py-4" :class="isDark ? 'border-gray-800' : 'border-gray-200'">
           <div>
             <h3 class="text-lg font-semibold">Import Meter Readings</h3>
@@ -11,7 +11,7 @@
           <button type="button" class="text-2xl leading-none" :class="isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'" aria-label="Close" @click="closeModal">&times;</button>
         </div>
 
-        <div class="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+        <div class="min-h-0 flex-1 overflow-y-auto px-4 py-4 lg:px-6 lg:py-5">
           <div v-if="!preview" class="mx-auto max-w-2xl space-y-5">
             <div
               class="border-2 border-dashed p-8 text-center transition-colors"
@@ -92,33 +92,46 @@
               All populated readings already match the database. There is nothing to update.
             </div>
 
-            <div class="max-h-[420px] overflow-auto border" :class="isDark ? 'border-gray-700' : 'border-gray-200'">
-              <table class="min-w-full text-sm">
+            <div class="max-h-[55vh] overflow-y-auto overflow-x-hidden border" :class="isDark ? 'border-gray-700' : 'border-gray-200'">
+              <table class="w-full table-fixed text-[10px] xl:text-xs 2xl:text-sm">
+                <colgroup>
+                  <col style="width: 4%" />
+                  <col style="width: 3%" />
+                  <col style="width: 6%" />
+                  <col style="width: 16%" />
+                  <col style="width: 7%" />
+                  <col style="width: 7%" />
+                  <col style="width: 7%" />
+                  <col style="width: 7%" />
+                  <col style="width: 5%" />
+                  <col style="width: 8%" />
+                  <col style="width: 8%" />
+                  <col style="width: 8%" />
+                  <col style="width: 14%" />
+                </colgroup>
                 <thead class="sticky top-0 z-10" :class="isDark ? 'bg-gray-800' : 'bg-gray-100'">
                   <tr>
-                    <th class="w-16 px-3 py-2 text-center">
+                    <th class="px-1 py-2 text-center">
                       <input type="checkbox" :checked="allMarkableSelected" aria-label="Mark or unmark all review rows" @change="toggleAllRows" />
-                      <span class="mt-1 block text-xs font-medium">Apply</span>
+                      <span class="mt-1 block font-medium">Apply</span>
                     </th>
-                    <th class="px-3 py-2 text-left">Row</th>
-                    <th class="px-3 py-2 text-left">Sheet</th>
-                    <th class="px-3 py-2 text-left">Barangay</th>
-                    <th class="px-3 py-2 text-left">Account</th>
-                    <th class="px-3 py-2 text-left">Customer</th>
-                    <th class="px-3 py-2 text-right">DB Prev</th>
-                    <th class="px-3 py-2 text-right">File Prev</th>
-                    <th class="px-3 py-2 text-right">DB Present</th>
-                    <th class="px-3 py-2 text-right">File Present</th>
-                    <th class="px-3 py-2 text-right">Usage</th>
-                    <th class="px-3 py-2 text-left">Bill Date</th>
-                    <th class="px-3 py-2 text-left">DB Payment</th>
-                    <th class="px-3 py-2 text-left">File Payment</th>
-                    <th class="px-3 py-2 text-left">Review</th>
+                    <th class="px-1 py-2 text-left">Row</th>
+                    <th class="px-1 py-2 text-left">Account</th>
+                    <th class="px-1 py-2 text-left">Customer</th>
+                    <th class="px-1 py-2 text-right">DB Prev</th>
+                    <th class="px-1 py-2 text-right">File Prev</th>
+                    <th class="px-1 py-2 text-right">DB Present</th>
+                    <th class="px-1 py-2 text-right">File Present</th>
+                    <th class="px-1 py-2 text-right">Usage</th>
+                    <th class="px-1 py-2 text-left">Bill Date</th>
+                    <th class="px-1 py-2 text-left">DB Payment</th>
+                    <th class="px-1 py-2 text-left">File Payment</th>
+                    <th class="px-1 py-2 text-left">Review</th>
                   </tr>
                 </thead>
                 <tbody :class="isDark ? 'divide-gray-800' : 'divide-gray-200'" class="divide-y">
                   <tr v-for="row in preview.rows" :key="`${row.row}-${row.account_no}`" :class="reviewRowClass(row)">
-                    <td class="px-3 py-2 text-center">
+                    <td class="px-1 py-2 text-center">
                       <input
                         type="checkbox"
                         :checked="isRowMarked(row)"
@@ -127,28 +140,26 @@
                         @change="toggleRow(row)"
                       />
                     </td>
-                    <td class="px-3 py-2" :class="mutedClass">{{ row.row }}</td>
-                    <td class="px-3 py-2 font-medium">{{ row.sheet_name }}</td>
-                    <td class="whitespace-nowrap px-3 py-2">{{ row.barangay }}</td>
-                    <td class="whitespace-nowrap px-3 py-2 font-semibold">{{ row.account_no }}</td>
-                    <td class="min-w-48 px-3 py-2">{{ row.customer_name }}</td>
-                    <td class="px-3 py-2 text-right">{{ valueOrDash(row.database_previous) }}</td>
-                    <td class="px-3 py-2 text-right font-medium">{{ valueOrDash(row.file_previous) }}</td>
-                    <td class="px-3 py-2 text-right">{{ valueOrDash(row.database_present) }}</td>
-                    <td class="px-3 py-2 text-right font-medium">{{ valueOrDash(row.file_present) }}</td>
-                    <td class="px-3 py-2 text-right">{{ valueOrDash(row.file_usage) }}</td>
-                    <td class="whitespace-nowrap px-3 py-2">{{ formatBillDate(row.bill_date) }}</td>
-                    <td class="px-3 py-2">
-                      <span v-if="row.database_payment_status" class="inline-block px-2 py-0.5 text-xs font-semibold" :class="paymentStatusClass(row.database_payment_status)">{{ row.database_payment_status }}</span>
+                    <td class="px-1 py-2" :class="mutedClass">{{ row.row }}</td>
+                    <td class="whitespace-nowrap px-1 py-2 font-semibold">{{ row.account_no }}</td>
+                    <td class="break-words px-1 py-2 leading-tight">{{ row.customer_name }}</td>
+                    <td class="px-1 py-2 text-right">{{ valueOrDash(row.database_previous) }}</td>
+                    <td class="px-1 py-2 text-right font-medium">{{ valueOrDash(row.file_previous) }}</td>
+                    <td class="px-1 py-2 text-right">{{ valueOrDash(row.database_present) }}</td>
+                    <td class="px-1 py-2 text-right font-medium">{{ valueOrDash(row.file_present) }}</td>
+                    <td class="px-1 py-2 text-right">{{ valueOrDash(row.file_usage) }}</td>
+                    <td class="px-1 py-2">{{ formatBillDate(row.bill_date) }}</td>
+                    <td class="px-1 py-2">
+                      <span v-if="row.database_payment_status" class="inline-block px-1 py-0.5 font-semibold" :class="paymentStatusClass(row.database_payment_status)">{{ row.database_payment_status }}</span>
                       <span v-else :class="mutedClass">-</span>
                     </td>
-                    <td class="px-3 py-2">
-                      <span v-if="row.file_payment_status" class="inline-block px-2 py-0.5 text-xs font-semibold" :class="paymentStatusClass(row.file_payment_status)">{{ row.file_payment_status }}</span>
+                    <td class="px-1 py-2">
+                      <span v-if="row.file_payment_status" class="inline-block px-1 py-0.5 font-semibold" :class="paymentStatusClass(row.file_payment_status)">{{ row.file_payment_status }}</span>
                       <span v-else :class="mutedClass">-</span>
                     </td>
-                    <td class="min-w-56 px-3 py-2">
-                      <span class="inline-block px-2 py-0.5 text-xs font-semibold" :class="statusClass(row.status)">{{ statusLabel(row.status) }}</span>
-                      <p class="mt-1 text-xs" :class="mutedClass">{{ row.message }}</p>
+                    <td class="break-words px-1 py-2 leading-tight">
+                      <span class="inline-block px-1 py-0.5 font-semibold" :class="statusClass(row.status)">{{ statusLabel(row.status) }}</span>
+                      <p class="mt-1" :class="mutedClass">{{ row.message }}</p>
                     </td>
                   </tr>
                 </tbody>
