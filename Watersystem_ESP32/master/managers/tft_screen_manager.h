@@ -29,6 +29,7 @@ extern RTC_DS3231 rtc;
 #include "../screens/void_payment_screen.h"
 #include "../screens/set_datetime_screen.h"
 #include "../screens/system_tools_screen.h"
+#include "../screens/wireless_sync_screen.h"
 #include "../screens/reset_profile_screen.h"
 #include "../screens/void_reading_screen.h"
 #include "../screens/extra_screen.h"
@@ -50,6 +51,7 @@ enum WorkflowState {
   STATE_MENU,              // Menu screen
   STATE_ABOUT,             // About screen
   STATE_SYSTEM_TOOLS,      // System tools submenu
+  STATE_WIRELESS_SYNC,     // Dedicated hotspot; normal billing/printing is paused
   STATE_RESET_PROFILE_PIN, // Waiting for device profile reset PIN
   STATE_VOID_READING,      // Reviewing latest reading before removal
   STATE_EXTRA,             // Extra maintenance submenu

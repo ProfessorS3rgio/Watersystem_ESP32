@@ -1,5 +1,6 @@
 #ifndef CUSTOMER_TYPE_SYNC_H
 #define CUSTOMER_TYPE_SYNC_H
+#include "../sync_transport.h"
 
 #include "../../database/customer_type_database.h"
 
@@ -15,7 +16,7 @@ bool handleUpsertCustomerType(String payload) {
   int p6 = (p5 >= 0) ? payload.indexOf('|', p5 + 1) : -1;
   int p7 = (p6 >= 0) ? payload.indexOf('|', p6 + 1) : -1;
   if (p1 < 0 || p2 < 0 || p3 < 0 || p4 < 0 || p5 < 0 || p6 < 0 || p7 < 0) {
-    Serial.println(F("ERR|BAD_FORMAT"));
+    syncOutput().println(F("ERR|BAD_FORMAT"));
     return true;
   }
 
@@ -46,11 +47,11 @@ bool handleUpsertCustomerType(String payload) {
   unsigned long updatedAt = (unsigned long)updatedStr.toInt();
 
   if (upsertCustomerTypeFromSync(typeId, typeName, ratePerM3, minM3, minCharge, penalty, createdAt, updatedAt)) {
-    Serial.print(F("ACK|UPSERT|"));
-    Serial.println(typeName);
+    syncOutput().print(F("ACK|UPSERT|"));
+    syncOutput().println(typeName);
   } else {
-    Serial.print(F("ERR|UPSERT_FAILED|CUSTOMER_TYPE|"));
-    Serial.println(typeName);
+    syncOutput().print(F("ERR|UPSERT_FAILED|CUSTOMER_TYPE|"));
+    syncOutput().println(typeName);
   }
   return true;
 }

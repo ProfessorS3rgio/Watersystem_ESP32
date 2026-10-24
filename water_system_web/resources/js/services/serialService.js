@@ -1,3 +1,5 @@
+import { createWifiTransport } from './wifiTransport.js';
+
 let port = null;
 let reader = null;
 let writer = null;
@@ -6,16 +8,15 @@ let textEncoder = null;
 let isConnected = false;
 let isReading = false;
 let rxBuffer = '';
+let transportMode = globalThis.localStorage?.getItem('dmbc-sync-transport') === 'wifi' ? 'wifi' : 'usb';
+let disconnectListenerInstalled = false;
+const wifi = createWifiTransport({ receive: handleChunk, statusChanged: emitStatus });
 
 const lineListeners = new Set();
 const statusListeners = new Set();
 
 function emitStatus() {
-  const snapshot = {
-    isConnected,
-    port,
-    connectedPortLabel: getConnectedPortLabel(),
-  };
+  const snapshot = getState();
   for (const cb of statusListeners) cb(snapshot);
 }
 
@@ -90,6 +91,9 @@ async function ensureStreams() {
 }
 
 async function connect({ baudRate = 115200 } = {}) {
+  if (wifi.connected) throw new Error('Disconnect Wi-Fi before switching to USB.');
+  transportMode = 'usb';
+  globalThis.localStorage?.setItem('dmbc-sync-transport', 'usb');
   if (!('serial' in navigator)) {
     throw new Error('Web Serial API not supported (use Chrome/Edge)');
   }
@@ -113,6 +117,7 @@ async function connect({ baudRate = 115200 } = {}) {
 }
 
 async function autoReconnect({ baudRate = 115200 } = {}) {
+  if (transportMode === 'wifi') return wifi.connected;
   if (!('serial' in navigator)) return false;
   if (isConnected && port) return true;
 
@@ -134,6 +139,7 @@ async function autoReconnect({ baudRate = 115200 } = {}) {
 }
 
 async function disconnect() {
+  if (transportMode === 'wifi') { await wifi.disconnect(); rxBuffer = ''; return; }
   isConnected = false;
   emitStatus();
 
@@ -166,6 +172,7 @@ async function disconnect() {
 }
 
 async function sendLine(line) {
+  if (transportMode === 'wifi') return wifi.sendLine(String(line).replace(/\r|\n/g, ''));
   if (!writer) throw new Error('Serial writer not available');
   const text = String(line).replace(/\r|\n/g, '');
   const payload = textEncoder ? textEncoder.encode(text + '\n') : new TextEncoder().encode(text + '\n');
@@ -179,12 +186,14 @@ function onLine(cb) {
 
 function onStatus(cb) {
   statusListeners.add(cb);
-  cb({ isConnected, port, connectedPortLabel: getConnectedPortLabel() });
+  cb(getState());
   return () => statusListeners.delete(cb);
 }
 
 function getState() {
+  if (transportMode === 'wifi') return { isConnected: wifi.connected, transport: 'wifi', port: null, reader: null, writer: wifi.connected ? { transport: 'wifi' } : null, connectedPortLabel: wifi.connected ? wifi.label : '' };
   return {
+    transport: 'usb',
     isConnected,
     port,
     reader,
@@ -194,7 +203,8 @@ function getState() {
 }
 
 function installSerialDisconnectListener() {
-  if (!('serial' in navigator)) return;
+  if (disconnectListenerInstalled || !('serial' in navigator)) return;
+  disconnectListenerInstalled = true;
 
   navigator.serial.addEventListener('disconnect', (event) => {
     const disconnectedPort = event && (event.port || event.target);
@@ -205,7 +215,17 @@ function installSerialDisconnectListener() {
   });
 }
 
+async function connectWifi(token) {
+  if (isConnected) throw new Error('Disconnect USB before switching to Wi-Fi.');
+  transportMode = 'wifi';
+  globalThis.localStorage?.setItem('dmbc-sync-transport', 'wifi');
+  rxBuffer = '';
+  await wifi.connect(token);
+}
+
+// Existing sync handlers use this facade for either connection type.
 export const serialService = {
+  connectWifi,
   connect,
   autoReconnect,
   disconnect,

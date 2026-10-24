@@ -1,3 +1,4 @@
+import { parseSyncChunks } from '../../utils/parseSyncChunks.js'
 import { ref } from 'vue'
 import { serialService } from '../../services/serialService'
 import { databaseService } from '../../services/databaseService'
@@ -49,7 +50,8 @@ export function useSyncReadings() {
       }, 60000)
     })
 
-    await sendLine(includeSynced ? 'EXPORT_ALL_READINGS' : 'EXPORT_READINGS')
+    promise.catch(() => {})
+    try { await sendLine(includeSynced ? 'EXPORT_ALL_READINGS' : 'EXPORT_READINGS') } catch (error) { finishExport(error) }
 
     const lines = await promise
     return parseReadingsExportLines(lines)
@@ -74,67 +76,15 @@ export function useSyncReadings() {
     exportReject.value = null
   }
 
-  const parseReadingsExportLines = (lines) => {
-    const readings = []
-    let chunkBuffer = ''
-    for (const line of lines) {
-      const t = String(line).trim()
-      let startedChunk = false
-
-      if (t.startsWith('READINGS_CHUNK|')) {
-        const parts = t.split('|', 3)
-        if (parts.length >= 3) {
-          chunkBuffer = parts[2] || ''
-          startedChunk = true
-        }
-      }
-
-      // If there's no explicit chunk prefix, start accumulation when a line
-      // looks like the start of JSON or contains reading keys (heuristic).
-      if (!chunkBuffer) {
-        // Start accumulating on any non-meta, non-empty line. Device may
-        // emit fragments starting mid-object (e.g. 'stomer_id":273').
-        if (t && !t.startsWith('Heap free') && t !== 'END_READINGS_JSON' && t !== 'BEGIN_READINGS_JSON') {
-          chunkBuffer = t
-        } else {
-          // nothing to accumulate yet
-          continue
-        }
-      } else if (!startedChunk) {
-        if (t.startsWith('Heap free') || t === 'END_READINGS_JSON' || t === 'BEGIN_READINGS_JSON') {
-          // skip meta
-        } else {
-          chunkBuffer += t
-        }
-      }
-
-      if (chunkBuffer) {
-        try {
-          const chunkReadings = JSON.parse(chunkBuffer)
-          for (const reading of chunkReadings) {
-            const readingAtEpoch = Number(reading.reading_at || 0)
-            const createdAtEpoch = parseCreatedAtToEpoch(reading.created_at)
-            readings.push({
-              reading_id: Number(reading.reading_id || 0),
-              customer_id: Number(reading.customer_id || 0),
-              device_uid: reading.device_uid || '',
-              previous_reading: Number(reading.previous_reading || 0),
-              current_reading: Number(reading.current_reading || 0),
-              usage_m3: Number(reading.usage_m3 || 0),
-              // Preserve the actual device meter-reading time. `created_at`
-              // is only a fallback for older device rows with invalid epochs.
-              reading_at: readingAtEpoch >= 1577836800 ? readingAtEpoch : createdAtEpoch,
-              customer_account_number: reading.customer_account_number || '',
-            })
-          }
-          chunkBuffer = '' // Clear after successful parse
-        } catch (e) {
-          // Not complete yet, continue accumulating
-        }
-      }
-    }
-    return readings
-  }
+  const parseReadingsExportLines = lines => parseSyncChunks(lines, exportBeginMarker.value, 'READINGS_CHUNK|').map(reading => ({
+    ...reading,
+    reading_id: Number(reading.reading_id || 0),
+    customer_id: Number(reading.customer_id || 0),
+    previous_reading: Number(reading.previous_reading || 0),
+    current_reading: Number(reading.current_reading || 0),
+    usage_m3: Number(reading.usage_m3 || 0),
+    reading_at: Number(reading.reading_at || 0) >= 1577836800 ? Number(reading.reading_at) : parseCreatedAtToEpoch(reading.created_at),
+  }))
 
   const syncReadingsFromDevice = async () => {
     // Ensure device has a usable clock (epoch seconds)
@@ -201,7 +151,8 @@ export function useSyncReadings() {
       exportReject.value = reject
       exportTimeoutId.value = setTimeout(() => finishExport(new Error('Timed out waiting for device query')), 15000)
     })
-    await sendLine('QUERY_READINGS|' + account)
+    promise.catch(() => {})
+    try { await sendLine('QUERY_READINGS|' + account) } catch (error) { finishExport(error) }
     return databaseService.inspectDeviceReadings(parseReadingsExportLines(await promise))
   }
 
@@ -216,7 +167,7 @@ export function useSyncReadings() {
 
     // Begin marker: start collecting
     if (exportBeginMarker.value && line.startsWith(exportBeginMarker.value)) {
-      exportLines.value = []
+      exportLines.value = [line]
       exportCollecting.value = true
       return
     }

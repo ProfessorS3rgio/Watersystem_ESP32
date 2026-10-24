@@ -199,79 +199,79 @@ static uint64_t sdUsedBytesSafe() {
 #endif
 }
 
-static void exportDeviceInfoForSync() {
+static void exportDeviceInfoForSync(Print& output = Serial) {
   uint32_t startMs = millis();
-  Serial.println(F("BEGIN_DEVICE_INFO"));
+  output.println(F("BEGIN_DEVICE_INFO"));
 
-  Serial.print(F("INFO|device_type|"));
-  Serial.println(DEVICE_TYPE_VALUE);
+  output.print(F("INFO|device_type|"));
+  output.println(DEVICE_TYPE_VALUE);
 
-  Serial.print(F("INFO|firmware_version|"));
-  Serial.println(FIRMWARE_VERSION_VALUE);
+  output.print(F("INFO|firmware_version|"));
+  output.println(FIRMWARE_VERSION_VALUE);
 
-  Serial.print(F("INFO|device_id|"));
-  Serial.println(g_deviceId);
+  output.print(F("INFO|device_id|"));
+  output.println(g_deviceId);
 
-  Serial.print(F("INFO|brgy_id|"));
-  Serial.println(g_deviceId);
+  output.print(F("INFO|brgy_id|"));
+  output.println(g_deviceId);
 
-  Serial.print(F("INFO|device_uid|"));
-  Serial.println(getDeviceUID());
+  output.print(F("INFO|device_uid|"));
+  output.println(getDeviceUID());
 
-  Serial.print(F("INFO|device_mac|"));
-  Serial.println(getDeviceUID());
+  output.print(F("INFO|device_mac|"));
+  output.println(getDeviceUID());
 
-  Serial.print(F("INFO|collector|"));
-  Serial.println(g_collectorName);
+  output.print(F("INFO|collector|"));
+  output.println(g_collectorName);
 
-  Serial.print(F("INFO|last_sync_epoch|"));
-  Serial.println((unsigned long)g_lastSyncEpoch);
+  output.print(F("INFO|last_sync_epoch|"));
+  output.println((unsigned long)g_lastSyncEpoch);
 
-  Serial.print(F("INFO|print_count|"));
-  Serial.println((unsigned long)g_printCount);
+  output.print(F("INFO|print_count|"));
+  output.println((unsigned long)g_printCount);
 
-  Serial.print(F("INFO|customer_count|"));
-  Serial.println((unsigned long)countCustomers());
+  output.print(F("INFO|customer_count|"));
+  output.println((unsigned long)countCustomers());
 
-  Serial.print(F("INFO|pending_readings|"));
-  Serial.println((unsigned long)countPendingReadings());
+  output.print(F("INFO|pending_readings|"));
+  output.println((unsigned long)countPendingReadings());
 
   // SD card status
-  Serial.print(F("INFO|sd_present|"));
-  Serial.println(deviceInfoSdReady() ? 1 : 0);
+  output.print(F("INFO|sd_present|"));
+  output.println(deviceInfoSdReady() ? 1 : 0);
 
   uint64_t totalBytes = sdTotalBytesSafe();
   uint64_t usedBytes = sdUsedBytesSafe();
   uint64_t freeBytes = (totalBytes > usedBytes) ? (totalBytes - usedBytes) : 0;
 
-  Serial.print(F("INFO|sd_total_bytes|"));
-  Serial.println((unsigned long long)totalBytes);
-  Serial.print(F("INFO|sd_used_bytes|"));
-  Serial.println((unsigned long long)usedBytes);
-  Serial.print(F("INFO|sd_free_bytes|"));
-  Serial.println((unsigned long long)freeBytes);
+  output.print(F("INFO|sd_total_bytes|"));
+  output.println((unsigned long long)totalBytes);
+  output.print(F("INFO|sd_used_bytes|"));
+  output.println((unsigned long long)usedBytes);
+  output.print(F("INFO|sd_free_bytes|"));
+  output.println((unsigned long long)freeBytes);
 
   // ESP32 CPU / heap status
 #if defined(ARDUINO_ARCH_ESP32)
-  Serial.print(F("INFO|cpu_freq_mhz|"));
-  Serial.println((unsigned long)getCpuFrequencyMhz());
+  output.print(F("INFO|cpu_freq_mhz|"));
+  output.println((unsigned long)getCpuFrequencyMhz());
 
-  Serial.print(F("INFO|heap_free_bytes|"));
-  Serial.println((unsigned long)ESP.getFreeHeap());
+  output.print(F("INFO|heap_free_bytes|"));
+  output.println((unsigned long)ESP.getFreeHeap());
 
-  Serial.print(F("INFO|heap_min_free_bytes|"));
-  Serial.println((unsigned long)ESP.getMinFreeHeap());
+  output.print(F("INFO|heap_min_free_bytes|"));
+  output.println((unsigned long)ESP.getMinFreeHeap());
 
-  Serial.print(F("INFO|heap_max_alloc_bytes|"));
-  Serial.println((unsigned long)ESP.getMaxAllocHeap());
+  output.print(F("INFO|heap_max_alloc_bytes|"));
+  output.println((unsigned long)ESP.getMaxAllocHeap());
 #endif
 
-  Serial.println(F("END_DEVICE_INFO"));
+  output.println(F("END_DEVICE_INFO"));
 
   uint32_t elapsedMs = millis() - startMs;
-  Serial.print(F("Done. ("));
-  Serial.print(elapsedMs);
-  Serial.println(F(" ms)"));
+  output.print(F("Done. ("));
+  output.print(elapsedMs);
+  output.println(F(" ms)"));
 }
 
 #endif  // DEVICE_INFO_H

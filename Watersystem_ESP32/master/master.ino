@@ -270,6 +270,20 @@ if (!rtcFound) {
 }
 
 void loop() {
+  if (wirelessSyncActive()) {
+    powerSaveSetEnabled(false);
+    pollWirelessSync();
+    // USB command processing and normal workflows are suspended in hotspot mode.
+    while (Serial.available()) Serial.read();
+    char wirelessKey = getKey();
+    if (wirelessKey == 'C' || wirelessKey == '#') stopWirelessSync();
+    if (!wirelessSyncActive()) {
+      currentState = STATE_SYSTEM_TOOLS;
+      displaySystemToolsScreen();
+    }
+    delay(1);
+    return;
+  }
   const bool allowPowerSave = isIdleWorkflowState() && !bleIsBusyForPrint();
   powerSaveSetEnabled(allowPowerSave);
 
@@ -322,6 +336,7 @@ void loop() {
     }
     powerSaveNotifyActivity("keypad");
     handleKeypadInput(key);
+    if (wirelessSyncActive()) return;
   }
   
   // ===== SERIAL INPUT =====

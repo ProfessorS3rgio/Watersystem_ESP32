@@ -16,6 +16,7 @@ use App\Http\Controllers\SyncController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\BackupController;
 use App\Http\Controllers\SyncRunController;
+use App\Http\Controllers\WirelessSyncController;
 
 Route::get('/', function () {
     return view('welcome');
@@ -33,6 +34,9 @@ Route::get('/user', [AuthController::class, 'user'])->middleware('auth');
 
 // Customers (JSON)
 Route::middleware('auth')->group(function () {
+    Route::post('/device-link/wifi/connect', [WirelessSyncController::class, 'connect'])->middleware('throttle:10,1');
+    Route::post('/device-link/wifi/command', [WirelessSyncController::class, 'command']);
+    Route::post('/device-link/wifi/disconnect', [WirelessSyncController::class, 'disconnect']);
     Route::get('/dashboard', [DashboardController::class, 'index']);
 
     Route::get('/customer-types', [CustomerTypeController::class, 'index']);

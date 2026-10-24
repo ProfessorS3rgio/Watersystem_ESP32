@@ -1,5 +1,6 @@
 #ifndef READING_SYNC_H
 #define READING_SYNC_H
+#include "../sync_transport.h"
 
 #include "../../database/readings_database.h"
 #include "../../database/bill_database.h"
@@ -11,7 +12,7 @@
 // Inspection exports are deliberately read-only and include already-synced rows.
 // Normal sync exports only pending rows; neither export changes SQLite state.
 bool handleExportReadings(bool includeSynced = false) {
-  Serial.println(F("Exporting readings..."));
+  syncOutput().println(F("Exporting readings..."));
   // Get total count
   sqlite3_stmt* countStmt;
   const char* countSql = includeSynced
@@ -19,7 +20,7 @@ bool handleExportReadings(bool includeSynced = false) {
     : "SELECT COUNT(*) FROM readings WHERE synced = 0 AND last_sync IS NULL;";
   int rc = sqlite3_prepare_v2(db, countSql, -1, &countStmt, NULL);
   if (rc != SQLITE_OK) {
-    Serial.println(F("Failed to prepare count query"));
+    syncOutput().println(F("Failed to prepare count query"));
     return false;
   }
   rc = sqlite3_step(countStmt);
@@ -28,10 +29,10 @@ bool handleExportReadings(bool includeSynced = false) {
     totalReadings = sqlite3_column_int(countStmt, 0);
   }
   sqlite3_finalize(countStmt);
-  const int CHUNK_SIZE = 500;
+  const int CHUNK_SIZE = syncOverWifi() ? 20 : 500;
   int totalChunks = (totalReadings + CHUNK_SIZE - 1) / CHUNK_SIZE;
-  Serial.print(F("BEGIN_READINGS_JSON|"));
-  Serial.println(totalChunks);
+  syncOutput().print(F("BEGIN_READINGS_JSON|"));
+  syncOutput().println(totalChunks);
 
   // Prepare statement for chunked query
   sqlite3_stmt* stmt;
@@ -40,17 +41,17 @@ bool handleExportReadings(bool includeSynced = false) {
     : "SELECT reading_id, customer_id, device_uid, previous_reading, current_reading, usage_m3, reading_at, synced, last_sync, customer_account_number, CAST(strftime('%s', created_at) AS INTEGER) AS created_at_epoch, created_at FROM readings WHERE synced = 0 AND last_sync IS NULL ORDER BY reading_id LIMIT ? OFFSET ?;";
   int rc2 = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
   if (rc2 != SQLITE_OK) {
-    Serial.println(F("Failed to prepare readings query"));
+    syncOutput().println(F("Failed to prepare readings query"));
     return false;
   }
 
   for (int chunk = 0; chunk < totalChunks; ++chunk) {
-    Serial.printf("Heap free before chunk %d: %d\n", chunk, ESP.getFreeHeap());
+    syncOutput().printf("Heap free before chunk %d: %d\n", chunk, ESP.getFreeHeap());
     int offset = chunk * CHUNK_SIZE;
     sqlite3_bind_int(stmt, 1, CHUNK_SIZE);
     sqlite3_bind_int(stmt, 2, offset);
 
-    DynamicJsonDocument doc(65536);  // Larger doc for 1000 items
+    DynamicJsonDocument doc(syncOverWifi() ? 16384 : 65536);  // Larger doc for 1000 items
     JsonArray arr = doc.to<JsonArray>();
 
     while (sqlite3_step(stmt) == SQLITE_ROW) {
@@ -75,22 +76,23 @@ bool handleExportReadings(bool includeSynced = false) {
       obj["created_at"] = sqlite3_column_text(stmt, 11) ? String((const char*)sqlite3_column_text(stmt, 11)) : "";
     }
 
-    Serial.print(F("READINGS_CHUNK|"));
-    Serial.print(chunk);
-    Serial.print(F("|"));
-    serializeJson(arr, Serial);
-    Serial.println();
+    if (doc.overflowed()) { sqlite3_finalize(stmt); syncOutput().println(F("ERR|JSON_CAPACITY")); return false; }
+    syncOutput().print(F("READINGS_CHUNK|"));
+    syncOutput().print(chunk);
+    syncOutput().print(F("|"));
+    serializeJson(arr, syncOutput());
+    syncOutput().println();
     doc.clear();
 
     // Reset statement for next chunk
     sqlite3_reset(stmt);
     sqlite3_clear_bindings(stmt);
 
-    Serial.printf("Heap free after chunk %d: %d\n", chunk, ESP.getFreeHeap());
+    syncOutput().printf("Heap free after chunk %d: %d\n", chunk, ESP.getFreeHeap());
   }
 
   sqlite3_finalize(stmt);
-  Serial.println(F("END_READINGS_JSON"));
+  syncOutput().println(F("END_READINGS_JSON"));
   
   // Sync state is changed only by READINGS_SYNCED after the web app confirms
   // that it committed the import successfully.
@@ -102,9 +104,9 @@ bool handleReadingsSynced() {
   bool ok = markAllReadingsSynced();
   if (ok) {
     setLastSyncEpoch(deviceEpochNow());
-    Serial.println(F("ACK|READINGS_SYNCED"));
+    syncOutput().println(F("ACK|READINGS_SYNCED"));
   } else {
-    Serial.println(F("ERR|READINGS_SYNC_FAILED"));
+    syncOutput().println(F("ERR|READINGS_SYNC_FAILED"));
   }
   return true;
 }

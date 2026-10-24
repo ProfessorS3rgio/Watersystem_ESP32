@@ -1,3 +1,4 @@
+import { parseSyncChunks } from '../../utils/parseSyncChunks.js'
 import { ref } from 'vue'
 import { serialService } from '../../services/serialService'
 import { databaseService } from '../../services/databaseService'
@@ -12,8 +13,6 @@ export function useSyncBillTransactions() {
   const exportEndMarker = ref(null)
   const exportLinePrefix = ref(null)
   const lastAck = ref(null)
-  const exportEndReceived = ref(false)
-  const exportEndLines = ref([])
 
   const sendLine = async (line) => {
     const text = String(line).replace(/\r|\n/g, ' ')
@@ -40,7 +39,8 @@ export function useSyncBillTransactions() {
       }, 60000)
     })
 
-    await sendLine('EXPORT_BILL_TRANSACTIONS')
+    promise.catch(() => {})
+    try { await sendLine('EXPORT_BILL_TRANSACTIONS') } catch (error) { finishExport(error) }
 
     const lines = await promise
     return parseBillTransactionsExportLines(lines)
@@ -64,67 +64,15 @@ export function useSyncBillTransactions() {
     exportReject.value = null
   }
 
-  const parseBillTransactionsExportLines = async (lines) => {
-    let expectedChunks = null
-
-    for (const line of lines) {
-      const t = String(line || '').trim()
-      if (t.startsWith(exportBeginMarker.value + '|')) {
-        const parts = t.split('|')
-        if (parts.length >= 2) {
-          const n = parseInt(parts[1])
-          if (Number.isFinite(n)) expectedChunks = n
-        }
-      }
+  const parseBillTransactionsExportLines = async lines => {
+    const transactions = parseSyncChunks(lines, 'BEGIN_BILL_TRANSACTIONS_JSON', 'BILL_TRANSACTIONS_CHUNK|')
+    if (!transactions.length) return 0
+    const processed = await databaseService.syncBillTransactionsToDatabase(transactions)
+    if (Number(processed) !== transactions.length) {
+      throw new Error('Some payments could not be imported; device transactions were left unsynced')
     }
-
-    const transactions = []
-    let chunkBuffer = ''
-
-    for (const line of lines) {
-      const t = String(line || '').trim()
-
-      // Start a new chunk buffer when we see the prefix.
-      if (t.startsWith(exportLinePrefix.value)) {
-        const parts = t.split('|', 3)
-        if (parts.length >= 3) {
-          chunkBuffer = parts[2] || ''
-        }
-        continue
-      }
-
-      // Accumulate fragments if they happen (should be rare after serialService fix).
-      if (chunkBuffer) {
-        if (t.startsWith('Heap free') || t.startsWith(exportBeginMarker.value) || t.startsWith(exportEndMarker.value)) {
-          // skip meta
-        } else {
-          chunkBuffer += t
-        }
-      }
-
-      if (chunkBuffer) {
-        try {
-          const chunkArr = JSON.parse(chunkBuffer)
-          if (Array.isArray(chunkArr)) {
-            for (const row of chunkArr) transactions.push(row)
-          }
-          chunkBuffer = ''
-        } catch (_) {
-          // Not complete yet
-        }
-      }
-    }
-
-    if (expectedChunks && expectedChunks > 0 && transactions.length === 0) {
-      throw new Error('Bill transactions export received, but no valid JSON chunks were parsed')
-    }
-
-    if (transactions.length > 0) {
-      const processed = await databaseService.syncBillTransactionsToDatabase(transactions)
-      return Number(processed || 0)
-    }
-
-    return 0
+    await sendLine('BILL_TRANSACTIONS_SYNCED')
+    return Number(processed || 0)
   }
 
   const handleExportLine = (line) => {
@@ -140,18 +88,7 @@ export function useSyncBillTransactions() {
     }
 
     if (exportEndMarker.value && t.startsWith(exportEndMarker.value)) {
-      // Don't finish yet, wait for marking confirmation
-      exportEndReceived.value = true
-      exportEndLines.value = exportLines.value.slice()
-      exportLines.value = []
-      return
-    }
-
-    if (exportEndReceived.value && t === 'Bill transactions marked as synced') {
-      // Now finish the export
-      finishExport(null, exportEndLines.value)
-      exportEndReceived.value = false
-      exportEndLines.value = []
+      finishExport(null, exportLines.value.slice())
       return
     }
 

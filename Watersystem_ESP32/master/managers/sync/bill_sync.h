@@ -1,5 +1,6 @@
 #ifndef BILL_SYNC_H
 #define BILL_SYNC_H
+#include "../sync_transport.h"
 
 #include "../../database/bill_database.h"
 #include "../../database/bill_transactions_database.h"
@@ -36,7 +37,7 @@ bool handleUpsertBillsJsonChunk(String payload) {
   int p1 = payload.indexOf('|');
   int p2 = (p1 >= 0) ? payload.indexOf('|', p1 + 1) : -1;
   if (p1 < 0 || p2 < 0) {
-    Serial.println(F("ERR|BAD_CHUNK_FORMAT"));
+    syncOutput().println(F("ERR|BAD_CHUNK_FORMAT"));
     return true;
   }
 
@@ -47,35 +48,35 @@ bool handleUpsertBillsJsonChunk(String payload) {
 
   // Parse the JSON chunk (it's an array of bills)
   DynamicJsonDocument doc(16384); // 16KB should be enough for 10 bills
-  Serial.println(F("About to deserialize JSON for bills"));
+  syncOutput().println(F("About to deserialize JSON for bills"));
   DeserializationError error = deserializeJson(doc, jsonChunk);
   if (error) {
-    Serial.println(F("ERR|JSON_PARSE_FAILED"));
-    Serial.print(F("Error: "));
-    Serial.println(error.c_str());
+    syncOutput().println(F("ERR|JSON_PARSE_FAILED"));
+    syncOutput().print(F("Error: "));
+    syncOutput().println(error.c_str());
     return true;
   }
-  Serial.println(F("JSON deserialized successfully"));
+  syncOutput().println(F("JSON deserialized successfully"));
 
   JsonArray bills = doc.as<JsonArray>();
   bool allSuccess = true;
 
-  Serial.print(F("Processing bill chunk "));
-  Serial.println(chunkIndex);
+  syncOutput().print(F("Processing bill chunk "));
+  syncOutput().println(chunkIndex);
 
   // Set synchronous to NORMAL for speed during sync (durability is still good)
   sqlite3_exec(db, "PRAGMA synchronous = NORMAL;", NULL, NULL, NULL);
 
-  Serial.printf("Heap free before chunk: %d\n", ESP.getFreeHeap());
+  syncOutput().printf("Heap free before chunk: %d\n", ESP.getFreeHeap());
 
   // Begin transaction for this chunk
   int rc_begin = sqlite3_exec(db, "BEGIN TRANSACTION;", NULL, NULL, NULL);
   if (rc_begin != SQLITE_OK) {
-    Serial.print(F("BEGIN failed for chunk "));
-    Serial.print(chunkIndex);
-    Serial.print(F(": "));
-    Serial.println(sqlite3_errmsg(db));
-    Serial.println(F("ERR|UPSERT_FAILED"));
+    syncOutput().print(F("BEGIN failed for chunk "));
+    syncOutput().print(chunkIndex);
+    syncOutput().print(F(": "));
+    syncOutput().println(sqlite3_errmsg(db));
+    syncOutput().println(F("ERR|UPSERT_FAILED"));
     return true;
   }
 
@@ -84,10 +85,10 @@ bool handleUpsertBillsJsonChunk(String payload) {
   sqlite3_stmt* stmt;
   int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
   if (rc != SQLITE_OK) {
-    Serial.print(F("SQLite prepare error: "));
-    Serial.println(sqlite3_errmsg(db));
+    syncOutput().print(F("SQLite prepare error: "));
+    syncOutput().println(sqlite3_errmsg(db));
     sqlite3_exec(db, "ROLLBACK;", NULL, NULL, NULL);
-    Serial.println(F("ERR|UPSERT_FAILED"));
+    syncOutput().println(F("ERR|UPSERT_FAILED"));
     return true;
   }
 
@@ -122,13 +123,13 @@ bool handleUpsertBillsJsonChunk(String payload) {
 
     rc = sqlite3_step(stmt);
     if (rc != SQLITE_DONE) {
-      Serial.print(F("SQLite step error: "));
-      Serial.println(sqlite3_errmsg(db));
+      syncOutput().print(F("SQLite step error: "));
+      syncOutput().println(sqlite3_errmsg(db));
       allSuccess = false;
       break;
     } else {
-      Serial.print(F("Inserted bill: "));
-      Serial.println(referenceNumber);
+      syncOutput().print(F("Inserted bill: "));
+      syncOutput().println(referenceNumber);
     }
   }
 
@@ -137,48 +138,48 @@ bool handleUpsertBillsJsonChunk(String payload) {
   if (allSuccess) {
     int rc_commit = sqlite3_exec(db, "COMMIT;", NULL, NULL, NULL);
     if (rc_commit != SQLITE_OK) {
-      Serial.print(F("COMMIT failed for chunk "));
-      Serial.print(chunkIndex);
-      Serial.print(F(": "));
-      Serial.println(sqlite3_errmsg(db));
-      Serial.println(F("ERR|UPSERT_FAILED"));
+      syncOutput().print(F("COMMIT failed for chunk "));
+      syncOutput().print(chunkIndex);
+      syncOutput().print(F(": "));
+      syncOutput().println(sqlite3_errmsg(db));
+      syncOutput().println(F("ERR|UPSERT_FAILED"));
       return true;
     } else {
-      Serial.print(F("Processed bill chunk "));
-      Serial.println(chunkIndex);
+      syncOutput().print(F("Processed bill chunk "));
+      syncOutput().println(chunkIndex);
     }
-    Serial.print(F("ACK|CHUNK|"));
-    Serial.println(chunkIndex);
-    Serial.printf("Heap free after chunk: %d\n", ESP.getFreeHeap());
-    Serial.println(F("Ready for next chunk"));
-    Serial.flush();
+    syncOutput().print(F("ACK|CHUNK|"));
+    syncOutput().println(chunkIndex);
+    syncOutput().printf("Heap free after chunk: %d\n", ESP.getFreeHeap());
+    syncOutput().println(F("Ready for next chunk"));
+    syncOutput().flush();
     if (chunkIndex == totalChunks - 1) {
       // Last chunk, count bills in DB
       int billCount = 0;
       sqlite3_exec(db, "SELECT COUNT(*) FROM bills;", billCountCallback, &billCount, NULL);
-      Serial.print(F("Total bills in DB after sync: "));
-      Serial.println(billCount);
+      syncOutput().print(F("Total bills in DB after sync: "));
+      syncOutput().println(billCount);
       // Send final success
-      Serial.print(F("ACK|UPSERT_BILLS_JSON|"));
-      Serial.println(bills.size());
-      Serial.flush();
+      syncOutput().print(F("ACK|UPSERT_BILLS_JSON|"));
+      syncOutput().println(bills.size());
+      syncOutput().flush();
     }
   } else {
     sqlite3_exec(db, "ROLLBACK;", NULL, NULL, NULL);
-    Serial.println(F("ERR|UPSERT_FAILED"));
+    syncOutput().println(F("ERR|UPSERT_FAILED"));
   }
   return true;
 }
 
 // Handle EXPORT_BILLS command
 bool handleExportBills() {
-  Serial.println(F("Exporting bills..."));
+  syncOutput().println(F("Exporting bills..."));
   // Get total count
   sqlite3_stmt* countStmt;
   const char* countSql = "SELECT COUNT(*) FROM bills WHERE synced = 0 AND last_sync IS NULL;";
   int rc = sqlite3_prepare_v2(db, countSql, -1, &countStmt, NULL);
   if (rc != SQLITE_OK) {
-    Serial.println(F("Failed to prepare count query"));
+    syncOutput().println(F("Failed to prepare count query"));
     return false;
   }
   rc = sqlite3_step(countStmt);
@@ -187,27 +188,27 @@ bool handleExportBills() {
     totalBills = sqlite3_column_int(countStmt, 0);
   }
   sqlite3_finalize(countStmt);
-  const int CHUNK_SIZE = 400;
+  const int CHUNK_SIZE = syncOverWifi() ? 20 : 400;
   int totalChunks = (totalBills + CHUNK_SIZE - 1) / CHUNK_SIZE;
-  Serial.print(F("BEGIN_BILLS_JSON|"));
-  Serial.println(totalChunks);
+  syncOutput().print(F("BEGIN_BILLS_JSON|"));
+  syncOutput().println(totalChunks);
 
   // Prepare statement for chunked query
   sqlite3_stmt* stmt;
   const char* sql = "SELECT bill_id, reference_number, customer_id, reading_id, device_uid, bill_date, rate_per_m3, charges, penalty, total_due, status, synced, last_sync, customer_account_number FROM bills WHERE synced = 0 AND last_sync IS NULL ORDER BY bill_id LIMIT ? OFFSET ?;";
   int rc2 = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
   if (rc2 != SQLITE_OK) {
-    Serial.println(F("Failed to prepare bills query"));
+    syncOutput().println(F("Failed to prepare bills query"));
     return false;
   }
 
   for (int chunk = 0; chunk < totalChunks; ++chunk) {
-    Serial.printf("Heap free before chunk %d: %d\n", chunk, ESP.getFreeHeap());
+    syncOutput().printf("Heap free before chunk %d: %d\n", chunk, ESP.getFreeHeap());
     int offset = chunk * CHUNK_SIZE;
     sqlite3_bind_int(stmt, 1, CHUNK_SIZE);
     sqlite3_bind_int(stmt, 2, offset);
 
-    DynamicJsonDocument doc(65536);  // Larger doc for 150 items
+    DynamicJsonDocument doc(syncOverWifi() ? 16384 : 65536);  // Larger doc for 150 items
     JsonArray arr = doc.to<JsonArray>();
 
     while (sqlite3_step(stmt) == SQLITE_ROW) {
@@ -228,32 +229,25 @@ bool handleExportBills() {
       obj["customer_account_number"] = String((const char*)sqlite3_column_text(stmt, 13));
     }
 
-    Serial.print(F("BILLS_CHUNK|"));
-    Serial.print(chunk);
-    Serial.print(F("|"));
-    serializeJson(arr, Serial);
-    Serial.println();
+    if (doc.overflowed()) { sqlite3_finalize(stmt); syncOutput().println(F("ERR|JSON_CAPACITY")); return false; }
+    syncOutput().print(F("BILLS_CHUNK|"));
+    syncOutput().print(chunk);
+    syncOutput().print(F("|"));
+    serializeJson(arr, syncOutput());
+    syncOutput().println();
     doc.clear();
 
     // Reset statement for next chunk
     sqlite3_reset(stmt);
     sqlite3_clear_bindings(stmt);
 
-    Serial.printf("Heap free after chunk %d: %d\n", chunk, ESP.getFreeHeap());
+    syncOutput().printf("Heap free after chunk %d: %d\n", chunk, ESP.getFreeHeap());
   }
 
   sqlite3_finalize(stmt);
-  Serial.println(F("END_BILLS_JSON"));
+  syncOutput().println(F("END_BILLS_JSON"));
   
-  // Mark all exported bills as synced
-  const char* updateSql = "UPDATE bills SET synced = 1, last_sync = datetime('now') WHERE synced = 0;";
-  int updateRc = sqlite3_exec(db, updateSql, NULL, NULL, NULL);
-  if (updateRc != SQLITE_OK) {
-    Serial.print(F("Failed to mark bills as synced: "));
-    Serial.println(sqlite3_errmsg(db));
-  } else {
-    Serial.println(F("Marked exported bills as synced"));
-  }
+  // BILLS_SYNCED is sent only after the website commits the complete import.
   
   return true;
 }
@@ -263,9 +257,9 @@ bool handleBillsSynced() {
   bool ok = markAllBillsSynced();
   if (ok) {
     setLastSyncEpoch(deviceEpochNow());
-    Serial.println(F("ACK|BILLS_SYNCED"));
+    syncOutput().println(F("ACK|BILLS_SYNCED"));
   } else {
-    Serial.println(F("ERR|BILLS_SYNC_FAILED"));
+    syncOutput().println(F("ERR|BILLS_SYNC_FAILED"));
   }
   return true;
 }

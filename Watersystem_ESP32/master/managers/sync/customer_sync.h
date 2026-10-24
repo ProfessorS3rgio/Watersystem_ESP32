@@ -1,5 +1,6 @@
 #ifndef CUSTOMER_SYNC_H
 #define CUSTOMER_SYNC_H
+#include "../sync_transport.h"
 
 #include "../../database/customers_database.h"
 #include "../../configuration/config.h"
@@ -37,7 +38,7 @@ bool handleUpsertCustomersJson(String payload) {
   DynamicJsonDocument doc(65536); // 64KB for customer lists
   DeserializationError error = deserializeJson(doc, payload);
   if (error) {
-    Serial.println(F("ERR|JSON_PARSE_FAILED"));
+    syncOutput().println(F("ERR|JSON_PARSE_FAILED"));
     return true;
   }
 
@@ -60,10 +61,10 @@ bool handleUpsertCustomersJson(String payload) {
   }
 
   if (allSuccess) {
-    Serial.print(F("ACK|UPSERT_CUSTOMERS_JSON|"));
-    Serial.println(customers.size());
+    syncOutput().print(F("ACK|UPSERT_CUSTOMERS_JSON|"));
+    syncOutput().println(customers.size());
   } else {
-    Serial.println(F("ERR|UPSERT_CUSTOMERS_JSON_FAILED"));
+    syncOutput().println(F("ERR|UPSERT_CUSTOMERS_JSON_FAILED"));
   }
   return true;
 }
@@ -73,7 +74,7 @@ bool handleUpsertCustomersJsonChunk(String payload) {
   int p1 = payload.indexOf('|');
   int p2 = (p1 >= 0) ? payload.indexOf('|', p1 + 1) : -1;
   if (p1 < 0 || p2 < 0) {
-    Serial.println(F("ERR|BAD_CHUNK_FORMAT"));
+    syncOutput().println(F("ERR|BAD_CHUNK_FORMAT"));
     return true;
   }
 
@@ -84,35 +85,35 @@ bool handleUpsertCustomersJsonChunk(String payload) {
 
   // Parse the JSON chunk (it's an array of customers)
   DynamicJsonDocument doc(16384); // 16KB should be enough for 10 customers
-  Serial.println(F("About to deserialize JSON"));
+  syncOutput().println(F("About to deserialize JSON"));
   DeserializationError error = deserializeJson(doc, jsonChunk);
   if (error) {
-    Serial.println(F("ERR|JSON_PARSE_FAILED"));
-    Serial.print(F("Error: "));
-    Serial.println(error.c_str());
+    syncOutput().println(F("ERR|JSON_PARSE_FAILED"));
+    syncOutput().print(F("Error: "));
+    syncOutput().println(error.c_str());
     return true;
   }
-  Serial.println(F("JSON deserialized successfully"));
+  syncOutput().println(F("JSON deserialized successfully"));
 
   JsonArray customers = doc.as<JsonArray>();
   bool allSuccess = true;
 
-  Serial.print(F("Processing chunk "));
-  Serial.println(chunkIndex);
+  syncOutput().print(F("Processing chunk "));
+  syncOutput().println(chunkIndex);
 
   // Set synchronous to NORMAL for speed during sync (durability is still good)
   sqlite3_exec(db, "PRAGMA synchronous = NORMAL;", NULL, NULL, NULL);
 
-  Serial.printf("Heap free before chunk: %d\n", ESP.getFreeHeap());
+  syncOutput().printf("Heap free before chunk: %d\n", ESP.getFreeHeap());
 
   // Begin transaction for this chunk
   int rc_begin = sqlite3_exec(db, "BEGIN TRANSACTION;", NULL, NULL, NULL);
   if (rc_begin != SQLITE_OK) {
-    Serial.print(F("BEGIN failed for chunk "));
-    Serial.print(chunkIndex);
-    Serial.print(F(": "));
-    Serial.println(sqlite3_errmsg(db));
-    Serial.println(F("ERR|UPSERT_FAILED"));
+    syncOutput().print(F("BEGIN failed for chunk "));
+    syncOutput().print(chunkIndex);
+    syncOutput().print(F(": "));
+    syncOutput().println(sqlite3_errmsg(db));
+    syncOutput().println(F("ERR|UPSERT_FAILED"));
     return true;
   }
 
@@ -135,35 +136,35 @@ bool handleUpsertCustomersJsonChunk(String payload) {
   if (allSuccess) {
     int rc_commit = sqlite3_exec(db, "COMMIT;", NULL, NULL, NULL);
     if (rc_commit != SQLITE_OK) {
-      Serial.print(F("COMMIT failed for chunk "));
-      Serial.print(chunkIndex);
-      Serial.print(F(": "));
-      Serial.println(sqlite3_errmsg(db));
-      Serial.println(F("ERR|UPSERT_FAILED"));
+      syncOutput().print(F("COMMIT failed for chunk "));
+      syncOutput().print(chunkIndex);
+      syncOutput().print(F(": "));
+      syncOutput().println(sqlite3_errmsg(db));
+      syncOutput().println(F("ERR|UPSERT_FAILED"));
       return true;
     } else {
-      Serial.print(F("Processed chunk "));
-      Serial.println(chunkIndex);
+      syncOutput().print(F("Processed chunk "));
+      syncOutput().println(chunkIndex);
     }
-    Serial.print(F("ACK|CHUNK|"));
-    Serial.println(chunkIndex);
-    Serial.printf("Heap free after chunk: %d\n", ESP.getFreeHeap());
-    Serial.println(F("Ready for next chunk"));
-    Serial.flush();
+    syncOutput().print(F("ACK|CHUNK|"));
+    syncOutput().println(chunkIndex);
+    syncOutput().printf("Heap free after chunk: %d\n", ESP.getFreeHeap());
+    syncOutput().println(F("Ready for next chunk"));
+    syncOutput().flush();
     if (chunkIndex == totalChunks - 1) {
       // Last chunk, count customers in DB
       int customerCount = 0;
       sqlite3_exec(db, "SELECT COUNT(*) FROM customers;", countCallback, &customerCount, NULL);
-      Serial.print(F("Total customers in DB after sync: "));
-      Serial.println(customerCount);
+      syncOutput().print(F("Total customers in DB after sync: "));
+      syncOutput().println(customerCount);
       // Send final success
-      Serial.print(F("ACK|UPSERT_CUSTOMERS_JSON|"));
-      Serial.println(customers.size());
-      Serial.flush();
+      syncOutput().print(F("ACK|UPSERT_CUSTOMERS_JSON|"));
+      syncOutput().println(customers.size());
+      syncOutput().flush();
     }
   } else {
     sqlite3_exec(db, "ROLLBACK;", NULL, NULL, NULL);
-    Serial.println(F("ERR|UPSERT_FAILED"));
+    syncOutput().println(F("ERR|UPSERT_FAILED"));
   }
   return true;
 }
@@ -226,14 +227,14 @@ bool handleUpsertNewCustomerJsonChunk(String payload) {
   int p1 = payload.indexOf('|');
   int p2 = (p1 >= 0) ? payload.indexOf('|', p1 + 1) : -1;
   if (p1 < 0 || p2 < 0) {
-    Serial.print(F("ERR|BAD_CHUNK_FORMAT payload='"));
+    syncOutput().print(F("ERR|BAD_CHUNK_FORMAT payload='"));
     {
       int previewLen = (payload.length() < 100) ? payload.length() : 100;
-      Serial.print(payload.substring(0, previewLen));
+      syncOutput().print(payload.substring(0, previewLen));
     }
-    Serial.println(F("'"));
-    Serial.print(F("payload_len="));
-    Serial.println(payload.length());
+    syncOutput().println(F("'"));
+    syncOutput().print(F("payload_len="));
+    syncOutput().println(payload.length());
     return true;
   }
 
@@ -243,7 +244,7 @@ bool handleUpsertNewCustomerJsonChunk(String payload) {
   const int encodedLen = payload.length() - encodedStart;
 
   if (encodedLen <= 0) {
-    Serial.println(F("ERR|EMPTY_BASE64_CHUNK"));
+    syncOutput().println(F("ERR|EMPTY_BASE64_CHUNK"));
     return true;
   }
 
@@ -251,50 +252,50 @@ bool handleUpsertNewCustomerJsonChunk(String payload) {
   String jsonChunk = base64_decode_from_offset(payload, encodedStart);
 
   // diagnostic logging to help debug empty/short payloads
-  Serial.print(F("Received chunk "));
-  Serial.print(chunkIndex);
-  Serial.print(F("/"));
-  Serial.print(totalChunks);
-  Serial.print(F(" encoded="));
-  Serial.print(encodedLen);
-  Serial.print(F(" length="));
-  Serial.println(jsonChunk.length());
+  syncOutput().print(F("Received chunk "));
+  syncOutput().print(chunkIndex);
+  syncOutput().print(F("/"));
+  syncOutput().print(totalChunks);
+  syncOutput().print(F(" encoded="));
+  syncOutput().print(encodedLen);
+  syncOutput().print(F(" length="));
+  syncOutput().println(jsonChunk.length());
 #if SYNC_DEBUG
-  Serial.print(F("Payload preview: '"));
+  syncOutput().print(F("Payload preview: '"));
   {
     int lp = (jsonChunk.length() < 50) ? jsonChunk.length() : 50;
-    Serial.print(jsonChunk.substring(0, lp));
+    syncOutput().print(jsonChunk.substring(0, lp));
   }
-  Serial.println(F("'"));
+  syncOutput().println(F("'"));
 #endif
   if (jsonChunk.length() < 10) {
-    Serial.print(F("Chunk data preview: '"));
-    Serial.print(jsonChunk);
-    Serial.println(F("'"));
+    syncOutput().print(F("Chunk data preview: '"));
+    syncOutput().print(jsonChunk);
+    syncOutput().println(F("'"));
   }
 
   if (jsonChunk.length() == 0) {
-    Serial.println(F("ERR|EMPTY_JSON_CHUNK"));
+    syncOutput().println(F("ERR|EMPTY_JSON_CHUNK"));
     return true;
   }
 
   // Parse the JSON chunk (it's an array of customers)
   DynamicJsonDocument doc(65536); // 64KB for up to 150 customers
-  Serial.println(F("About to deserialize JSON for new customers"));
+  syncOutput().println(F("About to deserialize JSON for new customers"));
   DeserializationError error = deserializeJson(doc, jsonChunk);
   if (error) {
-    Serial.println(F("ERR|JSON_PARSE_FAILED"));
-    Serial.print(F("Error: "));
-    Serial.println(error.c_str());
+    syncOutput().println(F("ERR|JSON_PARSE_FAILED"));
+    syncOutput().print(F("Error: "));
+    syncOutput().println(error.c_str());
     return true;
   }
-  Serial.println(F("JSON deserialized successfully"));
+  syncOutput().println(F("JSON deserialized successfully"));
 
   JsonArray customers = doc.as<JsonArray>();
   bool allSuccess = true;
 
-  Serial.print(F("Processing new customer chunk "));
-  Serial.println(chunkIndex);
+  syncOutput().print(F("Processing new customer chunk "));
+  syncOutput().println(chunkIndex);
 #if SYNC_DEBUG
   // print each customer in debug mode
 #endif
@@ -302,16 +303,16 @@ bool handleUpsertNewCustomerJsonChunk(String payload) {
   // Set synchronous to NORMAL for speed during sync (durability is still good)
   sqlite3_exec(db, "PRAGMA synchronous = NORMAL;", NULL, NULL, NULL);
 
-  Serial.printf("Heap free before chunk: %d\n", ESP.getFreeHeap());
+  syncOutput().printf("Heap free before chunk: %d\n", ESP.getFreeHeap());
 
   // Begin transaction for this chunk
   int rc_begin = sqlite3_exec(db, "BEGIN TRANSACTION;", NULL, NULL, NULL);
   if (rc_begin != SQLITE_OK) {
-    Serial.print(F("BEGIN failed for chunk "));
-    Serial.print(chunkIndex);
-    Serial.print(F(": "));
-    Serial.println(sqlite3_errmsg(db));
-    Serial.println(F("ERR|UPSERT_FAILED"));
+    syncOutput().print(F("BEGIN failed for chunk "));
+    syncOutput().print(chunkIndex);
+    syncOutput().print(F(": "));
+    syncOutput().println(sqlite3_errmsg(db));
+    syncOutput().println(F("ERR|UPSERT_FAILED"));
     return true;
   }
 
@@ -334,37 +335,37 @@ bool handleUpsertNewCustomerJsonChunk(String payload) {
   if (allSuccess) {
     int rc_commit = sqlite3_exec(db, "COMMIT;", NULL, NULL, NULL);
     if (rc_commit != SQLITE_OK) {
-      Serial.print(F("COMMIT failed for chunk "));
-      Serial.print(chunkIndex);
-      Serial.print(F(": "));
-      Serial.println(sqlite3_errmsg(db));
-      Serial.println(F("ERR|UPSERT_FAILED"));
+      syncOutput().print(F("COMMIT failed for chunk "));
+      syncOutput().print(chunkIndex);
+      syncOutput().print(F(": "));
+      syncOutput().println(sqlite3_errmsg(db));
+      syncOutput().println(F("ERR|UPSERT_FAILED"));
       return true;
     } else {
 #if SYNC_DEBUG
-      Serial.print(F("Processed new customer chunk "));
-      Serial.println(chunkIndex);
+      syncOutput().print(F("Processed new customer chunk "));
+      syncOutput().println(chunkIndex);
 #endif
     }
-    Serial.print(F("ACK|CHUNK|"));
-    Serial.println(chunkIndex);
-    Serial.printf("Heap free after chunk: %d\n", ESP.getFreeHeap());
-    Serial.println(F("Ready for next chunk"));
-    Serial.flush();
+    syncOutput().print(F("ACK|CHUNK|"));
+    syncOutput().println(chunkIndex);
+    syncOutput().printf("Heap free after chunk: %d\n", ESP.getFreeHeap());
+    syncOutput().println(F("Ready for next chunk"));
+    syncOutput().flush();
     if (chunkIndex == totalChunks - 1) {
       // Last chunk, count customers in DB
       int customerCount = 0;
       sqlite3_exec(db, "SELECT COUNT(*) FROM customers;", countCallback, &customerCount, NULL);
-      Serial.print(F("Total customers in DB after new sync: "));
-      Serial.println(customerCount);
+      syncOutput().print(F("Total customers in DB after new sync: "));
+      syncOutput().println(customerCount);
       // Send final success
-      Serial.print(F("ACK|UPSERT_NEW_CUSTOMER_JSON|"));
-      Serial.println(customers.size());
-      Serial.flush();
+      syncOutput().print(F("ACK|UPSERT_NEW_CUSTOMER_JSON|"));
+      syncOutput().println(customers.size());
+      syncOutput().flush();
     }
   } else {
     sqlite3_exec(db, "ROLLBACK;", NULL, NULL, NULL);
-    Serial.println(F("ERR|UPSERT_FAILED"));
+    syncOutput().println(F("ERR|UPSERT_FAILED"));
   }
   return true;
 }
@@ -374,11 +375,11 @@ bool handleUpsertUpdatedCustomerJsonChunk(String payload) {
   int p1 = payload.indexOf('|');
   int p2 = (p1 >= 0) ? payload.indexOf('|', p1 + 1) : -1;
   if (p1 < 0 || p2 < 0) {
-    Serial.print(F("ERR|BAD_CHUNK_FORMAT|payload='"));
-    Serial.print(payload);
-    Serial.println(F("'"));
-    Serial.print(F("payload_len="));
-    Serial.println(payload.length());
+    syncOutput().print(F("ERR|BAD_CHUNK_FORMAT|payload='"));
+    syncOutput().print(payload);
+    syncOutput().println(F("'"));
+    syncOutput().print(F("payload_len="));
+    syncOutput().println(payload.length());
     return true;
   }
 
@@ -388,61 +389,61 @@ bool handleUpsertUpdatedCustomerJsonChunk(String payload) {
   const int encodedLen = payload.length() - encodedStart;
 
   if (encodedLen <= 0) {
-    Serial.println(F("ERR|EMPTY_BASE64_CHUNK"));
+    syncOutput().println(F("ERR|EMPTY_BASE64_CHUNK"));
     return true;
   }
 
   // decode base64 without copying the encoded payload first
   String jsonChunk = base64_decode_from_offset(payload, encodedStart);
-  Serial.print(F("Received updated chunk "));
-  Serial.print(chunkIndex);
-  Serial.print(F("/"));
-  Serial.print(totalChunks);
-  Serial.print(F(" encoded="));
-  Serial.print(encodedLen);
-  Serial.print(F(" length="));
-  Serial.println(jsonChunk.length());
+  syncOutput().print(F("Received updated chunk "));
+  syncOutput().print(chunkIndex);
+  syncOutput().print(F("/"));
+  syncOutput().print(totalChunks);
+  syncOutput().print(F(" encoded="));
+  syncOutput().print(encodedLen);
+  syncOutput().print(F(" length="));
+  syncOutput().println(jsonChunk.length());
   if (jsonChunk.length() < 10) {
-    Serial.print(F("Chunk data preview: '"));
-    Serial.print(jsonChunk);
-    Serial.println(F("'"));
+    syncOutput().print(F("Chunk data preview: '"));
+    syncOutput().print(jsonChunk);
+    syncOutput().println(F("'"));
   }
   if (jsonChunk.length() == 0) {
-    Serial.println(F("ERR|EMPTY_JSON_CHUNK"));
+    syncOutput().println(F("ERR|EMPTY_JSON_CHUNK"));
     return true;
   }
 
   // Parse the JSON chunk (it's an array of customers)
   DynamicJsonDocument doc(65536); // 64KB for up to 150 customers
-  Serial.println(F("About to deserialize JSON for updated customers"));
+  syncOutput().println(F("About to deserialize JSON for updated customers"));
   DeserializationError error = deserializeJson(doc, jsonChunk);
   if (error) {
-    Serial.println(F("ERR|JSON_PARSE_FAILED"));
-    Serial.print(F("Error: "));
-    Serial.println(error.c_str());
+    syncOutput().println(F("ERR|JSON_PARSE_FAILED"));
+    syncOutput().print(F("Error: "));
+    syncOutput().println(error.c_str());
     return true;
   }
-  Serial.println(F("JSON deserialized successfully"));
+  syncOutput().println(F("JSON deserialized successfully"));
 
   JsonArray customers = doc.as<JsonArray>();
   bool allSuccess = true;
 
-  Serial.print(F("Processing updated customer chunk "));
-  Serial.println(chunkIndex);
+  syncOutput().print(F("Processing updated customer chunk "));
+  syncOutput().println(chunkIndex);
 
   // Set synchronous to NORMAL for speed during sync (durability is still good)
   sqlite3_exec(db, "PRAGMA synchronous = NORMAL;", NULL, NULL, NULL);
 
-  Serial.printf("Heap free before chunk: %d\n", ESP.getFreeHeap());
+  syncOutput().printf("Heap free before chunk: %d\n", ESP.getFreeHeap());
 
   // Begin transaction for this chunk
   int rc_begin = sqlite3_exec(db, "BEGIN TRANSACTION;", NULL, NULL, NULL);
   if (rc_begin != SQLITE_OK) {
-    Serial.print(F("BEGIN failed for chunk "));
-    Serial.print(chunkIndex);
-    Serial.print(F(": "));
-    Serial.println(sqlite3_errmsg(db));
-    Serial.println(F("ERR|UPSERT_FAILED"));
+    syncOutput().print(F("BEGIN failed for chunk "));
+    syncOutput().print(chunkIndex);
+    syncOutput().print(F(": "));
+    syncOutput().println(sqlite3_errmsg(db));
+    syncOutput().println(F("ERR|UPSERT_FAILED"));
     return true;
   }
 
@@ -465,35 +466,35 @@ bool handleUpsertUpdatedCustomerJsonChunk(String payload) {
   if (allSuccess) {
     int rc_commit = sqlite3_exec(db, "COMMIT;", NULL, NULL, NULL);
     if (rc_commit != SQLITE_OK) {
-      Serial.print(F("COMMIT failed for chunk "));
-      Serial.print(chunkIndex);
-      Serial.print(F(": "));
-      Serial.println(sqlite3_errmsg(db));
-      Serial.println(F("ERR|UPSERT_FAILED"));
+      syncOutput().print(F("COMMIT failed for chunk "));
+      syncOutput().print(chunkIndex);
+      syncOutput().print(F(": "));
+      syncOutput().println(sqlite3_errmsg(db));
+      syncOutput().println(F("ERR|UPSERT_FAILED"));
       return true;
     } else {
-      Serial.print(F("Processed updated customer chunk "));
-      Serial.println(chunkIndex);
+      syncOutput().print(F("Processed updated customer chunk "));
+      syncOutput().println(chunkIndex);
     }
-    Serial.print(F("ACK|CHUNK|"));
-    Serial.println(chunkIndex);
-    Serial.printf("Heap free after chunk: %d\n", ESP.getFreeHeap());
-    Serial.println(F("Ready for next chunk"));
-    Serial.flush();
+    syncOutput().print(F("ACK|CHUNK|"));
+    syncOutput().println(chunkIndex);
+    syncOutput().printf("Heap free after chunk: %d\n", ESP.getFreeHeap());
+    syncOutput().println(F("Ready for next chunk"));
+    syncOutput().flush();
     if (chunkIndex == totalChunks - 1) {
       // Last chunk, count customers in DB
       int customerCount = 0;
       sqlite3_exec(db, "SELECT COUNT(*) FROM customers;", countCallback, &customerCount, NULL);
-      Serial.print(F("Total customers in DB after update sync: "));
-      Serial.println(customerCount);
+      syncOutput().print(F("Total customers in DB after update sync: "));
+      syncOutput().println(customerCount);
       // Send final success
-      Serial.print(F("ACK|UPSERT_UPDATED_CUSTOMER_JSON|"));
-      Serial.println(customers.size());
-      Serial.flush();
+      syncOutput().print(F("ACK|UPSERT_UPDATED_CUSTOMER_JSON|"));
+      syncOutput().println(customers.size());
+      syncOutput().flush();
     }
   } else {
     sqlite3_exec(db, "ROLLBACK;", NULL, NULL, NULL);
-    Serial.println(F("ERR|UPSERT_FAILED"));
+    syncOutput().println(F("ERR|UPSERT_FAILED"));
   }
   return true;
 }

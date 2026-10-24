@@ -257,6 +257,14 @@ void handleKeypadInput(char key) {
       inputBuffer = "";
       displayEnterAccountScreen();
     }
+    else if (key == '6') {
+      if (startWirelessSync()) {
+        currentState = STATE_WIRELESS_SYNC;
+        displayWirelessSyncScreen();
+      } else {
+        displayWarningScreen(F("WI-FI UNAVAILABLE"), String("Unable to start hotspot"), String("Try restarting device"), F("Press C to return"));
+      }
+    }
     else if (key == 'C' || key == '#') {
       currentState = STATE_MENU;
       displayMenuScreen();

@@ -1,5 +1,6 @@
 #ifndef BILL_TRANSACTION_SYNC_H
 #define BILL_TRANSACTION_SYNC_H
+#include "../sync_transport.h"
 
 #include "../../database/bill_transactions_database.h"
 #include "../../configuration/config.h"
@@ -10,13 +11,13 @@
 
 // Handle EXPORT_BILL_TRANSACTIONS command
 bool handleExportBillTransactions() {
-  Serial.println(F("Exporting bill transactions..."));
+  syncOutput().println(F("Exporting bill transactions..."));
   // Get total count
   sqlite3_stmt* countStmt;
   const char* countSql = "SELECT COUNT(*) FROM bill_transactions WHERE synced = 0 AND last_sync IS NULL;";
   int rc = sqlite3_prepare_v2(db, countSql, -1, &countStmt, NULL);
   if (rc != SQLITE_OK) {
-    Serial.println(F("Failed to prepare count query for bill transactions"));
+    syncOutput().println(F("Failed to prepare count query for bill transactions"));
     return false;
   }
   rc = sqlite3_step(countStmt);
@@ -25,27 +26,27 @@ bool handleExportBillTransactions() {
     totalTransactions = sqlite3_column_int(countStmt, 0);
   }
   sqlite3_finalize(countStmt);
-  const int CHUNK_SIZE = 300;
+  const int CHUNK_SIZE = syncOverWifi() ? 20 : 300;
   int totalChunks = (totalTransactions + CHUNK_SIZE - 1) / CHUNK_SIZE;
-  Serial.print(F("BEGIN_BILL_TRANSACTIONS_JSON|"));
-  Serial.println(totalChunks);
+  syncOutput().print(F("BEGIN_BILL_TRANSACTIONS_JSON|"));
+  syncOutput().println(totalChunks);
 
   // Prepare statement for chunked query
   sqlite3_stmt* stmt;
   const char* sql = "SELECT bill_transaction_id, bill_id, bill_reference_number, type, source, amount, cash_received, change, transaction_date, payment_method, processed_by_device_uid, notes, created_at, updated_at, synced, last_sync FROM bill_transactions WHERE synced = 0 AND last_sync IS NULL ORDER BY bill_transaction_id LIMIT ? OFFSET ?;";
   int rc2 = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
   if (rc2 != SQLITE_OK) {
-    Serial.println(F("Failed to prepare bill transactions query"));
+    syncOutput().println(F("Failed to prepare bill transactions query"));
     return false;
   }
 
   for (int chunk = 0; chunk < totalChunks; ++chunk) {
-    Serial.printf("Heap free before chunk %d: %d\n", chunk, ESP.getFreeHeap());
+    syncOutput().printf("Heap free before chunk %d: %d\n", chunk, ESP.getFreeHeap());
     int offset = chunk * CHUNK_SIZE;
     sqlite3_bind_int(stmt, 1, CHUNK_SIZE);
     sqlite3_bind_int(stmt, 2, offset);
 
-    DynamicJsonDocument doc(65536);  // Larger doc for 150 items
+    DynamicJsonDocument doc(syncOverWifi() ? 16384 : 65536);  // Larger doc for 150 items
     JsonArray arr = doc.to<JsonArray>();
 
     while (sqlite3_step(stmt) == SQLITE_ROW) {
@@ -68,36 +69,34 @@ bool handleExportBillTransactions() {
       obj["last_sync"] = sqlite3_column_text(stmt, 15) ? String((const char*)sqlite3_column_text(stmt, 15)) : "";
     }
 
-    Serial.print(F("BILL_TRANSACTIONS_CHUNK|"));
-    Serial.print(chunk);
-    Serial.print(F("|"));
-    serializeJson(arr, Serial);
-    Serial.println();
+    if (doc.overflowed()) { sqlite3_finalize(stmt); syncOutput().println(F("ERR|JSON_CAPACITY")); return false; }
+    syncOutput().print(F("BILL_TRANSACTIONS_CHUNK|"));
+    syncOutput().print(chunk);
+    syncOutput().print(F("|"));
+    serializeJson(arr, syncOutput());
+    syncOutput().println();
     doc.clear();
 
     // Reset statement for next chunk
     sqlite3_reset(stmt);
     sqlite3_clear_bindings(stmt);
 
-    Serial.printf("Heap free after chunk %d: %d\n", chunk, ESP.getFreeHeap());
+    syncOutput().printf("Heap free after chunk %d: %d\n", chunk, ESP.getFreeHeap());
   }
 
   sqlite3_finalize(stmt);
-  Serial.println(F("END_BILL_TRANSACTIONS_JSON"));
+  syncOutput().println(F("END_BILL_TRANSACTIONS_JSON"));
   
-  // Mark all exported bill transactions as synced (batched)
-  if (!markAllBillTransactionsSynced()) {
-    Serial.println(F("Failed to mark bill transactions as synced"));
-    return false;
-  }
-  Serial.println(F("Bill transactions marked as synced"));
+  // Export is read-only; wait for the website's committed-import acknowledgment.
   return true;
 }
 
 // Handle BILL_TRANSACTIONS_SYNCED command
 bool handleBillTransactionsSynced() {
-  Serial.println(F("Marking bill transactions as synced..."));
-  return markAllBillTransactionsSynced();
+  syncOutput().println(F("Marking bill transactions as synced..."));
+  bool ok = markAllBillTransactionsSynced();
+  syncOutput().println(ok ? F("ACK|BILL_TRANSACTIONS_SYNCED") : F("ERR|BILL_TRANSACTIONS_SYNC_FAILED"));
+  return true;
 }
 
 #endif // BILL_TRANSACTION_SYNC_H

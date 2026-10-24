@@ -1,5 +1,6 @@
 #ifndef BARANGAY_SYNC_H
 #define BARANGAY_SYNC_H
+#include "../sync_transport.h"
 
 #include "../../database/barangay_database.h"
 
@@ -13,7 +14,7 @@ bool handleUpsertBarangay(String payload) {
   int p4 = (p3 >= 0) ? payload.indexOf('|', p3 + 1) : -1;
   int p5 = (p4 >= 0) ? payload.indexOf('|', p4 + 1) : -1;
   if (p1 < 0 || p2 < 0 || p3 < 0 || p4 < 0 || p5 < 0) {
-    Serial.println(F("ERR|BAD_FORMAT"));
+    syncOutput().println(F("ERR|BAD_FORMAT"));
     return true;
   }
 
@@ -37,11 +38,11 @@ bool handleUpsertBarangay(String payload) {
   unsigned long updatedAt = (unsigned long)updatedStr.toInt();
 
   if (upsertBarangayFromSync(brgyId, barangay, prefix, nextNumber, createdAt, updatedAt)) {
-    Serial.print(F("ACK|UPSERT|"));
-    Serial.println(barangay);
+    syncOutput().print(F("ACK|UPSERT|"));
+    syncOutput().println(barangay);
   } else {
-    Serial.print(F("ERR|UPSERT_FAILED|BARANGAY|"));
-    Serial.println(barangay);
+    syncOutput().print(F("ERR|UPSERT_FAILED|BARANGAY|"));
+    syncOutput().println(barangay);
   }
   return true;
 }

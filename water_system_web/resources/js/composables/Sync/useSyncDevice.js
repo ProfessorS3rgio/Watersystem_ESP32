@@ -51,7 +51,8 @@ export function useSyncDevice() {
       }, 8000)
     })
 
-    await sendLine('EXPORT_DEVICE_INFO')
+    promise.catch(() => {})
+    try { await sendLine('EXPORT_DEVICE_INFO') } catch (error) { finishExport(error) }
 
     const lines = await promise
     return parseDeviceInfoLines(lines)

@@ -69,9 +69,18 @@ export function useSyncSettings() {
         String(Number(s.bill_due_days || 5)),
         String(Number(s.disconnection_days || 8))
       ].join('|')
-      await sendLine(line)
-      // Wait for ACK or ERR
-      await waitForAck()
+      // Register the listener before sending: Wi-Fi responses can arrive with sendLine().
+      const ack = waitForAck()
+      ack.catch(() => {})
+      try {
+        await sendLine(line)
+      } catch (error) {
+        clearTimeout(ackTimeoutId.value)
+        ackReject.value?.(error)
+        ackResolve.value = null
+        ackReject.value = null
+      }
+      await ack
       // tiny pacing helps avoid overwhelming the serial buffer
       await new Promise(r => setTimeout(r, 10))
     }

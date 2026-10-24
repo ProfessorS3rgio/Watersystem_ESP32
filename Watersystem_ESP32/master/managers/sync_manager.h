@@ -1,5 +1,6 @@
 #ifndef SYNC_MANAGER_H
 #define SYNC_MANAGER_H
+#include "sync_transport.h"
 
 #include "../database/customers_database.h"
 #include "../database/device_info.h"
@@ -31,14 +32,14 @@ bool handleSyncCommands(String raw) {
   // Debug: show incoming line and length so we can troubleshoot malformed
   // commands (e.g. BAD_CHUNK_FORMAT).  This will appear in the serial log on
   // the host.
-  Serial.print(F("RX_SYNC [len="));
-  Serial.print(raw.length());
-  Serial.print(F("] : "));
+  syncOutput().print(F("RX_SYNC [len="));
+  syncOutput().print(raw.length());
+  syncOutput().print(F("] : "));
   if (raw.length() > 256) {
-    Serial.print(raw.substring(0, 256));
-    Serial.println(F("...[truncated]"));
+    syncOutput().print(raw.substring(0, 256));
+    syncOutput().println(F("...[truncated]"));
   } else {
-    Serial.println(raw);
+    syncOutput().println(raw);
   }
 
   // ---- Sync protocol (do NOT uppercase; payload may be mixed-case) ----
@@ -153,11 +154,11 @@ bool handleSyncCommands(String raw) {
   if (raw.startsWith("NORMALIZE_READING_IDS ")) {
     String payload = raw.substring(String("NORMALIZE_READING_IDS ").length());
     const int separator = payload.indexOf('|');
-    if (separator < 0) { Serial.println(F("Usage: NORMALIZE_READING_IDS YYYY-MM-DD|1,2,3")); return true; }
+    if (separator < 0) { syncOutput().println(F("Usage: NORMALIZE_READING_IDS YYYY-MM-DD|1,2,3")); return true; }
     String targetDate = payload.substring(0, separator); targetDate.trim();
     String readingIds = payload.substring(separator + 1); readingIds.trim();
-    if (normalizeReadingAndLinkedBillDatesByIds(targetDate.c_str(), readingIds.c_str())) Serial.println(F("Selected date repair done."));
-    else Serial.println(F("Selected date repair failed."));
+    if (normalizeReadingAndLinkedBillDatesByIds(targetDate.c_str(), readingIds.c_str())) syncOutput().println(F("Selected date repair done."));
+    else syncOutput().println(F("Selected date repair failed."));
     return true;
   }
 
@@ -179,21 +180,21 @@ bool handleSyncCommands(String raw) {
     targetDate.trim();
 
     if (targetDate.length() != 10) {
-      Serial.println(F("Usage: NORMALIZE_DATES YYYY-MM-DD|YYYY-MM-DD,YYYY-MM-DD"));
+      syncOutput().println(F("Usage: NORMALIZE_DATES YYYY-MM-DD|YYYY-MM-DD,YYYY-MM-DD"));
       return true;
     }
 
     if (normalizeAllReadingAndBillDatesToDate(targetDate.c_str(), selectedDates.c_str())) {
-      Serial.println(F("Date normalize done."));
+      syncOutput().println(F("Date normalize done."));
     } else {
-      Serial.println(F("Date normalize failed."));
+      syncOutput().println(F("Date normalize failed."));
     }
     return true;
   }
 
   // If command not recognized, log it for debugging
-  Serial.print(F("UNKNOWN_COMMAND: "));
-  Serial.println(raw);
+  syncOutput().print(F("UNKNOWN_COMMAND: "));
+  syncOutput().println(raw);
   return false;
 }
 

@@ -16,16 +16,18 @@ void displaySystemToolsScreen() {
 
   tft.setFreeFont(&FreeSans9pt7b);
   tft.setTextColor(COLOR_TEXT);
-  tft.setCursor(20, 60);
+  tft.setCursor(20, 52);
   tft.println(F("1. Set Date/Time"));
-  tft.setCursor(20, 95);
+  tft.setCursor(20, 80);
   tft.println(F("2. Edit Previous"));
-  tft.setCursor(20, 130);
+  tft.setCursor(20, 108);
   tft.println(F("3. Void Payments"));
-  tft.setCursor(20, 165);
+  tft.setCursor(20, 136);
   tft.println(F("4. Extra"));
-  tft.setCursor(20, 200);
+  tft.setCursor(20, 164);
   tft.println(F("5. Void Reading"));
+  tft.setCursor(20, 192);
+  tft.println(F("6. Wireless Sync"));
 
   tft.drawLine(0, 225, 320, 225, COLOR_LINE);
   tft.setTextColor(COLOR_LABEL);

@@ -1,3 +1,4 @@
+import { parseSyncChunks } from '../../utils/parseSyncChunks.js'
 import { ref } from 'vue'
 import { serialService } from '../../services/serialService'
 import { databaseService } from '../../services/databaseService'
@@ -38,7 +39,8 @@ export function useSyncBills() {
       }, 60000)
     })
 
-    await sendLine('EXPORT_BILLS')
+    promise.catch(() => {})
+    try { await sendLine('EXPORT_BILLS') } catch (error) { finishExport(error) }
 
     const lines = await promise
     return parseBillsExportLines(lines)
@@ -63,53 +65,7 @@ export function useSyncBills() {
     exportReject.value = null
   }
 
-  const parseBillsExportLines = (lines) => {
-    const bills = []
-    let chunkBuffer = ''
-    for (const line of lines) {
-      if (line.startsWith('BILLS_CHUNK|')) {
-        const parts = line.split('|', 3)
-        if (parts.length >= 3) {
-          chunkBuffer = parts[2] || ''
-        }
-        continue
-      }
-
-      if (chunkBuffer) {
-        if (line.startsWith('Heap free') || line === 'END_BILLS_JSON' || line === 'BEGIN_BILLS_JSON') {
-          // skip meta
-        } else {
-          chunkBuffer += String(line).trim()
-        }
-      }
-
-      if (chunkBuffer) {
-        try {
-          const chunkBills = JSON.parse(chunkBuffer)
-          for (const bill of chunkBills) {
-            bills.push({
-              bill_id: Number(bill.bill_id || 0),
-              reference_number: bill.reference_number || '',
-              customer_id: Number(bill.customer_id || 0),
-              reading_id: Number(bill.reading_id || 0),
-              device_uid: bill.device_uid || '',
-              bill_date: bill.bill_date || '',
-              rate_per_m3: Number(bill.rate_per_m3 || 0),
-              charges: Number(bill.charges || 0),
-              penalty: Number(bill.penalty || 0),
-              total_due: Number(bill.total_due || 0),
-              status: bill.status || 'pending',
-              customer_account_number: bill.customer_account_number || '',
-            })
-          }
-          chunkBuffer = '' // Clear after successful parse
-        } catch (e) {
-          // Not complete yet, continue accumulating
-        }
-      }
-    }
-    return bills
-  }
+  const parseBillsExportLines = lines => parseSyncChunks(lines, 'BEGIN_BILLS_JSON', 'BILLS_CHUNK|')
 
   const syncBillsFromDevice = async () => {
     const deviceBills = await exportBillsFromDevice()
@@ -123,22 +79,23 @@ export function useSyncBills() {
     const processed = await databaseService.upsertBillsToDatabase(deviceBills)
     console.log('Bills synced to database, processed:', processed)
 
-    // Mark bills as synced in web database
-    const billIds = deviceBills.map(b => b.bill_id)
-    const marked = await databaseService.markBillsSynced(billIds)
-    console.log('Bills marked as synced in web database:', marked)
+    if (Number(processed) !== deviceBills.length) {
+      throw new Error('Some bills could not be imported; device records were left unsynced')
+    }
 
+    await sendLine('BILLS_SYNCED')
     return processed
   }
 
   const handleDeviceLine = (line) => {
     if (!exportInProgress.value) return
 
-    if (line === exportBeginMarker.value) {
-      exportLines.value = []
+    if (line.startsWith(exportBeginMarker.value)) {
+      exportLines.value = [line]
       return
     }
 
+    if (line.startsWith('ERR|')) { finishExport(new Error(line)); return }
     if (line === exportEndMarker.value) {
       finishExport(null)
       return

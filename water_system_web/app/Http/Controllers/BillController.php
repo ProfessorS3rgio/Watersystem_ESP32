@@ -1051,6 +1051,10 @@ public function monthlyReport(Request $request)
             $bill->save();
         }
 
+        // Mark the exact website row resolved by reference number, never a device-local ID.
+        $bill->Synced = true;
+        $bill->last_sync = now();
+        $bill->save();
         $processed++;
     }
 

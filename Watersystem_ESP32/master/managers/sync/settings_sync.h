@@ -1,5 +1,6 @@
 #ifndef SETTINGS_SYNC_H
 #define SETTINGS_SYNC_H
+#include "../sync_transport.h"
 
 #include "../../database/settings_database.h"
 
@@ -10,7 +11,7 @@ bool handleUpsertSettings(String payload) {
   int p1 = payload.indexOf('|');
   int p2 = (p1 >= 0) ? payload.indexOf('|', p1 + 1) : -1;
   if (p1 < 0 || p2 < 0) {
-    Serial.println(F("ERR|BAD_FORMAT"));
+    syncOutput().println(F("ERR|BAD_FORMAT"));
     return true;
   }
 
@@ -27,9 +28,9 @@ bool handleUpsertSettings(String payload) {
   int disconnectionDays = disconnectionDaysStr.toInt();
 
   if (upsertSettingFromSync(settingId, billDueDays, disconnectionDays)) {
-    Serial.println(F("ACK|UPSERT|Settings"));
+    syncOutput().println(F("ACK|UPSERT|Settings"));
   } else {
-    Serial.println(F("ERR|UPSERT_FAILED|SETTINGS"));
+    syncOutput().println(F("ERR|UPSERT_FAILED|SETTINGS"));
   }
   return true;
 }

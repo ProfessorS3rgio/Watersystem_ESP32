@@ -53,7 +53,13 @@ export function useSyncCustomers() {
         attempt++
         try {
           const ackPromise = waitForChunkAck(chunkIndex, totalChunks)
-          await sendLine(line)
+          ackPromise.catch(() => {})
+          try { await sendLine(line) } catch (error) {
+            clearTimeout(chunkAckTimeoutId.value)
+            chunkAckReject.value?.(error)
+            chunkAckResolve.value = null
+            chunkAckReject.value = null
+          }
           await ackPromise
           break
         } catch (error) {

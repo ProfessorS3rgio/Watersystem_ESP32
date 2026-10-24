@@ -1,9 +1,9 @@
 <template>
   <AppSidebar v-slot="{ isDark }">
     <div class="sync-workspace min-h-full space-y-6 p-5 sm:p-8 lg:p-10" :data-dark="isDark">
-      <header class="flex flex-wrap items-start justify-between gap-4"><div><p class="mb-2 text-xs font-bold uppercase tracking-[.2em] text-teal-600">DMBC Water · Field operations</p><h1 class="text-3xl font-extrabold tracking-tight sm:text-4xl">Device sync center</h1><p class="mt-2 text-sm sync-muted">Bring your field records and association data together.</p></div><span class="sync-soft rounded-xl px-4 py-2 text-xs font-semibold">USB serial · 115200 baud</span></header>
+      <header class="flex flex-wrap items-start justify-between gap-4"><div><p class="mb-2 text-xs font-bold uppercase tracking-[.2em] text-teal-600">DMBC Water · Field operations</p><h1 class="text-3xl font-extrabold tracking-tight sm:text-4xl">Device sync center</h1><p class="mt-2 text-sm sync-muted">Bring your field records and association data together.</p></div><span class="sync-soft rounded-xl px-4 py-2 text-xs font-semibold">{{ transportMode === 'wifi' ? 'Wi-Fi hotspot · 192.168.4.1' : 'USB serial · 115200 baud' }}</span></header>
       <p v-if="navigationNotice && deviceBusy" role="status" class="rounded-xl bg-amber-50 p-4 text-sm text-amber-800">{{ navigationNotice }}</p>
-      <SyncConnectionCard :connected="isConnected" :connecting="isConnecting" :busy="deviceBusy" :syncing="isSyncing" :supported="serialSupported" :port="connectedPort" :error="connectionError" :stage="syncStage" :status="syncStatus" :sync-error="syncError" @connect="connectDevice" @disconnect="disconnectDevice" @sync="handleSyncData" />
+      <SyncConnectionCard v-model:transport="transportMode" v-model:pairingCode="wifiPairingCode" :connected="isConnected" :connecting="isConnecting" :busy="deviceBusy" :syncing="isSyncing" :supported="serialSupported" :port="connectedPort" :error="connectionError" :stage="syncStage" :status="syncStatus" :sync-error="syncError" @connect="connectDevice" @disconnect="disconnectDevice" @sync="handleSyncData" />
       <nav aria-label="Device workspace" class="sync-panel flex flex-wrap gap-2 p-2">
         <RouterLink v-for="tab in [{ key: 'sync', label: 'Sync overview' }, { key: 'inspect', label: 'Reading inspector' }, { key: 'tools', label: 'Maintenance' }]" :key="tab.key" :to="{ path: '/sync', query: tab.key === 'sync' ? {} : { view: tab.key } }" :aria-current="activeWorkspace === tab.key && $route.path !== '/sync/normalize-dates' ? 'page' : undefined" class="flex-1 min-w-36 rounded-xl px-4 py-3 text-sm font-bold transition" :class="activeWorkspace === tab.key && $route.path !== '/sync/normalize-dates' ? 'bg-teal-700 text-white' : 'sync-muted hover:bg-teal-500/10'">{{ tab.label }}</RouterLink>
         <RouterLink to="/sync/normalize-dates" class="flex-1 min-w-36 rounded-xl px-4 py-3 text-center text-sm font-bold" :class="$route.path === '/sync/normalize-dates' ? 'bg-teal-700 text-white' : 'sync-muted hover:bg-teal-500/10'">Date normalization</RouterLink>
@@ -120,11 +120,11 @@
 
 
       <section v-if="activeWorkspace === 'tools' && $route.path !== '/sync/normalize-dates'" class="sync-panel p-6">
-        <h2 class="text-lg font-bold">Device maintenance</h2><p class="mt-1 text-sm sync-muted">Tools for troubleshooting and managing the connected device.</p>
+        <h2 class="text-lg font-bold">Device maintenance</h2><p class="mt-1 text-sm sync-muted">Tools for troubleshooting and managing the connected device.</p><p v-if="transportMode === 'wifi'" class="mt-2 text-xs text-teal-600">Use USB for device restart and SD formatting.</p>
         <div class="mt-6 grid gap-4 md:grid-cols-3">
           <article class="sync-soft rounded-2xl p-5"><h3 class="font-bold">Reset sync status</h3><p class="mt-2 text-sm leading-6 sync-muted">Mark website records as unsynced so they can be sent again.</p><button @click="showResetConfirm = true" :disabled="deviceBusy" class="sync-secondary mt-5 disabled:opacity-50">Reset web sync flags</button></article>
-          <article class="sync-soft rounded-2xl p-5"><h3 class="font-bold">Restart device</h3><p class="mt-2 text-sm leading-6 sync-muted">Restart the ESP32 and reconnect after it finishes booting.</p><button @click="showRestartConfirm = true" :disabled="!isConnected || deviceBusy" class="sync-secondary mt-5 disabled:opacity-50">Restart ESP32</button></article>
-          <article class="rounded-2xl border border-red-500/25 bg-red-500/5 p-5"><h3 class="font-bold text-red-500">Format SD card</h3><p class="mt-2 text-sm leading-6 sync-muted">Permanently erase device records, customers, and settings from the card.</p><button @click="showFormatConfirm = true" :disabled="!isConnected || deviceBusy" class="mt-5 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50">Format SD card</button></article>
+          <article class="sync-soft rounded-2xl p-5"><h3 class="font-bold">Restart device</h3><p class="mt-2 text-sm leading-6 sync-muted">Restart the ESP32 and reconnect after it finishes booting.</p><button @click="showRestartConfirm = true" :disabled="!isConnected || deviceBusy || transportMode === 'wifi'" class="sync-secondary mt-5 disabled:opacity-50">Restart ESP32</button></article>
+          <article class="rounded-2xl border border-red-500/25 bg-red-500/5 p-5"><h3 class="font-bold text-red-500">Format SD card</h3><p class="mt-2 text-sm leading-6 sync-muted">Permanently erase device records, customers, and settings from the card.</p><button @click="showFormatConfirm = true" :disabled="!isConnected || deviceBusy || transportMode === 'wifi'" class="mt-5 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50">Format SD card</button></article>
         </div>
         <details class="mt-6 border-t border-inherit pt-5"><summary class="cursor-pointer text-sm font-bold text-teal-600">Advanced serial command</summary><form class="mt-4 flex flex-wrap gap-3" @submit.prevent="!deviceBusy && sendCustomCommand(addLog)"><input v-model="customCommand" :disabled="deviceBusy || !isConnected" aria-label="Serial command" placeholder="Enter a device command…" class="min-w-0 flex-1"/><button :disabled="!isConnected || deviceBusy || !customCommand.trim()" class="sync-primary disabled:opacity-50">Send command</button></form></details>
       </section>
@@ -371,6 +371,8 @@ export default {
       connectionError: '',
       navigationNotice: '',
       serialSupported: 'serial' in navigator,
+      transportMode: localStorage.getItem('dmbc-sync-transport') === 'wifi' ? 'wifi' : 'usb',
+      wifiPairingCode: '',
 
       showSuccessDialog: false,
       isInspecting: false,
@@ -407,6 +409,7 @@ export default {
     this.unlistenStatus = serialService.onStatus((st) => {
       this.isConnected = !!st.isConnected
       this.connectedPort = st.connectedPortLabel || ''
+      if (st.isConnected) this.transportMode = st.transport || 'usb'
     })
 
     // Try to reuse a previously-granted port without prompting again.
@@ -584,9 +587,10 @@ export default {
       this.isConnecting = true
       this.connectionError = ''
       try {
-        await serialService.connect({ baudRate: 115200 })
+        if (this.transportMode === 'wifi') await serialService.connectWifi(this.wifiPairingCode.trim())
+        else await serialService.connect({ baudRate: 115200 })
         this.addLog('Device connected successfully')
-        this.addLog('Listening for ESP32 serial output...')
+        this.addLog('Receiving ESP32 sync protocol responses over ' + this.transportMode.toUpperCase() + '...')
 
         await this.refreshDeviceInfo()
       } catch (error) {
