@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Services\AuditLogService;
 use App\Services\BillingStatusService;
+use App\Services\ReceiptService;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
@@ -684,7 +685,7 @@ public function monthlyReport(Request $request)
         // The cashier modal collects the balance currently shown to the user.
         // Never add a new hidden penalty after that amount has been entered.
         // Any penalty already recorded on the bill remains part of its balance.
-        DB::transaction(function () use ($bill, $validated, $audit) {
+        $payment = DB::transaction(function () use ($bill, $validated, $audit) {
             $bill->refresh();
             $balance = max((float) ($bill->balance_due ?? $bill->total_due), 0);
             $amount = (float) $validated['amount_paid'];
@@ -705,7 +706,7 @@ public function monthlyReport(Request $request)
                 'source' => 'office',
             ]);
 
-            BillTransaction::create([
+            return BillTransaction::create([
                 'bill_id' => $bill->bill_id,
                 'bill_reference_number' => $bill->reference_number,
                 'device_uid' => $bill->device_uid,
@@ -723,6 +724,7 @@ public function monthlyReport(Request $request)
 
         return response()->json([
             'data' => $bill->fresh(),
+            'receipt' => app(ReceiptService::class)->build($bill->fresh(), $payment),
         ]);
     }
 
@@ -906,6 +908,8 @@ public function monthlyReport(Request $request)
     {
         $transaction = BillTransaction::where('bill_reference_number', $bill->reference_number)
             ->where('type', 'payment')
+            ->orderByDesc('transaction_date')
+            ->orderByDesc('bill_transaction_id')
             ->first();
 
         if (!$transaction) {
@@ -914,7 +918,10 @@ public function monthlyReport(Request $request)
             ], 404);
         }
 
-        return response()->json($transaction);
+        return response()->json([
+            ...$transaction->toArray(),
+            'receipt' => app(ReceiptService::class)->build($bill, $transaction),
+        ]);
     }
 
     /**

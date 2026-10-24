@@ -1,5 +1,6 @@
 import { ref, computed, onMounted } from 'vue'
 import { billBalance } from '../utils/billingPresentation.js'
+import { openReceiptWindow, printReceiptDocument } from '../utils/receipt.js'
 
 export function useBilling() {
     // Tab management
@@ -170,11 +171,14 @@ export function useBilling() {
 
         if (response.ok) {
           const data = await response.json()
-          paymentReceipt.value = {
+          paymentReceipt.value = data.receipt || {
             ...data.data,
             reference_number: bill.reference_number,
             amount_paid: amount,
             customer_name: bill.customer?.customer_name || selectedCustomer.value?.customer_name || 'Customer',
+            account_no: bill.customer?.account_no || selectedCustomer.value?.account_no,
+            // The payment endpoint returns a bill, not a transaction ID.
+            id: null,
             cash_received: received,
             change: change,
             created_at: new Date().toISOString()
@@ -241,7 +245,9 @@ export function useBilling() {
     }
 
     const printBill = async (bill) => {
+      let printWindow
       try {
+        printWindow = openReceiptWindow()
         // Fetch payment transaction for this bill
         const response = await fetch(`/bills/${bill.id}/payment`, {
           headers: { 'Accept': 'application/json' },
@@ -249,6 +255,7 @@ export function useBilling() {
         })
 
         if (!response.ok) {
+          printWindow.close()
           alert('No payment found for this bill')
           return
         }
@@ -256,20 +263,23 @@ export function useBilling() {
         const paymentData = await response.json()
 
         // Create receipt data from bill and payment
-        const receiptData = {
+        const receiptData = paymentData.receipt || {
+          id: paymentData.bill_transaction_id,
+          account_no: bill.customer?.account_no,
           reference_number: bill.reference_number,
           amount_paid: paymentData.amount ?? bill.total_due,
           cash_received: paymentData.cash_received,
-          change: paymentData.change_amount || paymentData.change,
+          change: paymentData.change_amount ?? paymentData.change,
           created_at: paymentData.created_at || paymentData.transaction_date
         }
 
         // Print to thermal printer
-        await printToThermal(receiptData, bill.customer?.customer_name)
+        await printReceiptDocument(receiptData, bill.customer?.customer_name, printWindow)
 
       } catch (error) {
+        printWindow?.close()
         console.error('Error printing bill:', error)
-        alert('Failed to print receipt')
+        alert(error?.message || 'Failed to print receipt')
       }
     }
 
@@ -471,32 +481,10 @@ export function useBilling() {
 
     const printToThermal = async (receiptData, customerName) => {
       try {
-        // Send print request to local Node.js print server
-        const response = await fetch('http://localhost:3000/print', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            reference_number: receiptData.reference_number,
-            customer_name: customerName,
-            amount_paid: receiptData.amount_paid,
-            cash_received: receiptData.cash_received,
-            change: receiptData.change,
-            created_at: receiptData.created_at
-          })
-        });
-
-        if (response.ok) {
-          const result = await response.json();
-          alert(result.message || 'Receipt printed successfully');
-        } else {
-          const error = await response.json();
-          throw new Error(error.error || 'Print failed');
-        }
+        await printReceiptDocument(receiptData, customerName)
       } catch (error) {
         console.error('Print failed:', error);
-        alert('Failed to print receipt. Make sure the local print server is running on port 3000.');
+        alert(error?.message || 'Failed to prepare the receipt. Please try again.');
       }
     }
 
