@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Setting;
 use Illuminate\Http\Request;
 use App\Services\AuditLogService;
+use Illuminate\Support\Facades\DB;
 
 class SettingsController extends Controller
 {
@@ -45,14 +46,17 @@ class SettingsController extends Controller
             'penalty_enabled' => ['required', 'boolean'],
         ]);
 
-        $before = $row->getAttributes();
-        $row->fill($validated);
-        $row->save();
-        $audit->record('settings_updated', $row, $before, $row->getAttributes());
+        return DB::transaction(function () use ($row, $validated, $audit) {
+            $before = $row->getAttributes();
+            $row->fill($validated);
+            $row->Synced = false;
+            $row->save();
+            $audit->record('settings_updated', $row, $before, $row->getAttributes());
 
-        return response()->json([
-            'data' => $row,
-        ]);
+            return response()->json([
+                'data' => $row,
+            ]);
+        });
     }
 
     /**

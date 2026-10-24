@@ -67,16 +67,18 @@ class BackupController extends Controller
             return response()->json(['message' => 'Restore point is invalid.'], 422);
         }
 
-        DB::transaction(function () use ($payload) {
+        DB::transaction(function () use ($payload, $audit, $snapshot, $record) {
             $this->setForeignKeyChecks(false);
             try {
                 foreach (array_reverse(self::SNAPSHOT_TABLES) as $table) {
+                    if ($table === 'audit_logs') continue;
                     if (DB::getSchemaBuilder()->hasTable($table)) {
                         DB::table($table)->delete();
                     }
                 }
 
                 foreach (self::SNAPSHOT_TABLES as $table) {
+                    if ($table === 'audit_logs') continue;
                     if (!DB::getSchemaBuilder()->hasTable($table)) continue;
                     $rows = $payload['tables'][$table] ?? [];
                     foreach (array_chunk($rows, 500) as $chunk) {
@@ -86,12 +88,13 @@ class BackupController extends Controller
             } finally {
                 $this->setForeignKeyChecks(true);
             }
-        });
 
-        $audit->record('restore_point_restored', 'BackupSnapshot', null, ['id' => $snapshot], [
-            'auditable_id' => $snapshot,
-            'row_count' => $record->row_count,
-        ]);
+            $audit->record('restore_point_restored', 'BackupSnapshot', null, ['id' => $snapshot], [
+                'auditable_id' => $snapshot,
+                'row_count' => $record->row_count,
+                'audit_history_preserved' => true,
+            ]);
+        });
 
         return response()->json(['message' => 'Restore point restored successfully.']);
     }

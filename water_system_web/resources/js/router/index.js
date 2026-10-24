@@ -81,7 +81,7 @@ export const router = createRouter({
     {
       path: '/settings',
       name: 'settings',
-      component: Settings,
+      redirect: '/settings/billing',
       meta: { requiresAuth: true }
     },
     {

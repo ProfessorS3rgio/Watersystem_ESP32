@@ -91,6 +91,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/sync-runs', [SyncRunController::class, 'start']);
     Route::post('/sync-runs/{run}/finish', [SyncRunController::class, 'finish']);
     Route::get('/audit-logs', [AuditLogController::class, 'index']);
+    Route::get('/audit-logs/{auditLog}', [AuditLogController::class, 'show'])->whereNumber('auditLog');
     Route::get('/backup/export', [BackupController::class, 'export']);
     Route::post('/backup/restore-points', [BackupController::class, 'createRestorePoint']);
     Route::get('/backup/restore-points', [BackupController::class, 'restorePoints']);

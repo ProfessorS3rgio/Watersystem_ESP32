@@ -688,6 +688,7 @@ public function monthlyReport(Request $request)
         $payment = DB::transaction(function () use ($bill, $validated, $audit) {
             $bill->refresh();
             $balance = max((float) ($bill->balance_due ?? $bill->total_due), 0);
+            $before = $bill->getAttributes();
             $amount = (float) $validated['amount_paid'];
 
             if ($amount <= 0 || $amount > $balance + 0.01) {
@@ -699,7 +700,7 @@ public function monthlyReport(Request $request)
             $bill->status = $bill->balance_due <= 0.01 ? 'Paid' : 'Partially Paid';
             $bill->save();
 
-            $audit->record('payment_recorded', $bill, null, $bill->getAttributes(), [
+            $audit->record('payment_recorded', $bill, $before, $bill->getAttributes(), [
                 'amount' => $amount,
                 'cash_received' => $validated['cash_received'],
                 'change' => $validated['change_amount'],
@@ -809,6 +810,7 @@ public function monthlyReport(Request $request)
 
         DB::transaction(function () use ($bill, $penalty, $audit) {
             $bill->refresh();
+            $before = $bill->getAttributes();
             $bill->penalty = $penalty;
             $bill->total_due = (float) $bill->charges + (float) $bill->penalty;
             $amount = max((float) $bill->total_due - (float) ($bill->amount_paid ?? 0), 0);
@@ -817,7 +819,7 @@ public function monthlyReport(Request $request)
             $bill->status = 'Paid';
             $bill->save();
 
-            $audit->record('bill_marked_paid', $bill, null, $bill->getAttributes(), [
+            $audit->record('bill_marked_paid', $bill, $before, $bill->getAttributes(), [
                 'amount' => $amount,
                 'source' => 'office',
             ]);
@@ -859,13 +861,14 @@ public function monthlyReport(Request $request)
         DB::transaction(function () use ($bill, $validated, $audit) {
             $bill->refresh();
             $paidAmount = (float) ($bill->amount_paid ?? 0);
+            $before = $bill->getAttributes();
             $bill->amount_paid = 0;
             $bill->balance_due = (float) $bill->total_due;
             $bill->status = 'Pending';
             $bill->void_reason = $validated['reason'] ?? null;
             $bill->save();
 
-            $audit->record('bill_voided', $bill, null, $bill->getAttributes(), [
+            $audit->record('bill_voided', $bill, $before, $bill->getAttributes(), [
                 'reason' => $validated['reason'] ?? null,
                 'source' => 'office',
             ]);

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\CustomerType;
 use Illuminate\Http\Request;
 use App\Services\AuditLogService;
+use Illuminate\Support\Facades\DB;
 
 class CustomerTypeController extends Controller
 {
@@ -24,13 +25,15 @@ class CustomerTypeController extends Controller
             'penalty' => ['required', 'numeric', 'min:0', 'max:1000000'],
         ]);
 
-        $before = $customerType->getAttributes();
-        $customerType->fill($validated);
-        $customerType->Synced = false;
-        $customerType->save();
-        $audit->record('customer_category_updated', $customerType, $before, $customerType->getAttributes());
+        return DB::transaction(function () use ($customerType, $validated, $audit) {
+            $before = $customerType->getAttributes();
+            $customerType->fill($validated);
+            $customerType->Synced = false;
+            $customerType->save();
+            $audit->record('customer_category_updated', $customerType, $before, $customerType->getAttributes());
 
-        return response()->json(['data' => $customerType]);
+            return response()->json(['data' => $customerType]);
+        });
     }
 
     /**

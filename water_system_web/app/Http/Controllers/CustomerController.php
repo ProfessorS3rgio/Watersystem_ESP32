@@ -167,7 +167,7 @@ class CustomerController extends Controller
     /**
      * Store a newly created resource in storage.
      */
-    public function store(Request $request)
+    public function store(Request $request, AuditLogService $audit)
     {
         $validated = $request->validate([
             'customer_name' => ['required', 'string', 'max:255'],
@@ -179,7 +179,7 @@ class CustomerController extends Controller
             'deduction_id' => ['nullable', 'integer', 'exists:deduction,deduction_id'],
         ]);
 
-        $customer = DB::transaction(function () use ($validated) {
+        $customer = DB::transaction(function () use ($validated, $audit) {
             // Get barangay sequence and generate account number
             $barangay = BarangaySequence::findOrFail($validated['brgy_id']);
             $accountNo = $barangay->generateAccountNumber();
@@ -202,10 +202,11 @@ class CustomerController extends Controller
             $barangay->incrementSequence();
 
             // Attach deduction to customer_deduction table if provided
-            if ($validated['deduction_id']) {
+            if (!empty($validated['deduction_id'])) {
                 $customer->deductions()->attach($validated['deduction_id']);
             }
 
+            $audit->record('customer_created', $customer, null, $customer->getAttributes());
             return $customer;
         });
 
@@ -288,7 +289,7 @@ class CustomerController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, string $id)
+    public function update(Request $request, string $id, AuditLogService $audit)
     {
         $customer = Customer::findOrFail($id);
 
@@ -306,7 +307,8 @@ class CustomerController extends Controller
 
         $deductionId = $validated['deduction_id'] ?? null;
 
-        DB::transaction(function () use ($customer, $validated, $deductionId) {
+        DB::transaction(function () use ($customer, $validated, $deductionId, $audit) {
+            $before = $customer->getAttributes();
             $latestReading = Reading::where('customer_id', $customer->customer_id)
                 ->orderByDesc('reading_at')
                 ->orderByDesc('reading_id')
@@ -346,6 +348,7 @@ class CustomerController extends Controller
             ]);
 
             if ($latestReading && $currentReadingInput !== null) {
+                $readingBefore = $latestReading->getAttributes();
                 $currentReading = (int) $currentReadingInput;
                 $latestReading->previous_reading = $previousReading;
                 $latestReading->current_reading = $currentReading;
@@ -353,6 +356,7 @@ class CustomerController extends Controller
                 $latestReading->customer_account_number = $validated['account_no'];
                 $latestReading->Synced = false;
                 $latestReading->save();
+                $audit->record('reading_updated', $latestReading, $readingBefore, $latestReading->getAttributes(), ['account_no' => $customer->account_no]);
             }
 
             // Sync deductions in customer_deduction table
@@ -361,6 +365,9 @@ class CustomerController extends Controller
             } else {
                 $customer->deductions()->detach();
             }
+            $action = ($before['status'] ?? null) === $customer->status ? 'customer_updated'
+                : ($customer->status === 'active' ? 'customer_reconnected' : 'customer_disconnected');
+            $audit->record($action, $customer, $before, $customer->getAttributes());
         });
 
         return response()->json([
@@ -371,14 +378,14 @@ class CustomerController extends Controller
     /**
      * Swap account numbers between two customers.
      */
-    public function swapAccountNo(Request $request)
+    public function swapAccountNo(Request $request, AuditLogService $audit)
     {
         $validated = $request->validate([
             'source_customer_id' => ['required', 'integer', 'exists:customer,customer_id'],
             'target_customer_id' => ['required', 'integer', 'different:source_customer_id', 'exists:customer,customer_id'],
         ]);
 
-        return DB::transaction(function () use ($validated) {
+        return DB::transaction(function () use ($validated, $audit) {
             $customers = Customer::whereIn('customer_id', [
                 $validated['source_customer_id'],
                 $validated['target_customer_id'],
@@ -393,6 +400,7 @@ class CustomerController extends Controller
 
             $sourceAccount = $source->account_no;
             $targetAccount = $target->account_no;
+            $before = ['source' => $source->getAttributes(), 'target' => $target->getAttributes()];
 
             if ($sourceAccount === $targetAccount) {
                 return response()->json(['message' => 'Account numbers are already the same.'], 422);
@@ -417,6 +425,7 @@ class CustomerController extends Controller
                 'account_no' => $targetAccount,
                 'Synced' => false,
             ]);
+            $audit->record('customer_accounts_swapped', $source, $before, ['source' => $source->getAttributes(), 'target' => $target->getAttributes()], ['target_customer_id' => $target->customer_id, 'source_account_no' => $sourceAccount, 'target_account_no' => $targetAccount]);
 
             return response()->json([
                 'data' => [
@@ -466,10 +475,14 @@ class CustomerController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(string $id)
+    public function destroy(string $id, AuditLogService $audit)
     {
         $customer = Customer::findOrFail($id);
-        $customer->delete();
+        DB::transaction(function () use ($customer, $audit) {
+            $before = $customer->getAttributes();
+            $customer->delete();
+            $audit->record('customer_deleted', $customer, $before, null);
+        });
 
         return response()->json([
             'message' => 'Customer deleted successfully',

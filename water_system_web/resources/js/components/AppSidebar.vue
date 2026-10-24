@@ -18,7 +18,7 @@
               </button>
               <RouterLink v-else :to="item.to" class="dmbc-nav-item" :class="{ 'is-active': route.path === item.to }" :aria-current="route.path === item.to ? 'page' : undefined"><svg class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path :d="item.icon" stroke-linecap="round" stroke-linejoin="round"/></svg>{{ item.label }}</RouterLink>
               <div v-if="item.children && openGroups[item.label]" :id="'nav-' + item.key" class="ml-5 mt-2 space-y-1 border-l border-teal-500/20 pl-4">
-                <RouterLink v-for="child in item.children" :key="child.to" :to="child.to" class="dmbc-nav-child" :class="{ 'is-active': route.path === child.to }" :aria-current="route.path === child.to ? 'page' : undefined">{{ child.label }}</RouterLink>
+                <RouterLink v-for="child in item.children" :key="child.to" :to="child.to" class="dmbc-nav-child" :class="{ 'is-active': route.path === child.to }" :aria-current="route.path === child.to ? 'page' : undefined"><span class="flex items-center gap-2"><svg v-if="child.icon" class="h-4 w-4 shrink-0 text-teal-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path :d="child.icon" stroke-linecap="round" stroke-linejoin="round"/></svg><span>{{ child.label }}</span></span><span v-if="child.description" class="mt-1 block text-[10px] font-normal leading-4 opacity-70">{{ child.description }}</span></RouterLink>
               </div>
             </div>
           </div>
@@ -44,6 +44,7 @@
 <script setup>
 import { ref, reactive, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { settingsSections } from '../config/settingsSections.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -63,9 +64,7 @@ const navigation = [
   ] },
   { label: 'Operations', items: [
     { label: 'Device sync', key: 'sync', prefix: '/sync', icon: 'M20 7h-9m9 0-3-3m3 3-3 3M4 17h9m-9 0 3-3m-3 3 3 3M4 7a8 8 0 0 1 13-4M20 17a8 8 0 0 1-13 4', children: [{ label: 'Sync workspace', to: '/sync' }, { label: 'Date normalization', to: '/sync/normalize-dates' }] },
-    { label: 'Settings', key: 'settings', prefix: '/settings', icon: 'M4 7h16M4 17h16M8 4v6m8 4v6', children: [
-      { label: 'Billing rules', to: '/settings/billing' }, { label: 'Customer categories', to: '/settings/categories' }, { label: 'Data backup', to: '/settings/backup' }
-    ] },
+    { label: 'Settings', key: 'settings', prefix: '/settings', icon: 'M4 7h16M4 17h16M8 4v6m8 4v6', children: settingsSections },
     { label: 'Audit logs', to: '/audit-logs', icon: 'M5 3h14v18H5V3Zm4 5h6m-6 4h6m-6 4h4' }
   ] }
 ]
