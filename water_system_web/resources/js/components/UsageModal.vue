@@ -1,9 +1,9 @@
 <template>
-  <div v-if="isOpen" class="fixed inset-0 z-50">
+  <div v-if="isOpen" :data-dark="isDark" class="dmbc-modal fixed inset-0 z-50">
     <div class="absolute inset-0 bg-black/50" @click="$emit('close')"></div>
     <div class="absolute inset-0 flex items-center justify-center p-4">
-      <div class="flex max-h-[96vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl shadow-2xl" :class="isDark ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'">
-        <div class="shrink-0 px-6 py-3 border-b" :class="isDark ? 'border-gray-800' : 'border-gray-200'">
+      <div class="dmbc-dialog flex max-h-[96vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl shadow-2xl" :class="isDark ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'">
+        <div class="dmbc-dialog-header shrink-0 px-6 py-3 border-b" :class="isDark ? 'border-gray-800' : 'border-gray-200'">
           <div class="flex items-center justify-between">
             <div>
               <h3 class="text-lg font-semibold">Usage History</h3>
@@ -88,7 +88,7 @@
                       <button
                         v-if="reading.bill_id && String(reading.status || '').toLowerCase() !== 'paid' && String(reading.status || '').toLowerCase() !== 'void'"
                         @click="openCashier(reading)"
-                        class="text-indigo-600 hover:text-indigo-900 font-medium text-xs px-2 py-1 rounded"
+                        class="text-teal-600 hover:text-teal-900 font-medium text-xs px-2 py-1 rounded"
                       >
                         Mark Paid
                       </button>
@@ -119,22 +119,22 @@
     </div>
   </div>
 
-  <div v-if="cashierReading" class="fixed inset-0 z-[60]">
+  <div v-if="cashierReading" :data-dark="isDark" class="dmbc-modal fixed inset-0 z-[60]">
     <div class="absolute inset-0 bg-black/60" @click="closeCashier"></div>
     <div class="absolute inset-0 flex items-center justify-center p-4">
-      <form class="w-full max-w-md rounded-xl p-6 shadow-2xl" :class="isDark ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'" @submit.prevent="submitCashier">
+      <form class="dmbc-dialog w-full max-w-md rounded-xl p-6 shadow-2xl" :class="isDark ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'" @submit.prevent="submitCashier">
         <div class="flex items-start justify-between gap-4">
           <div>
-            <p class="text-xs font-semibold uppercase tracking-wider text-indigo-500">Cashier payment</p>
+            <p class="text-xs font-semibold uppercase tracking-wider text-teal-500">Cashier payment</p>
             <h3 class="mt-1 text-xl font-semibold">Record payment</h3>
             <p class="mt-1 text-sm" :class="isDark ? 'text-gray-400' : 'text-gray-600'">{{ cashierReading.customer_name || customer?.customer_name }}</p>
           </div>
           <button type="button" class="text-sm" :class="isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'" @click="closeCashier">Cancel</button>
         </div>
 
-        <div class="mt-5 rounded-lg p-4" :class="isDark ? 'bg-gray-800' : 'bg-indigo-50'">
-          <p class="text-sm" :class="isDark ? 'text-gray-300' : 'text-indigo-700'">Amount to collect</p>
-          <p class="mt-1 text-3xl font-bold" :class="isDark ? 'text-white' : 'text-indigo-900'">₱{{ formatMoney(cashierAmountDue) }}</p>
+        <div class="mt-5 rounded-lg p-4" :class="isDark ? 'bg-gray-800' : 'bg-teal-50'">
+          <p class="text-sm" :class="isDark ? 'text-gray-300' : 'text-teal-700'">Amount to collect</p>
+          <p class="mt-1 text-3xl font-bold" :class="isDark ? 'text-white' : 'text-teal-900'">₱{{ formatMoney(cashierAmountDue) }}</p>
         </div>
 
         <label class="mt-5 block text-sm font-medium">Cash received
@@ -148,7 +148,7 @@
 
         <div class="mt-6 flex justify-end gap-3">
           <button type="button" class="rounded-lg px-4 py-2" :class="isDark ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-100 hover:bg-gray-200'" @click="closeCashier">Cancel</button>
-          <button type="submit" :disabled="cashReceived <= 0 || changeAmount < 0" class="rounded-lg bg-indigo-600 px-5 py-2 font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50">Record payment</button>
+          <button type="submit" :disabled="cashReceived <= 0 || changeAmount < 0" class="rounded-lg bg-teal-600 px-5 py-2 font-medium text-white hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-50">Record payment</button>
         </div>
       </form>
     </div>

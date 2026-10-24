@@ -10,3 +10,124 @@
     --font-sans: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
         'Noto Color Emoji';
 }
+
+/* Shared DMBC dialog treatment, enabled only on branded modal roots. */
+.billing-workspace { --billing-surface: #fff; --billing-soft: #f1f8f7; --billing-line: #dcebe8; --billing-text: #173c39; }
+.billing-workspace[data-dark="true"] { --billing-surface: #0f202b; --billing-soft: #162f38; --billing-line: #28454c; --billing-text: #e4f7f4; }
+.billing-workspace .billing-panel {
+    background: var(--billing-surface);
+    color: var(--billing-text);
+    border: 1px solid var(--billing-line);
+    border-radius: 22px;
+    box-shadow: 0 3px 18px rgb(15 70 70 / 3%);
+}
+.billing-workspace .billing-panel-header { padding: 20px 24px; border-bottom: 1px solid var(--billing-line); }
+.billing-workspace .billing-panel-header h3 { font-weight: 750; }
+.billing-workspace :is(input, select) {
+    padding: 10px 12px;
+    background: var(--billing-soft);
+    color: var(--billing-text);
+    border: 1px solid var(--billing-line);
+    border-radius: 12px;
+}
+.billing-workspace :is(input, select):focus-visible { outline: 3px solid rgb(20 184 166 / 20%); outline-offset: 1px; border-color: #0d9488; }
+.billing-primary, .billing-workspace button[class*="bg-teal-600"] { background: linear-gradient(110deg, #0f766e, #0e7490); border-radius: 12px; }
+.billing-primary:hover { filter: brightness(.94); }
+.billing-workspace button { cursor: pointer; }
+.billing-workspace button:disabled { cursor: not-allowed; }
+.billing-workspace button:focus-visible { outline: 3px solid #5eead4; outline-offset: 3px; }
+.billing-workspace table thead { background: var(--billing-soft); }
+.billing-workspace table th { padding-top: 14px; padding-bottom: 14px; white-space: nowrap; }
+.billing-workspace table td { padding-top: 14px; padding-bottom: 14px; }
+.billing-workspace table tbody { background: var(--billing-surface); }
+.billing-workspace table tbody tr:hover { background: var(--billing-soft); }
+
+.dmbc-modal {
+    --dialog-surface: #ffffff;
+    --dialog-soft: #f1f8f7;
+    --dialog-line: #dcebe8;
+    --dialog-ink: #153b38;
+    --dialog-muted: #526d69;
+}
+.dmbc-modal[data-dark="true"] {
+    --dialog-surface: #0f202b;
+    --dialog-soft: #162f38;
+    --dialog-line: #28454c;
+    --dialog-ink: #e4f7f4;
+    --dialog-muted: #a0bfbd;
+}
+.dmbc-modal > .absolute:first-child {
+    background: rgb(5 35 42 / 65%);
+    backdrop-filter: blur(5px);
+}
+.dmbc-modal .dmbc-dialog {
+    max-height: 92dvh;
+    overflow: auto;
+    overscroll-behavior: contain;
+    border: 1px solid var(--dialog-line);
+    border-radius: 24px;
+    background: var(--dialog-surface);
+    color: var(--dialog-ink);
+    box-shadow: 0 28px 90px rgb(0 30 40 / 30%);
+    scrollbar-width: thin;
+    scrollbar-color: #81bcb4 transparent;
+}
+.dmbc-dialog .dmbc-dialog-header {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    padding: 22px 24px;
+    border-bottom: 1px solid var(--dialog-line);
+    background: var(--dialog-soft);
+    box-shadow: inset 0 4px 0 #0e918e;
+}
+.dmbc-dialog-header h3 {
+    font-size: 1.2rem;
+    font-weight: 800;
+    letter-spacing: -.025em;
+    color: var(--dialog-ink);
+}
+.dmbc-dialog-header p { color: var(--dialog-muted); }
+.dmbc-dialog-header button {
+    flex-shrink: 0;
+    border-radius: 10px;
+    padding: 8px 12px;
+    background: var(--dialog-surface);
+    color: var(--dialog-ink);
+    border: 1px solid var(--dialog-line);
+}
+.dmbc-dialog :is(input:not([type="checkbox"]):not([type="file"]), select, textarea) {
+    border-radius: 12px;
+    border: 1px solid var(--dialog-line);
+    background: var(--dialog-soft);
+    color: var(--dialog-ink);
+    padding: 11px 14px;
+    transition: border-color .15s, box-shadow .15s;
+}
+.dmbc-dialog :is(input, select, textarea):focus-visible {
+    outline: none;
+    border-color: #0d9488;
+    box-shadow: 0 0 0 3px rgb(20 184 166 / 18%);
+}
+.dmbc-dialog input[type="checkbox"] { accent-color: #0f8b83; }
+.dmbc-dialog label { font-weight: 600; }
+.dmbc-dialog button { transition: background-color .15s, box-shadow .15s; }
+.dmbc-dialog button:focus-visible { outline: 3px solid #5eead4; outline-offset: 3px; }
+.dmbc-dialog :is(button, label)[class*="bg-teal-600"] {
+    background: linear-gradient(110deg, #0f766e, #0e7490);
+    border-radius: 12px;
+    padding: 10px 18px;
+    font-weight: 600;
+    box-shadow: 0 4px 10px rgb(13 148 136 / 14%);
+}
+.dmbc-dialog :is(button, label)[class*="bg-teal-600"]:hover { filter: brightness(.95); }
+.dmbc-dialog [class*="border-t"] { border-color: var(--dialog-line); }
+.dmbc-dialog div[class*="bg-gray-50"],
+.dmbc-dialog div[class*="bg-gray-800"] { background: var(--dialog-soft); }
+.dmbc-dialog :is(thead) { background: var(--dialog-soft); }
+.dmbc-dialog th { color: var(--dialog-muted); }
+.dmbc-dialog [class*="border-dashed"] { border-radius: 18px; }
+@media (max-width: 640px) {
+    .dmbc-modal .dmbc-dialog { max-height: 94dvh; border-radius: 18px; }
+    .dmbc-dialog .dmbc-dialog-header { padding: 18px 20px; }
+}

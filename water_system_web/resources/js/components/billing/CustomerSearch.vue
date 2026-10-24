@@ -1,101 +1,103 @@
 <template>
-  <div class="lg:col-span-1">
-    <div class="bg-white rounded-lg shadow-sm border" :class="isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'">
-      <div class="px-6 py-4 border-b" :class="isDark ? 'border-gray-700' : 'border-gray-200'">
-        <h3 class="text-lg font-semibold">Find Customer</h3>
-      </div>
-      <div class="p-6 space-y-4">
-        <!-- Search by Account Number -->
+  <div class="min-w-0">
+    <div class="billing-panel" :class="isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'">
+      <div class="billing-panel-header"><h3 class="text-lg font-bold">Find a member</h3><p class="mt-1 text-sm text-slate-500">Search by name or account number.</p></div>
+      <div class="space-y-4 p-6">
         <div>
-          <label class="block text-sm font-medium mb-2" :class="isDark ? 'text-gray-200' : 'text-gray-700'">Account Number</label>
-          <input
-            v-model="searchAccountNo"
-            type="text"
-            placeholder="Enter account number"
-            class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-            :class="isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'"
-            @keyup.enter="handleSearch"
-          >
+          <label for="billing-member-search" class="mb-2 block text-sm font-semibold">Name or account number</label>
+          <input id="billing-member-search" v-model="query" type="search" autocomplete="off" placeholder="Start typing a name or account…" class="w-full" aria-controls="billing-member-results" :aria-busy="searching" />
         </div>
-
-        <!-- Search by Name -->
-        <div>
-          <label class="block text-sm font-medium mb-2" :class="isDark ? 'text-gray-200' : 'text-gray-700'">Customer Name</label>
-          <input
-            v-model="searchName"
-            type="text"
-            placeholder="Enter customer name"
-            class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-            :class="isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'"
-            @keyup.enter="handleSearch"
-          >
+        <div v-if="showResults && query.trim()" id="billing-member-results">
+          <p v-if="searching" role="status" class="py-3 text-sm text-teal-600">Searching members…</p>
+          <p v-else-if="error" role="alert" class="py-3 text-sm text-red-600">{{ error }}</p>
+          <template v-else>
+            <p role="status" class="mb-3 text-xs text-slate-500">{{ matches.length ? matches.length + ' matching members — select an account below.' : 'No matching members found.' }}</p>
+            <ul class="max-h-80 space-y-2 overflow-y-auto">
+              <li v-for="customer in matches.slice(0, 20)" :key="customer.id">
+                <button type="button" @click="selectCustomer(customer)" class="w-full rounded-xl border p-3 text-left transition" :class="isDark ? 'border-slate-700 hover:bg-slate-800' : 'border-teal-100 hover:bg-teal-50'">
+                  <span class="block text-sm font-bold">{{ customer.customer_name }}</span>
+                  <span class="mt-1 block text-xs font-semibold text-teal-600">{{ customer.account_no }}</span>
+                  <span v-if="customer.address" class="mt-1 block text-xs text-slate-500">{{ customer.address }}</span>
+                </button>
+              </li>
+            </ul>
+            <p v-if="matches.length > 20" class="mt-2 text-xs text-slate-500">Showing the first 20 matches. Keep typing to narrow the list.</p>
+          </template>
         </div>
-
-        <button
-          @click="handleSearch"
-          :disabled="searching"
-          class="w-full bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium disabled:opacity-50 transition-colors duration-200"
-        >
-          {{ searching ? 'Searching...' : 'Search Customer' }}
-        </button>
-
-        <!-- Selected Customer Info -->
-        <div v-if="selectedCustomer" class="mt-6 p-4 rounded-lg border" :class="isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'">
-          <h4 class="font-semibold mb-2">Selected Customer</h4>
-          <div class="space-y-1 text-sm">
-            <p><span class="font-medium">Name:</span> {{ selectedCustomer.customer_name }}</p>
-            <p><span class="font-medium">Account:</span> {{ selectedCustomer.account_no }}</p>
-            <p><span class="font-medium">Address:</span> {{ selectedCustomer.address || 'N/A' }}</p>
-          </div>
-          <button
-            @click="$emit('clear-customer')"
-            class="mt-3 text-sm text-red-600 hover:text-red-800"
-          >
-            Clear Selection
-          </button>
+        <div v-if="selectedCustomer" class="rounded-xl border p-4" :class="isDark ? 'border-teal-800 bg-teal-950/40' : 'border-teal-100 bg-teal-50'">
+          <p class="mb-2 text-xs font-bold uppercase tracking-wider text-teal-600">Selected member</p>
+          <p class="font-bold">{{ selectedCustomer.customer_name }}</p>
+          <p class="mt-1 text-sm">{{ selectedCustomer.account_no }}</p>
+          <p class="mt-1 text-xs text-slate-500">{{ selectedCustomer.address || 'No address recorded' }}</p>
+          <button type="button" @click="clearSelection" class="mt-3 text-sm font-semibold text-teal-600 hover:underline">Clear selection</button>
         </div>
       </div>
     </div>
   </div>
 </template>
 
-<script>
-import { ref } from 'vue'
+<script setup>
+import { ref, watch, onBeforeUnmount } from 'vue'
 
-export default {
-  name: 'CustomerSearch',
-  props: {
-    isDark: {
-      type: Boolean,
-      required: true
-    },
-    selectedCustomer: {
-      type: Object,
-      default: null
-    }
-  },
-  emits: ['search-customer', 'clear-customer'],
-  setup(props, { emit }) {
-    const searchAccountNo = ref('')
-    const searchName = ref('')
-    const searching = ref(false)
+const props = defineProps({
+  isDark: { type: Boolean, default: false },
+  selectedCustomer: { type: Object, default: null }
+})
+const emit = defineEmits(['search-customer', 'clear-customer'])
+const query = ref('')
+const matches = ref([])
+const searching = ref(false)
+const error = ref('')
+const showResults = ref(false)
+let timer
+let controller
+let revision = 0
 
-    const handleSearch = () => {
-      if (!searchAccountNo.value.trim() && !searchName.value.trim()) return
-
-      emit('search-customer', {
-        accountNo: searchAccountNo.value.trim(),
-        name: searchName.value.trim(),
-        searching: searching
+watch(query, value => {
+  clearTimeout(timer)
+  controller?.abort()
+  const currentRevision = ++revision
+  matches.value = []
+  error.value = ''
+  showResults.value = true
+  if (props.selectedCustomer) emit('clear-customer')
+  const term = value.trim()
+  searching.value = Boolean(term)
+  if (!term) return
+  timer = setTimeout(async () => {
+    controller = new AbortController()
+    try {
+      const response = await fetch('/customers?' + new URLSearchParams({ search: term }), {
+        headers: { Accept: 'application/json' },
+        credentials: 'same-origin',
+        signal: controller.signal
       })
+      if (!response.ok) throw new Error('Unable to search members. Please try again.')
+      const data = await response.json()
+      if (currentRevision !== revision) return
+      matches.value = Array.isArray(data.data) ? data.data : []
+    } catch (err) {
+      if (currentRevision === revision && err.name !== 'AbortError') error.value = err.message
+    } finally {
+      if (currentRevision === revision) searching.value = false
     }
+  }, 250)
+})
 
-    return {
-      searchAccountNo,
-      searchName,
-      searching,
-      handleSearch
-    }
-  }
+function selectCustomer(customer) {
+  showResults.value = false
+  emit('search-customer', { customer })
 }
+
+function clearSelection() {
+  query.value = ''
+  showResults.value = false
+  emit('clear-customer')
+}
+
+onBeforeUnmount(() => {
+  revision++
+  clearTimeout(timer)
+  controller?.abort()
+})
 </script>

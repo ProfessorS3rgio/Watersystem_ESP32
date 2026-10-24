@@ -1,9 +1,9 @@
 <template>
-  <div v-if="showModal" class="fixed inset-0 z-50">
+  <div v-if="showModal" class="dmbc-modal fixed inset-0 z-50" :data-dark="isDark">
     <div class="absolute inset-0 bg-black/50" @click="$emit('close')"></div>
     <div class="absolute inset-0 flex items-center justify-center p-4">
-      <div class="w-full max-w-md rounded-lg shadow-lg" :class="isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'">
-        <div class="px-6 py-4 border-b" :class="isDark ? 'border-gray-700' : 'border-gray-200'">
+      <div class="dmbc-dialog w-full max-w-md rounded-lg shadow-lg" :class="isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'">
+        <div class="dmbc-dialog-header px-6 py-4 border-b" :class="isDark ? 'border-gray-700' : 'border-gray-200'">
           <div class="flex items-center justify-between">
             <h3 class="text-lg font-semibold text-green-600">Payment Successful!</h3>
             <button class="text-sm" :class="isDark ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'" @click="$emit('close')">

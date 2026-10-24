@@ -1,10 +1,10 @@
 <template>
   <!-- Stats Cards -->
-  <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-    <div class="bg-white rounded-lg shadow p-6" :class="isDark ? 'bg-gray-800' : 'bg-white'">
+  <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
+    <div class="billing-panel bg-white rounded-lg shadow p-6" :class="isDark ? 'bg-gray-800' : 'bg-white'">
       <div class="flex items-center">
-        <div class="h-12 w-12 bg-blue-100 rounded-lg flex items-center justify-center" :class="isDark ? 'bg-blue-900/20' : 'bg-blue-100'">
-          <svg class="h-6 w-6" :class="isDark ? 'text-blue-400' : 'text-blue-600'" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <div class="h-12 w-12 bg-cyan-100 rounded-lg flex items-center justify-center" :class="isDark ? 'bg-cyan-900/20' : 'bg-cyan-100'">
+          <svg class="h-6 w-6" :class="isDark ? 'text-cyan-400' : 'text-cyan-700'" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
           </svg>
         </div>
@@ -15,9 +15,9 @@
       </div>
     </div>
 
-    <div class="bg-white rounded-lg shadow p-6" :class="isDark ? 'bg-gray-800' : 'bg-white'">
+    <div class="billing-panel bg-white rounded-lg shadow p-6" :class="isDark ? 'bg-gray-800' : 'bg-white'">
       <div class="flex items-center">
-        <div class="h-12 w-12 bg-green-100 rounded-lg flex items-center justify-center" :class="isDark ? 'bg-green-900/20' : 'bg-green-100'">
+        <div class="h-12 w-12 bg-teal-100 rounded-lg flex items-center justify-center" :class="isDark ? 'bg-green-900/20' : 'bg-green-100'">
           <svg class="h-6 w-6" :class="isDark ? 'text-green-400' : 'text-green-600'" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
           </svg>
@@ -29,7 +29,7 @@
       </div>
     </div>
 
-    <div class="bg-white rounded-lg shadow p-6" :class="isDark ? 'bg-gray-800' : 'bg-white'">
+    <div class="billing-panel bg-white rounded-lg shadow p-6" :class="isDark ? 'bg-gray-800' : 'bg-white'">
       <div class="flex items-center">
         <div class="h-12 w-12 bg-yellow-100 rounded-lg flex items-center justify-center" :class="isDark ? 'bg-yellow-900/20' : 'bg-yellow-100'">
           <svg class="h-6 w-6" :class="isDark ? 'text-yellow-400' : 'text-yellow-600'" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -43,7 +43,7 @@
       </div>
     </div>
 
-    <div class="bg-white rounded-lg shadow p-6" :class="isDark ? 'bg-gray-800' : 'bg-white'">
+    <div class="billing-panel bg-white rounded-lg shadow p-6" :class="isDark ? 'bg-gray-800' : 'bg-white'">
       <div class="flex items-center">
         <div class="h-12 w-12 bg-red-100 rounded-lg flex items-center justify-center" :class="isDark ? 'bg-red-900/20' : 'bg-red-100'">
           <svg class="h-6 w-6" :class="isDark ? 'text-red-400' : 'text-red-600'" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -59,8 +59,8 @@
   </div>
 
   <!-- Transactions Table -->
-  <div class="mt-8">
-    <h3 class="text-lg font-semibold mb-4" :class="isDark ? 'text-white' : 'text-gray-900'">Recent Transactions</h3>
+  <div class="billing-panel mt-8 overflow-hidden">
+    <h3 class="billing-panel-header text-lg font-semibold" :class="isDark ? 'text-white' : 'text-gray-900'">Recent Transactions</h3>
     <div class="overflow-x-auto">
       <table class="min-w-full divide-y" :class="isDark ? 'divide-gray-700' : 'divide-gray-200'">
         <thead :class="isDark ? 'bg-gray-800' : 'bg-gray-50'">
@@ -74,6 +74,7 @@
           </tr>
         </thead>
         <tbody class="divide-y" :class="isDark ? 'bg-gray-800 divide-gray-700' : 'bg-white divide-gray-200'">
+          <tr v-if="!transactions.length"><td colspan="6" class="px-6 py-12 text-center text-sm text-slate-500">No recent transactions to display.</td></tr>
           <tr v-for="transaction in transactions" :key="transaction.id" :class="isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'">
             <td class="px-6 py-4 whitespace-nowrap text-sm" :class="isDark ? 'text-gray-300' : 'text-gray-900'">
               {{ formatDate(transaction.transaction_date) }}
@@ -109,7 +110,8 @@
 </template>
 
 <script>
-import { ref, watchEffect } from 'vue'
+import { computed } from 'vue'
+import { formatMoney } from '../../utils/billingPresentation.js'
 
 export default {
   name: 'BillingSummary',
@@ -140,52 +142,12 @@ export default {
     }
   },
   setup(props) {
-    const displayedValues = ref({
-      todaysPayments: 0,
-      totalCollected: 0,
-      pendingBillsCount: 0,
-      overdueBillsCount: 0
-    })
-
-    const animateCount = (key, target) => {
-      const start = 0
-      if (start === target) {
-        displayedValues.value[key] = target
-        return
-      }
-
-      const duration = 1000 // 1 second total
-      const steps = 60 // 60 fps for smooth animation
-      const increment = Math.max(1, Math.ceil(target / steps))
-      const delay = duration / steps
-      let current = start
-
-      const animate = () => {
-        current += increment
-        if (current >= target) {
-          current = target
-        }
-        displayedValues.value[key] = current
-        if (current < target) {
-          setTimeout(animate, delay)
-        }
-      }
-
-      animate()
-    }
-
-    // Animate counts whenever props change
-    watchEffect(() => {
-      animateCount('todaysPayments', props.todaysPayments)
-      animateCount('totalCollected', props.totalCollected)
-      animateCount('pendingBillsCount', props.pendingBillsCount)
-      animateCount('overdueBillsCount', props.overdueBillsCount)
-    })
-
-    const formatMoney = (amount) => {
-      if (amount === null || amount === undefined) return '0.00'
-      return parseFloat(amount).toFixed(2)
-    }
+    const displayedValues = computed(() => ({
+      todaysPayments: props.todaysPayments,
+      totalCollected: props.totalCollected,
+      pendingBillsCount: props.pendingBillsCount,
+      overdueBillsCount: props.overdueBillsCount
+    }))
 
     const formatDate = (date) => {
       if (!date) return ''

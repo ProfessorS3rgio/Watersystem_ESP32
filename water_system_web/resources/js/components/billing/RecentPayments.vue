@@ -1,11 +1,11 @@
 <template>
-  <div v-if="selectedCustomer" class="bg-white rounded-lg shadow-sm border" :class="isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'">
-    <div class="px-6 py-4 border-b" :class="isDark ? 'border-gray-700' : 'border-gray-200'">
+  <div v-if="selectedCustomer" class="billing-panel bg-white rounded-lg shadow-sm border" :class="isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'">
+    <div class="billing-panel-header px-6 py-4 border-b" :class="isDark ? 'border-gray-700' : 'border-gray-200'">
       <h3 class="text-lg font-semibold">Recent Payments</h3>
     </div>
     <div class="p-6">
       <div v-if="loadingPayments" class="text-center py-8">
-        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
+        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600 mx-auto"></div>
         <p class="mt-2 text-sm" :class="isDark ? 'text-gray-400' : 'text-gray-600'">Loading payments...</p>
       </div>
 

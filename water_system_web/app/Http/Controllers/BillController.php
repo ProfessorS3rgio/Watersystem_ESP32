@@ -40,9 +40,14 @@ class BillController extends Controller
         }
 
         if ($customerSearch) {
-            $query->whereHas('customer', function ($q) use ($customerSearch) {
-                $q->where('customer_name', 'like', '%' . $customerSearch . '%')
-                  ->orWhere('account_no', 'like', '%' . $customerSearch . '%');
+            $query->where(function ($search) use ($customerSearch) {
+                $search->where('reference_number', 'like', '%' . $customerSearch . '%')
+                    ->orWhereHas('customer', function ($customer) use ($customerSearch) {
+                        $customer->where(function ($fields) use ($customerSearch) {
+                            $fields->where('customer_name', 'like', '%' . $customerSearch . '%')
+                                ->orWhere('account_no', 'like', '%' . $customerSearch . '%');
+                        });
+                    });
             });
         }
 

@@ -1,12 +1,19 @@
 <template>
   <AppSidebar v-slot="{ isDark }">
-    <div class="p-8">
-      <div class="mb-8">
-        <h1 class="text-3xl font-bold mb-2 transition-colors duration-200" :class="isDark ? 'text-white' : 'text-gray-900'">Billing</h1>
-        <p class="transition-colors duration-200" :class="isDark ? 'text-gray-400' : 'text-gray-600'">Process customer payments and manage billing</p>
-      </div>
-
+    <div class="billing-workspace min-h-full p-5 sm:p-8 lg:p-10" :data-dark="isDark" :class="isDark ? 'bg-slate-950 text-white' : 'bg-[#f5f8f7] text-slate-900'">
+      <header class="mb-7 flex flex-wrap items-start justify-between gap-4">
+        <div><p class="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-teal-600">DMBC Water · Finance workspace</p><h1 class="text-3xl font-extrabold tracking-tight sm:text-4xl">Billing &amp; collections</h1><p class="mt-2 text-sm" :class="isDark ? 'text-slate-400' : 'text-slate-500'">A clearer view of collections, member accounts, and every payment.</p></div>
+        <RouterLink to="/billing/customer" class="billing-primary inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold text-white"><span aria-hidden="true">＋</span> Collect payment</RouterLink>
+      </header>
+      <nav aria-label="Billing workspace" class="billing-tabs mb-7 flex flex-wrap gap-2 rounded-2xl border p-2" :class="isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'">
+        <RouterLink v-for="tab in billingTabs" :key="tab.path" :to="tab.path" :aria-current="activeView === tab.view ? 'page' : undefined" class="flex-1 min-w-40 rounded-xl px-4 py-3 transition" :class="activeView === tab.view ? 'bg-teal-700 text-white shadow-sm' : (isDark ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-600 hover:bg-teal-50')"><span class="block text-sm font-bold">{{ tab.label }}</span><span class="mt-0.5 block text-xs opacity-75">{{ tab.description }}</span></RouterLink>
+      </nav>
       <!-- Billing Summary View -->
+      <div v-if="activeView === 'summary'" class="mb-5 flex flex-wrap items-center justify-between gap-3 text-sm">
+        <p v-if="statsError" role="alert" class="text-red-600">{{ statsError }} Displayed figures may be out of date.</p>
+        <p v-else class="text-slate-500">{{ loadingStats ? 'Refreshing collection figures…' : 'Monthly collection overview and latest transactions' }}</p>
+        <button type="button" @click="loadBillingStats" :disabled="loadingStats" class="rounded-xl border border-teal-200 px-4 py-2 font-semibold text-teal-600 disabled:opacity-50">{{ loadingStats ? 'Refreshing…' : 'Refresh overview' }}</button>
+      </div>
       <BillingSummary
         v-if="activeView === 'summary'"
         :isDark="isDark"
@@ -58,83 +65,18 @@
     <PaymentReceipt
       :isDark="isDark"
       :showModal="showPaymentSuccess"
-      :customerName="selectedCustomer?.customer_name || 'Customer'"
+      :customerName="paymentReceipt?.customer_name || 'Customer'"
       :receipt="paymentReceipt"
       @close="closePaymentSuccess"
       @print="printReceipt"
     />
 
-    <!-- Payment Modal for All Bills -->
-    <div v-if="showPaymentModal" class="fixed inset-0 z-50">
+    <!-- One shared checkout form for both payment entry points. -->
+    <div v-if="showPaymentModal" class="dmbc-modal fixed inset-0 z-50" :data-dark="isDark">
       <div class="absolute inset-0 bg-black/50" @click="closePaymentModal"></div>
       <div class="absolute inset-0 flex items-center justify-center p-4">
-        <div class="w-full max-w-md rounded-lg shadow-lg" :class="isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'">
-          <div class="px-6 py-4 border-b" :class="isDark ? 'border-gray-700' : 'border-gray-200'">
-            <div class="flex items-center justify-between">
-              <h3 class="text-lg font-semibold">Pay Bill</h3>
-              <button class="text-sm" :class="isDark ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'" @click="closePaymentModal">
-                ✕
-              </button>
-            </div>
-          </div>
-          <div class="p-6">
-            <div class="mb-4 p-4 rounded-lg border" :class="isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'">
-              <h4 class="font-semibold mb-2">Bill Details</h4>
-              <div class="space-y-1 text-sm">
-                <p><span class="font-medium">Bill:</span> {{ selectedBill?.reference_number }}</p>
-                <p><span class="font-medium">Customer:</span> {{ selectedBill?.customer?.customer_name }}</p>
-                <p><span class="font-medium">Amount Due:</span> ₱{{ formatMoney(selectedBill?.total_due) }}</p>
-              </div>
-            </div>
-
-            <form @submit.prevent="processPayment" class="space-y-4">
-              <div>
-                <label class="block text-sm font-medium mb-2" :class="isDark ? 'text-gray-200' : 'text-gray-700'">
-                  Cash Received *
-                </label>
-                <input
-                  v-model.number="cashReceived"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="0.00"
-                  class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  :class="isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'"
-                  required
-                >
-              </div>
-
-              <div v-if="cashReceived > 0" class="p-4 rounded-lg" :class="changeAmount >= 0 ? (isDark ? 'bg-green-900/20 border border-green-700' : 'bg-green-50 border border-green-200') : (isDark ? 'bg-red-900/20 border border-red-700' : 'bg-red-50 border border-red-200')">
-                <div class="flex justify-between items-center">
-                  <span class="font-medium">Change:</span>
-                  <span class="text-lg font-bold" :class="changeAmount >= 0 ? 'text-green-600' : 'text-red-600'">
-                    ₱{{ formatMoney(Math.abs(changeAmount)) }}
-                  </span>
-                </div>
-                <p v-if="changeAmount < 0" class="text-sm text-red-600 mt-1">
-                  Insufficient payment amount
-                </p>
-              </div>
-
-              <div class="flex gap-3">
-                <button
-                  type="button"
-                  @click="closePaymentModal"
-                  class="flex-1 px-4 py-2 rounded-lg font-medium transition-colors duration-200"
-                  :class="isDark ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-900'"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  :disabled="processingPayment || cashReceived <= 0 || changeAmount < 0"
-                  class="flex-1 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium disabled:opacity-50 transition-colors duration-200"
-                >
-                  {{ processingPayment ? 'Processing...' : 'Complete Payment' }}
-                </button>
-              </div>
-            </form>
-          </div>
+        <div role="dialog" aria-modal="true" aria-label="Record bill payment" class="dmbc-dialog w-full max-w-xl">
+          <PaymentForm :is-dark="isDark" :selected-bill="selectedBill" :customer-name="selectedBill?.customer?.customer_name || 'Customer'" :processing-payment="processingPayment" @process-payment="processPayment" @cancel-payment="closePaymentModal" />
         </div>
       </div>
     </div>
@@ -156,7 +98,7 @@ import AppSidebar from '../components/AppSidebar.vue'
 import BillingSummary from '../components/billing/BillingSummary.vue'
 import CustomerBilling from '../components/billing/CustomerBilling.vue'
 import AllBills from '../components/billing/AllBills.vue'
-import SuccessModal from '../components/SuccessModal.vue'
+import PaymentForm from '../components/billing/PaymentForm.vue'
 import PaymentReceipt from '../components/billing/PaymentReceipt.vue'
 import VoidBillDialog from '../components/VoidBillDialog.vue'
 import { useBilling } from '../composables/billing.js'
@@ -170,7 +112,7 @@ export default {
     BillingSummary,
     CustomerBilling,
     AllBills,
-    SuccessModal,
+    PaymentForm,
     PaymentReceipt,
     VoidBillDialog
   },
@@ -209,7 +151,12 @@ export default {
 
     return {
       ...billingComposable,
-      activeView
+      activeView,
+      billingTabs: [
+        { path: '/billing/summary', view: 'summary', label: 'Overview', description: 'Collections & recent activity' },
+        { path: '/billing/customer', view: 'customer', label: 'Collect payment', description: 'Find member · select bill · pay' },
+        { path: '/billing/all-bills', view: 'all-bills', label: 'Bill register', description: 'Search, review & export' },
+      ]
     }
   }
 }

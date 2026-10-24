@@ -1,13 +1,13 @@
 <template>
   <div class="lg:col-span-2">
     <!-- Pending Bills -->
-    <div v-if="selectedCustomer" class="bg-white rounded-lg shadow-sm border mb-6" :class="isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'">
-      <div class="px-6 py-4 border-b" :class="isDark ? 'border-gray-700' : 'border-gray-200'">
-        <h3 class="text-lg font-semibold">Pending Bills</h3>
+    <div v-if="selectedCustomer" class="billing-panel bg-white rounded-lg shadow-sm border mb-6" :class="isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'">
+      <div class="billing-panel-header px-6 py-4 border-b" :class="isDark ? 'border-gray-700' : 'border-gray-200'">
+        <h3 class="text-lg font-semibold">Unpaid bills</h3>
       </div>
       <div class="p-6">
         <div v-if="loadingBills" class="text-center py-8">
-          <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
+          <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600 mx-auto"></div>
           <p class="mt-2 text-sm" :class="isDark ? 'text-gray-400' : 'text-gray-600'">Loading bills...</p>
         </div>
 
@@ -29,7 +29,7 @@
                 </p>
               </div>
               <div class="text-right">
-                <p class="text-lg font-bold text-green-600">₱{{ formatMoney(bill.total_due) }}</p>
+                <p class="text-lg font-bold text-green-600">₱{{ formatMoney(billBalance(bill)) }}</p>
                 <p v-if="bill.penalty > 0" class="text-sm text-red-600">Includes ₱{{ formatMoney(bill.penalty) }} penalty</p>
               </div>
             </div>
@@ -38,12 +38,12 @@
               <div class="text-sm">
                 <span class="px-2 py-1 rounded-full text-xs font-medium"
                       :class="isBillDue(bill) ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'">
-                  {{ isBillDue(bill) ? 'Overdue' : 'Pending' }}
+                  {{ String(bill.status).toLowerCase() === 'partially paid' ? 'Partially paid' : (isBillDue(bill) ? 'Overdue' : 'Pending') }}
                 </span>
               </div>
               <button
                 @click="$emit('select-bill', bill)"
-                class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium text-sm transition-colors duration-200"
+                class="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg font-medium text-sm transition-colors duration-200"
               >
                 Process Payment
               </button>
@@ -56,6 +56,7 @@
 </template>
 
 <script>
+import { billBalance } from '../../utils/billingPresentation.js'
 export default {
   name: 'BillList',
   props: {
@@ -98,6 +99,7 @@ export default {
     }
 
     return {
+      billBalance,
       formatDate,
       formatMoney,
       isBillDue

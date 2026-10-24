@@ -1,13 +1,13 @@
 <template>
   <transition name="modal" appear>
-    <div v-if="isOpen" class="fixed inset-0 z-50">
+    <div v-if="isOpen" :data-dark="isDark" class="dmbc-modal fixed inset-0 z-50">
       <transition name="backdrop" appear>
         <div class="absolute inset-0 bg-black/50" @click="handleCancel"></div>
       </transition>
       <transition name="panel" appear>
         <div class="absolute inset-0 flex items-center justify-center p-4">
-          <div class="w-full max-w-md rounded-lg shadow-lg transform transition-all duration-300 ease-out" :class="isDark ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'">
-            <div class="px-6 py-4 border-b" :class="isDark ? 'border-gray-800' : 'border-gray-200'">
+          <div class="dmbc-dialog w-full max-w-md rounded-lg shadow-lg transform transition-all duration-300 ease-out" :class="isDark ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'">
+            <div class="dmbc-dialog-header px-6 py-4 border-b" :class="isDark ? 'border-gray-800' : 'border-gray-200'">
               <div class="flex items-center justify-between">
                 <h3 class="text-lg font-semibold">{{ title }}</h3>
                 <button class="text-sm transition-colors duration-200" :class="isDark ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'" @click="handleCancel">

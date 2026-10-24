@@ -1,9 +1,9 @@
 <template>
-  <div v-if="isOpen" class="fixed inset-0 z-50">
+  <div v-if="isOpen" :data-dark="isDark" class="dmbc-modal fixed inset-0 z-50">
     <div class="absolute inset-0 bg-black/50" @click="closeModal"></div>
     <div class="absolute inset-0 flex items-center justify-center p-2 lg:p-4">
-      <div class="flex max-h-[96vh] w-[98vw] max-w-[1800px] flex-col rounded-lg shadow-xl" :class="isDark ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'">
-        <div class="flex items-center justify-between border-b px-6 py-4" :class="isDark ? 'border-gray-800' : 'border-gray-200'">
+      <div class="dmbc-dialog flex max-h-[96vh] w-[98vw] max-w-[1800px] flex-col rounded-lg shadow-xl" :class="isDark ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'">
+        <div class="dmbc-dialog-header flex items-center justify-between border-b px-6 py-4" :class="isDark ? 'border-gray-800' : 'border-gray-200'">
           <div>
             <h3 class="text-lg font-semibold">Import Meter Readings</h3>
             <p class="mt-1 text-sm" :class="isDark ? 'text-gray-400' : 'text-gray-600'">Upload a meter-reading workbook with one or more barangay sheets and review every row before applying it.</p>
@@ -24,7 +24,7 @@
               <input id="reading-import-file" ref="fileInput" type="file" accept=".xlsx" class="sr-only" @change="selectFile" />
               <p class="text-base font-semibold">{{ isDragging ? 'Drop the workbook here' : 'Drag and drop the workbook here' }}</p>
               <p class="my-2 text-sm" :class="mutedClass">or</p>
-              <label for="reading-import-file" class="inline-block cursor-pointer bg-indigo-600 px-4 py-2 font-medium text-white hover:bg-indigo-700">
+              <label for="reading-import-file" class="inline-block cursor-pointer bg-teal-600 px-4 py-2 font-medium text-white hover:bg-teal-700">
                 Browse XLSX File
               </label>
               <p v-if="selectedFile" class="mt-4 font-medium text-green-600">Selected: {{ selectedFile.name }}</p>
@@ -79,7 +79,7 @@
                 <p class="font-medium">{{ preview.file_name }}</p>
                 <p :class="mutedClass">Sheet: {{ preview.sheet_name }}</p>
               </div>
-              <button type="button" class="px-3 py-2 font-medium" :class="isDark ? 'text-indigo-300 hover:text-indigo-200' : 'text-indigo-700 hover:text-indigo-900'" @click="resetPreview">Choose another file</button>
+              <button type="button" class="px-3 py-2 font-medium" :class="isDark ? 'text-teal-300 hover:text-teal-200' : 'text-teal-700 hover:text-teal-900'" @click="resetPreview">Choose another file</button>
             </div>
 
             <div v-if="selectedErrorCount" class="border-l-4 border-red-500 px-4 py-3 text-sm" :class="isDark ? 'bg-red-950/40 text-red-100' : 'bg-red-50 text-red-900'">
@@ -180,7 +180,7 @@
 
         <div class="flex items-center justify-end gap-3 border-t px-6 py-4" :class="isDark ? 'border-gray-800' : 'border-gray-200'">
           <button type="button" class="px-4 py-2" :disabled="isReviewing || isConfirming" @click="closeModal">Cancel</button>
-          <button v-if="!preview" type="button" class="bg-indigo-600 px-4 py-2 font-medium text-white hover:bg-indigo-700 disabled:opacity-50" :disabled="!selectedFile || isReviewing" @click="reviewFile">
+          <button v-if="!preview" type="button" class="bg-teal-600 px-4 py-2 font-medium text-white hover:bg-teal-700 disabled:opacity-50" :disabled="!selectedFile || isReviewing" @click="reviewFile">
             {{ isReviewing ? 'Reviewing...' : (sheetOptions.length ? 'Review Selected Worksheet' : 'Review File') }}
           </button>
           <button v-else type="button" class="bg-green-600 px-4 py-2 font-medium text-white hover:bg-green-700 disabled:opacity-50" :disabled="!canConfirm || isConfirming" @click="confirmImport">
@@ -222,7 +222,7 @@ const canConfirm = computed(() => Boolean(preview.value?.token) && selectedError
 const panelClass = computed(() => props.isDark ? 'border-gray-700 bg-gray-800/60' : 'border-gray-200 bg-gray-50')
 const mutedClass = computed(() => props.isDark ? 'text-gray-400' : 'text-gray-500')
 const dropZoneClass = computed(() => {
-  if (isDragging.value) return props.isDark ? 'border-indigo-400 bg-indigo-950/40' : 'border-indigo-500 bg-indigo-50'
+  if (isDragging.value) return props.isDark ? 'border-teal-400 bg-teal-950/40' : 'border-teal-500 bg-teal-50'
   return props.isDark ? 'border-gray-700 bg-gray-800/60' : 'border-gray-300 bg-gray-50'
 })
 

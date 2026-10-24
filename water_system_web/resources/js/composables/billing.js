@@ -1,4 +1,5 @@
 import { ref, computed, onMounted } from 'vue'
+import { billBalance } from '../utils/billingPresentation.js'
 
 export function useBilling() {
     // Tab management
@@ -47,96 +48,71 @@ export function useBilling() {
     const pendingBillsCount = ref(0)
     const overdueBillsCount = ref(0)
     const transactions = ref([])
+    const loadingStats = ref(false)
+    const statsError = ref('')
+    let billsRequestId = 0
 
     const changeAmount = computed(() => {
       if (!selectedBill.value || cashReceived.value <= 0) return 0
-      return cashReceived.value - selectedBill.value.total_due
+      return Math.round((cashReceived.value - billBalance(selectedBill.value)) * 100) / 100
     })
 
-    const handleSearchCustomer = async ({ accountNo, name, searching: searchRef }) => {
-      if (!accountNo.trim() && !name.trim()) return
-
-      searchRef.value = true
-      try {
-        let url = '/customers?'
-        const params = []
-
-        if (accountNo.trim()) {
-          params.push(`account_no=${encodeURIComponent(accountNo.trim())}`)
-        }
-
-        if (name.trim()) {
-          params.push(`name=${encodeURIComponent(name.trim())}`)
-        }
-
-        url += params.join('&')
-
-        const response = await fetch(url, {
-          headers: { 'Accept': 'application/json' },
-          credentials: 'same-origin'
-        })
-
-        if (response.ok) {
-          const data = await response.json()
-          if (data.data && data.data.length > 0) {
-            selectedCustomer.value = data.data[0]
-            await loadCustomerBills()
-            await loadRecentPayments()
-          } else {
-            alert('Customer not found')
-          }
-        }
-      } catch (error) {
-        console.error('Search failed:', error)
-        alert('Failed to search customer')
-      } finally {
-        searchRef.value = false
-      }
+    const handleSearchCustomer = async ({ customer }) => {
+      if (!customer) return
+      clearCustomer()
+      selectedCustomer.value = customer
+      await Promise.all([loadCustomerBills(), loadRecentPayments()])
     }
 
     const loadCustomerBills = async () => {
       if (!selectedCustomer.value) return
+      const customerId = selectedCustomer.value.id
 
       loadingBills.value = true
       try {
-        const response = await fetch(`/customers/${selectedCustomer.value.id}/bills?status=pending`, {
+        const response = await fetch(`/customers/${customerId}/bills`, {
           headers: { 'Accept': 'application/json' },
           credentials: 'same-origin'
         })
 
         if (response.ok) {
           const data = await response.json()
-          pendingBills.value = data.data || []
+          if (selectedCustomer.value?.id !== customerId) return
+          pendingBills.value = (data.data || []).filter(bill => ['pending', 'due', 'partially paid'].includes(String(bill.status).toLowerCase()))
         }
       } catch (error) {
         console.error('Failed to load bills:', error)
       } finally {
-        loadingBills.value = false
+        if (selectedCustomer.value?.id === customerId) loadingBills.value = false
       }
     }
 
     const loadRecentPayments = async () => {
       if (!selectedCustomer.value) return
+      const customerId = selectedCustomer.value.id
 
       loadingPayments.value = true
       try {
-        const response = await fetch(`/customers/${selectedCustomer.value.id}/payments?limit=10`, {
+        const response = await fetch(`/customers/${customerId}/payments?limit=10`, {
           headers: { 'Accept': 'application/json' },
           credentials: 'same-origin'
         })
 
         if (response.ok) {
           const data = await response.json()
+          if (selectedCustomer.value?.id !== customerId) return
           recentPayments.value = data.data || []
         }
       } catch (error) {
         console.error('Failed to load payments:', error)
       } finally {
-        loadingPayments.value = false
+        if (selectedCustomer.value?.id === customerId) loadingPayments.value = false
       }
     }
 
     const clearCustomer = () => {
+      loadingBills.value = false
+      loadingPayments.value = false
       selectedCustomer.value = null
       pendingBills.value = []
       recentPayments.value = []
@@ -146,23 +122,31 @@ export function useBilling() {
 
     const selectBillForPayment = (bill) => {
       selectedBill.value = bill
-      cashReceived.value = bill.total_due
+      cashReceived.value = billBalance(bill)
     }
 
     const cancelPayment = () => {
+      if (processingPayment.value) return
       selectedBill.value = null
       cashReceived.value = 0
     }
     const processPayment = async (payload) => {
+      if (processingPayment.value) return
       processingPayment.value = true
       try {
         const bill = payload?.bill || selectedBill.value
         const received = payload?.cashReceived ?? cashReceived.value
-        const change = payload?.changeAmount ?? changeAmount.value
+        const amount = billBalance(bill)
+        const change = Math.round((Number(received) - amount) * 100) / 100
 
         if (!bill || !bill.id) {
           alert('No bill selected for payment.')
           processingPayment.value = false
+          return
+        }
+
+        if (!Number.isFinite(Number(received)) || amount <= 0 || change < 0) {
+          alert('Enter enough cash to cover the remaining balance.')
           return
         }
 
@@ -177,7 +161,7 @@ export function useBilling() {
           },
           credentials: 'same-origin',
           body: JSON.stringify({
-            amount_paid: bill.total_due,
+            amount_paid: amount,
             cash_received: received,
             change_amount: change,
             payment_method: 'cash'
@@ -189,6 +173,8 @@ export function useBilling() {
           paymentReceipt.value = {
             ...data.data,
             reference_number: bill.reference_number,
+            amount_paid: amount,
+            customer_name: bill.customer?.customer_name || selectedCustomer.value?.customer_name || 'Customer',
             cash_received: received,
             change: change,
             created_at: new Date().toISOString()
@@ -199,6 +185,7 @@ export function useBilling() {
           await loadCustomerBills()
           await loadRecentPayments()
           await loadAllBills()
+          await loadBillingStats()
 
           // Close modal if open and reset payment form
           showPaymentModal.value = false
@@ -241,6 +228,7 @@ export function useBilling() {
     }
 
     const closePaymentModal = () => {
+      if (processingPayment.value) return
       showPaymentModal.value = false
       selectedBill.value = null
       cashReceived.value = 0
@@ -249,7 +237,7 @@ export function useBilling() {
     const printReceipt = async () => {
       if (!paymentReceipt.value) return
 
-      await printToThermal(paymentReceipt.value, selectedCustomer.value?.customer_name)
+      await printToThermal(paymentReceipt.value, paymentReceipt.value.customer_name)
     }
 
     const printBill = async (bill) => {
@@ -270,7 +258,7 @@ export function useBilling() {
         // Create receipt data from bill and payment
         const receiptData = {
           reference_number: bill.reference_number,
-          amount_paid: bill.total_due,
+          amount_paid: paymentData.amount ?? bill.total_due,
           cash_received: paymentData.cash_received,
           change: paymentData.change_amount || paymentData.change,
           created_at: paymentData.created_at || paymentData.transaction_date
@@ -286,53 +274,30 @@ export function useBilling() {
     }
 
     const loadBillingStats = async () => {
+      if (loadingStats.value) return
+      loadingStats.value = true
+      statsError.value = ''
       try {
-        // Load month's collectable
-        const collectableResponse = await fetch('/bills/monthly-collectable', {
-          headers: { 'Accept': 'application/json' },
-          credentials: 'same-origin'
-        })
-        if (collectableResponse.ok) {
-          const collectableData = await collectableResponse.json()
-          todaysPayments.value = collectableData.total || 0
-        }
-
-        // Load monthly payments
-        const monthlyResponse = await fetch('/bills/monthly-payments', {
-          headers: { 'Accept': 'application/json' },
-          credentials: 'same-origin'
-        })
-        if (monthlyResponse.ok) {
-          const monthlyData = await monthlyResponse.json()
-          totalCollected.value = monthlyData.total || 0
-        }
-
-        // Load pending bills count
-        const pendingResponse = await fetch('/bills/stats', {
-          headers: { 'Accept': 'application/json' },
-          credentials: 'same-origin'
-        })
-        if (pendingResponse.ok) {
-          const statsData = await pendingResponse.json()
-          pendingBillsCount.value = statsData.pending || 0
-          overdueBillsCount.value = statsData.overdue || 0
-        }
-
-        // Load recent transactions
-        const transactionsResponse = await fetch('/bills/transactions?limit=20', {
-          headers: { 'Accept': 'application/json' },
-          credentials: 'same-origin'
-        })
-        if (transactionsResponse.ok) {
-          const transactionsData = await transactionsResponse.json()
-          transactions.value = transactionsData.data || []
-        }
+        const paths = ['/bills/monthly-collectable', '/bills/monthly-payments', '/bills/stats', '/bills/transactions?limit=20']
+        const results = await Promise.all(paths.map(async path => {
+          const response = await fetch(path, { headers: { Accept: 'application/json' }, credentials: 'same-origin' })
+          if (!response.ok) throw new Error('Unable to refresh billing overview.')
+          return response.json()
+        }))
+        todaysPayments.value = Number(results[0].total || 0)
+        totalCollected.value = Number(results[1].total || 0)
+        pendingBillsCount.value = Number(results[2].pending || 0)
+        overdueBillsCount.value = Number(results[2].overdue || 0)
+        transactions.value = results[3].data || []
       } catch (error) {
-        console.error('Failed to load billing stats:', error)
+        statsError.value = error.message || 'Unable to refresh billing overview.'
+      } finally {
+        loadingStats.value = false
       }
     }
 
     const loadAllBills = async (page = 1) => {
+      const requestId = ++billsRequestId
       loadingAllBills.value = true
       try {
         let url = `/bills?page=${page}`
@@ -355,8 +320,10 @@ export function useBilling() {
           credentials: 'same-origin'
         })
 
+        if (requestId !== billsRequestId) return
         if (response.ok) {
           const data = await response.json()
+          if (requestId !== billsRequestId) return
           allBills.value = data.data.data || []
           pagination.value = {
             current_page: data.data.current_page,
@@ -372,10 +339,11 @@ export function useBilling() {
           }
         }
       } catch (error) {
+        if (requestId !== billsRequestId) return
         console.error('Failed to load bills:', error)
         alert('Failed to load bills')
       } finally {
-        loadingAllBills.value = false
+        if (requestId === billsRequestId) loadingAllBills.value = false
       }
     }
 
@@ -410,7 +378,7 @@ export function useBilling() {
 
     const payBill = (bill) => {
       selectedBill.value = bill
-      cashReceived.value = bill.total_due
+      cashReceived.value = billBalance(bill)
       showPaymentModal.value = true
     }
 
@@ -471,7 +439,8 @@ export function useBilling() {
         if (response.ok) {
           alert('Bill voided successfully')
           // Refresh the bills list
-          loadAllBills()
+          await loadAllBills()
+          await loadBillingStats()
           showVoidDialog.value = false
           selectedBillForVoid.value = null
         } else {
@@ -607,6 +576,8 @@ export function useBilling() {
       pendingBillsCount,
       overdueBillsCount,
       transactions,
+      loadingStats,
+      statsError,
       loadBillingStats
     }
 }

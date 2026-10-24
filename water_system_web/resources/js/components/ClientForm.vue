@@ -1,12 +1,12 @@
 <template>
   <!-- Add Client Modal -->
-  <div v-if="isAddModalOpen" class="fixed inset-0 z-50">
+  <div v-if="isAddModalOpen" :data-dark="isDark" class="dmbc-modal fixed inset-0 z-50">
     <div class="absolute inset-0 bg-black/50" @click="$emit('close-add-modal')"></div>
     <div class="absolute inset-0 flex items-center justify-center p-4">
-      <div class="w-full max-w-4xl rounded-lg shadow-lg" :class="isDark ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'">
-        <div class="px-6 py-4 border-b" :class="isDark ? 'border-gray-800' : 'border-gray-200'">
+      <div class="dmbc-dialog w-full max-w-3xl rounded-lg shadow-lg" :class="isDark ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'">
+        <div class="dmbc-dialog-header px-6 py-4 border-b" :class="isDark ? 'border-gray-800' : 'border-gray-200'">
           <div class="flex items-center justify-between">
-            <h3 class="text-lg font-semibold">Add New Client</h3>
+            <div><h3 class="text-lg font-semibold">Add New Client</h3><p class="mt-1 text-sm">Create a household account for your DMBC community.</p></div>
             <button class="text-sm" :class="isDark ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'" @click="$emit('close-add-modal')">
               Close
             </button>
@@ -36,7 +36,7 @@
           </div>
 
           <!-- Row 2: Type and Barangay -->
-          <div class="grid grid-cols-2 gap-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label class="block text-sm font-medium mb-1">Type</label>
               <select
@@ -85,7 +85,7 @@
           </div>
 
           <!-- Row 4: Previous Reading and Status -->
-          <div class="grid grid-cols-2 gap-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label class="block text-sm font-medium mb-1">Previous Reading</label>
               <input
@@ -135,7 +135,7 @@
             <button type="button" @click="$emit('close-add-modal')" class="px-4 py-2 rounded-lg" :class="isDark ? 'bg-gray-800 hover:bg-gray-700 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-900'">
               Cancel
             </button>
-            <button type="submit" :disabled="isSubmitting" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium disabled:opacity-50">
+            <button type="submit" :disabled="isSubmitting" class="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg font-medium disabled:opacity-50">
               {{ isSubmitting ? 'Saving...' : 'Save Client' }}
             </button>
           </div>
@@ -145,13 +145,13 @@
   </div>
 
   <!-- Edit Client Modal -->
-  <div v-if="isEditModalOpen" class="fixed inset-0 z-50">
+  <div v-if="isEditModalOpen" :data-dark="isDark" class="dmbc-modal fixed inset-0 z-50">
     <div class="absolute inset-0 bg-black/50" @click="$emit('close-edit-modal')"></div>
     <div class="absolute inset-0 flex items-center justify-center p-4">
-      <div class="w-full max-w-4xl rounded-lg shadow-lg" :class="isDark ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'">
-        <div class="px-6 py-4 border-b" :class="isDark ? 'border-gray-800' : 'border-gray-200'">
+      <div class="dmbc-dialog w-full max-w-3xl rounded-lg shadow-lg" :class="isDark ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'">
+        <div class="dmbc-dialog-header px-6 py-4 border-b" :class="isDark ? 'border-gray-800' : 'border-gray-200'">
           <div class="flex items-center justify-between">
-            <h3 class="text-lg font-semibold">Edit Client</h3>
+            <div><h3 class="text-lg font-semibold">Edit Client</h3><p class="mt-1 text-sm">Update member information and service details.</p></div>
             <button class="text-sm" :class="isDark ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'" @click="$emit('close-edit-modal')">
               Close
             </button>
@@ -160,7 +160,7 @@
 
         <form class="px-6 py-4 space-y-6" @submit.prevent="$emit('submit-edit-customer')">
           <!-- Row 1: Account No and Customer Name -->
-          <div class="grid grid-cols-2 gap-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label class="block text-sm font-medium mb-1">Account No</label>
               <input
@@ -189,7 +189,7 @@
           </div>
 
           <!-- Row 2: Type and Barangay -->
-          <div class="grid grid-cols-2 gap-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label class="block text-sm font-medium mb-1">Type</label>
               <select
@@ -304,7 +304,7 @@
             <button type="button" @click="$emit('close-edit-modal')" class="px-4 py-2 rounded-lg" :class="isDark ? 'bg-gray-800 hover:bg-gray-700 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-900'">
               Cancel
             </button>
-            <button type="submit" :disabled="isSubmitting" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium disabled:opacity-50">
+            <button type="submit" :disabled="isSubmitting" class="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg font-medium disabled:opacity-50">
               {{ isSubmitting ? 'Saving...' : 'Update Client' }}
             </button>
           </div>
@@ -373,8 +373,8 @@ export default {
   setup(props) {
     const inputClass = (isDark) => {
       return isDark
-        ? 'bg-gray-800 border-gray-700 text-white placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500'
-        : 'bg-white border-gray-300 text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500'
+        ? 'bg-gray-800 border-gray-700 text-white placeholder:text-gray-400 focus:ring-2 focus:ring-teal-500 focus:border-teal-500'
+        : 'bg-white border-gray-300 text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-teal-500 focus:border-teal-500'
     }
 
     return {

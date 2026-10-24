@@ -1,9 +1,11 @@
 <template>
   <AppSidebar v-slot="{ isDark }">
-    <div class="p-8">
-      <div class="mb-8">
-        <h1 class="text-3xl font-bold mb-2 transition-colors duration-200" :class="isDark ? 'text-white' : 'text-gray-900'">Client Management</h1>
-        <p class="transition-colors duration-200" :class="isDark ? 'text-gray-400' : 'text-gray-600'">Manage your water system clients and their accounts</p>
+    <div class="min-h-full p-5 sm:p-8 lg:p-10" :class="isDark ? 'bg-slate-950 text-white' : 'bg-[#f5f8f7] text-slate-900'">
+      <div class="mb-8 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+        <div><p class="mb-2 text-xs font-bold uppercase tracking-[0.22em] text-teal-700">Doña Josefa Makilas Buluan Caparan Water System Association</p>
+        <h1 class="text-3xl font-extrabold tracking-tight sm:text-4xl transition-colors duration-200" :class="isDark ? 'text-white' : 'text-slate-900'">Community members</h1>
+        <p class="mt-2 transition-colors duration-200" :class="isDark ? 'text-slate-400' : 'text-slate-500'">Manage household accounts, service status, and water usage across Makilas, Ipil.</p></div>
+        <div class="hidden items-center gap-3 rounded-2xl border px-4 py-3 shadow-sm sm:flex" :class="isDark ? 'border-slate-700 bg-slate-900' : 'border-slate-200 bg-white'"><img :src="'/images/dmbc-seal.png'" alt="DMBC seal" class="h-10 w-10 rounded-full object-contain"/><div><p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Association</p><p class="text-sm font-bold text-teal-700">DMBC Water</p></div></div>
       </div>
 
       <!-- Add Client Button -->
@@ -18,11 +20,11 @@
       @select-barangay="selectedBarangay = $event"
     />
 
-    <div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-      <div class="rounded-lg border px-5 py-4" :class="isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'">
+      <div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div class="rounded-2xl border px-5 py-5 shadow-sm transition hover:shadow-md" :class="isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-white'">
         <div class="flex items-center gap-4">
-          <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-amber-500">
-            <svg class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-700">
+              <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-2.21 0-4 1.12-4 2.5S9.79 13 12 13s4 1.12 4 2.5S14.21 18 12 18m0-10V6m0 12v-2m8-4a8 8 0 11-16 0 8 8 0 0116 0z" />
             </svg>
           </div>
@@ -32,10 +34,10 @@
           </div>
         </div>
       </div>
-      <div class="rounded-lg border px-5 py-4" :class="isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'">
+      <div class="rounded-2xl border px-5 py-5 shadow-sm transition hover:shadow-md" :class="isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-white'">
         <div class="flex items-center gap-4">
-          <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-red-500">
-            <svg class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-rose-600">
+              <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-2.21 0-4 1.12-4 2.5S9.79 13 12 13s4 1.12 4 2.5S14.21 18 12 18m0-10V6m0 12v-2m8-4a8 8 0 11-16 0 8 8 0 0116 0z" />
             </svg>
           </div>
@@ -45,37 +47,37 @@
           </div>
         </div>
       </div>
-      <div class="rounded-lg border px-5 py-4" :class="isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'">
+      <div class="rounded-2xl border px-5 py-5 shadow-sm transition hover:shadow-md" :class="isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-white'">
         <div class="flex items-center gap-4">
-          <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-indigo-500">
-            <svg class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-teal-50 text-teal-700">
+            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.36-1.86M17 20H7m10 0v-2c0-.66-.13-1.28-.36-1.86M7 20H2v-2a3 3 0 015.36-1.86M7 20v-2a5 5 0 019.29 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
           </div>
           <div>
             <p class="text-xs uppercase tracking-wide" :class="isDark ? 'text-gray-400' : 'text-gray-500'">Customers shown</p>
-            <p class="mt-1 text-2xl font-bold" :class="isDark ? 'text-indigo-300' : 'text-indigo-600'">{{ displayedCustomersShown }}</p>
+            <p class="mt-1 text-2xl font-extrabold" :class="isDark ? 'text-teal-300' : 'text-teal-700'">{{ displayedCustomersShown }}</p>
           </div>
         </div>
       </div>
     </div>
 
-     <div class="mb-6 flex flex-wrap gap-3">
-      <button @click="openAddModal" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-medium shadow-lg transition-all duration-200 flex items-center space-x-2">
+    <div class="mb-6 flex flex-wrap gap-3">
+      <button @click="openAddModal" class="bg-gradient-to-r from-teal-700 to-cyan-700 hover:from-teal-800 hover:to-cyan-800 text-white px-6 py-3 rounded-xl font-semibold shadow-lg shadow-teal-700/15 transition-all duration-200 flex items-center space-x-2">
         <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
         </svg>
         <span>Add New Client</span>
       </button>
-      <button @click="isReadingImportOpen = true" class="bg-teal-600 hover:bg-teal-700 text-white px-6 py-3 rounded-lg font-medium shadow-lg transition-all duration-200">
+      <button @click="isReadingImportOpen = true" class="bg-white border border-teal-200 hover:bg-teal-50 text-teal-800 px-6 py-3 rounded-xl font-semibold shadow-sm transition-all duration-200">
         Import Readings
       </button>
     </div>
     <!-- Clients Table -->
-    <div class="rounded-lg shadow overflow-hidden" :class="isDark ? 'bg-gray-800' : 'bg-white'">
-      <div class="px-6 py-4 border-b flex items-center justify-between" :class="isDark ? 'border-gray-700' : 'border-gray-200'">
-        <h2 class="text-lg font-semibold" :class="isDark ? 'text-white' : 'text-gray-900'">Client List</h2>
-        <div class="flex items-center space-x-4">
+    <div class="rounded-3xl border shadow-sm overflow-hidden" :class="isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-white'">
+      <div class="px-5 py-5 border-b flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between" :class="isDark ? 'border-slate-800' : 'border-slate-100'">
+        <div><h2 class="text-lg font-bold" :class="isDark ? 'text-white' : 'text-slate-900'">Member directory</h2><p class="mt-1 text-sm" :class="isDark ? 'text-slate-400' : 'text-slate-500'">{{ filteredCustomers.length }} accounts match your filters</p></div>
+        <div class="flex flex-wrap items-center gap-3">
           <span class="text-sm" :class="isDark ? 'text-gray-300' : 'text-gray-600'">
             {{ filteredCustomers.length }} found
           </span>
@@ -83,13 +85,13 @@
             type="search"
             placeholder="Search clients..."
             v-model="search"
-            class="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-            :class="isDark ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'"
+            class="min-w-52 rounded-xl border px-4 py-2.5 text-sm outline-none focus:border-teal-600 focus:ring-4 focus:ring-teal-100"
+            :class="isDark ? 'bg-slate-800 border-slate-700 text-white placeholder-slate-400' : 'bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400'"
           />
           <select
             v-model="statusFilter"
-            class="px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-            :class="isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'"
+            class="rounded-xl border px-3 py-2.5 text-sm outline-none focus:border-teal-600 focus:ring-4 focus:ring-teal-100"
+            :class="isDark ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'"
           >
             <option value="all">All Status</option>
             <option value="active">Active</option>
@@ -97,8 +99,8 @@
           </select>
           <select
             v-model="billFilter"
-            class="px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-            :class="isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'"
+            class="rounded-xl border px-3 py-2.5 text-sm outline-none focus:border-teal-600 focus:ring-4 focus:ring-teal-100"
+            :class="isDark ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'"
           >
             <option value="all">All Bills</option>
             <option value="pending">Pending</option>
@@ -111,7 +113,7 @@
       </div>
       <div class="overflow-x-auto">
         <table class="w-full">
-          <thead :class="isDark ? 'bg-gray-700' : 'bg-gray-50'">
+          <thead :class="isDark ? 'bg-slate-800/80' : 'bg-teal-50/70'">
             <tr>
               <th class="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider" :class="isDark ? 'text-gray-300' : 'text-gray-500'">Account No</th>
               <th class="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider" :class="isDark ? 'text-gray-300' : 'text-gray-500'">Customer Name</th>
@@ -124,7 +126,7 @@
               <th class="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider w-48" :class="isDark ? 'text-gray-300' : 'text-gray-500'">Actions</th>
             </tr>
           </thead>
-          <tbody :class="isDark ? 'bg-gray-800 divide-gray-700' : 'bg-white divide-gray-200'" class="divide-y">
+          <tbody :class="isDark ? 'bg-slate-900 divide-slate-800' : 'bg-white divide-slate-100'" class="divide-y">
             <tr v-if="isLoading">
               <td class="px-6 py-6 text-sm" :class="isDark ? 'text-gray-300' : 'text-gray-600'" colspan="9">Loading customers...</td>
             </tr>
@@ -134,20 +136,20 @@
             <tr v-else-if="filteredCustomers.length === 0">
               <td class="px-6 py-6 text-sm" :class="isDark ? 'text-gray-300' : 'text-gray-600'" colspan="9">No customers found.</td>
             </tr>
-            <tr v-else v-for="customer in filteredCustomers" :key="customer.id" :class="isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'">
-              <td class="px-4 py-2.5 whitespace-nowrap text-sm font-semibold" :class="isDark ? 'text-purple-300' : 'text-purple-600'">{{ customer.account_no }}</td>
+            <tr v-else v-for="customer in filteredCustomers" :key="customer.id" class="transition-colors" :class="isDark ? 'hover:bg-slate-800/70' : 'hover:bg-teal-50/40'">
+              <td class="px-4 py-3 whitespace-nowrap text-sm font-bold" :class="isDark ? 'text-teal-300' : 'text-teal-800'">{{ customer.account_no }}</td>
               <td class="px-4 py-2.5 whitespace-nowrap">
                 <div class="flex items-center">
-                  <div class="h-7 w-7 rounded-full flex items-center justify-center" :class="isDark ? 'bg-indigo-900' : 'bg-indigo-100'">
-                    <span class="font-medium text-xs" :class="isDark ? 'text-indigo-200' : 'text-indigo-600'">{{ (customer.customer_name || '?').charAt(0) }}</span>
+                  <div class="h-8 w-8 rounded-full flex items-center justify-center" :class="isDark ? 'bg-teal-900/70' : 'bg-teal-100'">
+                    <span class="font-semibold text-xs" :class="isDark ? 'text-teal-200' : 'text-teal-700'">{{ (customer.customer_name || '?').charAt(0) }}</span>
                   </div>
                   <div class="ml-2">
                     <p class="text-sm font-medium" :class="isDark ? 'text-white' : 'text-gray-900'">{{ customer.customer_name }}</p>
                   </div>
                 </div>
               </td>
-              <td class="px-4 py-2.5 whitespace-nowrap text-sm font-semibold" :class="isDark ? 'text-blue-300' : 'text-blue-600'">{{ customer.previous_reading }} m³</td>
-              <td class="px-4 py-2.5 whitespace-nowrap text-sm font-semibold" :class="isDark ? 'text-green-300' : 'text-green-600'">{{ customer.current_reading ?? '-' }}{{ customer.current_reading ? ' m³' : '' }}</td>
+              <td class="px-4 py-2.5 whitespace-nowrap text-sm font-semibold" :class="isDark ? 'text-slate-300' : 'text-slate-600'">{{ customer.previous_reading }} m³</td>
+              <td class="px-4 py-2.5 whitespace-nowrap text-sm font-semibold" :class="isDark ? 'text-cyan-300' : 'text-cyan-700'">{{ customer.current_reading ?? '-' }}{{ customer.current_reading ? ' m³' : '' }}</td>
               <td class="px-4 py-2.5 whitespace-nowrap text-sm">
                 <span v-if="customer.latest_bill_state === 'paid'" class="px-2.5 py-0.5 rounded-full text-xs font-medium" :class="isDark ? 'bg-green-900 text-green-200' : 'bg-green-100 text-green-800'">Paid</span>
                 <span v-else-if="customer.latest_bill_state === 'due'" class="px-2.5 py-0.5 rounded-full text-xs font-medium" :class="isDark ? 'bg-red-900 text-red-200' : 'bg-red-100 text-red-800'">Due</span>
@@ -164,13 +166,13 @@
                 </span>
               </td>
               <td class="px-4 py-2.5 whitespace-nowrap text-sm">
-                <button @click="openUsageModal(customer)" class="font-medium text-xs hover:underline" :class="isDark ? 'text-indigo-400 hover:text-indigo-300' : 'text-indigo-600 hover:text-indigo-900'">
+                <button @click="openUsageModal(customer)" class="font-semibold text-xs hover:underline" :class="isDark ? 'text-cyan-300 hover:text-cyan-200' : 'text-teal-700 hover:text-cyan-700'">
                   View Usage
                 </button>
               </td>
               <td class="px-4 py-2.5 whitespace-nowrap text-sm">
                 <div class="flex flex-wrap gap-1.5">
-                  <button @click="openViewModal(customer)" class="text-white box-border border border-transparent hover:bg-indigo-700 focus:ring-4 focus:ring-indigo-300 shadow-xs font-medium leading-5 rounded-full text-xs px-2.5 py-1 focus:outline-none bg-indigo-600">
+                  <button @click="openViewModal(customer)" class="text-white box-border border border-transparent hover:bg-cyan-800 focus:ring-4 focus:ring-teal-200 shadow-xs font-semibold leading-5 rounded-full text-xs px-2.5 py-1 focus:outline-none bg-gradient-to-r from-teal-700 to-cyan-700">
                     View
                   </button>
                   <button
@@ -206,16 +208,16 @@
       </div>
     </div>
 
-    <div v-if="isViewModalOpen" class="fixed inset-0 z-50">
+    <div v-if="isViewModalOpen" :data-dark="isDark" class="dmbc-modal fixed inset-0 z-50">
       <div class="absolute inset-0 bg-black/50" @click="closeViewModal"></div>
       <div class="absolute inset-0 flex items-center justify-center p-4">
-        <div class="w-full max-w-2xl rounded-xl shadow-2xl" :class="isDark ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'">
-          <div class="px-6 py-4 border-b" :class="isDark ? 'border-gray-800' : 'border-gray-200'">
+        <div class="dmbc-dialog w-full max-w-2xl rounded-xl shadow-2xl" :class="isDark ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'">
+          <div class="dmbc-dialog-header px-6 py-4 border-b" :class="isDark ? 'border-gray-800' : 'border-gray-200'">
             <div class="flex items-start justify-between gap-4">
               <div>
                 <h3 class="text-lg font-semibold">Client Details</h3>
                 <p class="text-sm mt-1" :class="isDark ? 'text-gray-300' : 'text-gray-600'">
-                  {{ viewingCustomer?.customer_name || '-' }} • <span class="font-semibold" :class="isDark ? 'text-purple-300' : 'text-purple-600'">{{ viewingCustomer?.account_no || '-' }}</span>
+                  {{ viewingCustomer?.customer_name || '-' }} • <span class="font-semibold" :class="isDark ? 'text-teal-300' : 'text-teal-700'">{{ viewingCustomer?.account_no || '-' }}</span>
                 </p>
               </div>
               <span
@@ -327,13 +329,13 @@
     />
 
     <!-- Swap Account Number Modal -->
-    <div v-if="isSwapModalOpen" class="fixed inset-0 z-50">
+    <div v-if="isSwapModalOpen" :data-dark="isDark" class="dmbc-modal fixed inset-0 z-50">
       <div class="absolute inset-0 bg-black/50" @click="closeSwapModal"></div>
       <div class="absolute inset-0 flex items-center justify-center p-4">
-        <div class="w-full max-w-xl rounded-lg shadow-lg" :class="isDark ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'">
-          <div class="px-6 py-4 border-b" :class="isDark ? 'border-gray-800' : 'border-gray-200'">
+        <div class="dmbc-dialog w-full max-w-xl rounded-lg shadow-lg" :class="isDark ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'">
+          <div class="dmbc-dialog-header px-6 py-4 border-b" :class="isDark ? 'border-gray-800' : 'border-gray-200'">
             <div class="flex items-center justify-between">
-              <h3 class="text-lg font-semibold">Swap Account Numbers</h3>
+              <div><h3 class="text-lg font-semibold">Swap Account Numbers</h3><p class="mt-1 text-sm">Exchange account numbers between two members.</p></div>
               <button class="text-sm" :class="isDark ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'" @click="closeSwapModal">
                 Close
               </button>
@@ -345,7 +347,7 @@
               <p class="text-xs uppercase tracking-wide" :class="isDark ? 'text-gray-400' : 'text-gray-500'">From</p>
               <p class="text-sm font-medium mt-1">
                 {{ swapSourceCustomer?.customer_name || '-' }}
-                <span class="ml-2 text-xs font-semibold" :class="isDark ? 'text-purple-300' : 'text-purple-600'">
+                <span class="ml-2 text-xs font-semibold" :class="isDark ? 'text-teal-300' : 'text-teal-700'">
                   {{ swapSourceCustomer?.account_no || '-' }}
                 </span>
               </p>
@@ -381,7 +383,7 @@
               type="button"
               @click="submitSwapAccountNo"
               :disabled="swapLoading"
-              class="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg font-medium disabled:opacity-50"
+              class="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg font-medium disabled:opacity-50"
             >
               {{ swapLoading ? 'Swapping...' : 'Swap Account No' }}
             </button>

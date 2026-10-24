@@ -1,21 +1,21 @@
 <template>
   <!-- Bills List -->
-  <div class="bg-white rounded-lg shadow-sm border" :class="isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'">
-    <div class="px-6 py-4 border-b" :class="isDark ? 'border-gray-700' : 'border-gray-200'">
-      <div class="flex justify-between items-center">
-        <h3 class="text-lg font-semibold">All Bills</h3>
-        <div class="flex gap-3">
-          <div class="flex items-center gap-2">
+  <div class="billing-panel bg-white rounded-lg shadow-sm border" :class="isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'">
+    <div class="billing-panel-header px-6 py-4 border-b" :class="isDark ? 'border-gray-700' : 'border-gray-200'">
+      <div class="flex flex-col gap-5">
+        <div class="flex flex-wrap items-center justify-between gap-2"><div><h3 class="text-lg font-bold">Bill register</h3><p class="mt-1 text-sm text-slate-500">Search all member bills, manage payments, and export monthly reports.</p></div><span class="rounded-full bg-teal-50 px-3 py-1 text-xs font-bold text-teal-800">{{ pagination?.total ?? allBills.length }} bills</span></div>
+        <div class="flex flex-wrap gap-4">
+          <div class="flex flex-wrap items-center gap-2">
             <label class="text-sm font-medium" :class="isDark ? 'text-gray-200' : 'text-gray-700'">Report:</label>
             <input
               v-model="reportMonth"
               type="month"
-              class="px-2 py-1 text-sm border rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              class="px-2 py-1 text-sm border rounded focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
               :class="isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'"
             >
             <select
               v-model="reportBarangayId"
-              class="max-w-36 px-2 py-1 text-sm border rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              class="max-w-36 px-2 py-1 text-sm border rounded focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
               :class="isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'"
             >
               <option value="">All barangays</option>
@@ -26,7 +26,7 @@
             <button
               type="button"
               :disabled="!reportMonth"
-              class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1 rounded text-sm font-medium disabled:opacity-50 transition-colors duration-200"
+              class="bg-teal-600 hover:bg-teal-700 text-white px-3 py-1 rounded text-sm font-medium disabled:opacity-50 transition-colors duration-200"
               @click="downloadMonthlyReport"
             >
               Export Excel
@@ -36,7 +36,7 @@
             <label class="text-sm font-medium" :class="isDark ? 'text-gray-200' : 'text-gray-700'">Status:</label>
             <select
               v-model="localStatusFilter"
-              class="px-2 py-1 text-sm border rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              class="px-2 py-1 text-sm border rounded focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
               :class="isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'"
               @change="handleFilterChange"
             >
@@ -44,7 +44,7 @@
               <option value="pending">Pending</option>
               <option value="due">Due</option>
               <option value="partially paid">Partially Paid</option>
-              <option value="paid">Paid</option>
+              <option value="paid">Paid</option><option value="void">Void</option>
             </select>
           </div>
           <div class="flex items-center gap-2">
@@ -53,7 +53,7 @@
               v-model="localSearch"
               type="search"
               placeholder="Name, account, or bill no"
-              class="px-2 py-1 text-sm border rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              class="px-2 py-1 text-sm border rounded focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
               :class="isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'"
             >
           </div>
@@ -62,7 +62,7 @@
     </div>
     <div class="p-6">
       <div v-if="loadingAllBills" class="text-center py-8">
-        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
+        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600 mx-auto"></div>
         <p class="mt-2 text-sm" :class="isDark ? 'text-gray-400' : 'text-gray-600'">Loading bills...</p>
       </div>
 
@@ -79,7 +79,7 @@
           <thead class="border-b" :class="isDark ? 'border-gray-600' : 'border-gray-200'">
             <tr>
               <th class="text-left py-2 px-2 font-medium" :class="isDark ? 'text-gray-200' : 'text-gray-700'">Customer</th>
-              <th class="text-left py-2 px-2 font-medium" :class="isDark ? 'text-gray-200' : 'text-gray-700'">Account</th>
+              <th class="text-left py-2 px-2 font-medium" :class="isDark ? 'text-gray-200' : 'text-gray-700'">Account / Bill</th>
               <th class="text-left py-2 px-2 font-medium" :class="isDark ? 'text-gray-200' : 'text-gray-700'">Due Date</th>
               <th class="text-left py-2 px-2 font-medium" :class="isDark ? 'text-gray-200' : 'text-gray-700'">Amount</th>
               <th class="text-left py-2 px-2 font-medium" :class="isDark ? 'text-gray-200' : 'text-gray-700'">Status</th>
@@ -92,7 +92,7 @@
                 <span :class="isDark ? 'text-gray-300' : 'text-gray-900'">{{ bill.customer?.customer_name || 'N/A' }}</span>
               </td>
               <td class="py-2 px-2">
-                <span :class="isDark ? 'text-gray-400' : 'text-gray-600'">{{ bill.customer?.account_no || 'N/A' }}</span>
+                <span :class="isDark ? 'text-gray-400' : 'text-gray-600'">{{ bill.customer?.account_no || 'N/A' }}</span><p class="mt-1 text-xs text-slate-500">{{ bill.reference_number }}</p>
               </td>
               <td class="py-2 px-2">
                 <span :class="isDue(bill) ? (isDark ? 'font-semibold text-red-300' : 'font-semibold text-red-600') : (isDark ? 'text-gray-400' : 'text-gray-600')">{{ normalizedStatus(bill) === 'paid' ? '' : formatDate(bill.due_date) }}</span>
@@ -111,7 +111,7 @@
                   <button
                     v-if="['pending', 'due', 'partially paid'].includes(normalizedStatus(bill))"
                     @click="handlePayBill(bill)"
-                    class="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-xs font-medium transition-colors duration-200"
+                    class="bg-teal-600 hover:bg-teal-700 text-white px-2 py-1 rounded text-xs font-medium transition-colors duration-200"
                   >
                     Pay
                   </button>
@@ -204,37 +204,38 @@ export default {
     return {
       localStatusFilter: this.statusFilter,
       localCustomerFilter: this.customerFilter,
-      localSearch: '',
-      reportMonth: new Date().toISOString().slice(0, 7),
+      localSearch: this.customerFilter,
+      searchTimer: null,
+      reportMonth: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`,
       reportBarangayId: ''
     }
   },
   computed: {
     filteredBills() {
-      const q = (this.localSearch || '').trim().toLowerCase()
-      if (!q) return this.allBills
-      return this.allBills.filter(bill => {
-        return (
-          String(bill.customer?.customer_name || '').toLowerCase().includes(q) ||
-          String(bill.customer?.account_no || '').toLowerCase().includes(q) ||
-          String(bill.reference_number || '').toLowerCase().includes(q)
-        )
-      })
+      return this.allBills
     }
   },
+  beforeUnmount() { clearTimeout(this.searchTimer) },
+
   watch: {
+    localSearch() {
+      clearTimeout(this.searchTimer)
+      this.searchTimer = setTimeout(() => this.handleFilterChange(), 300)
+    },
     statusFilter(newVal) {
       this.localStatusFilter = newVal
     },
     customerFilter(newVal) {
       this.localCustomerFilter = newVal
+      if (this.localSearch !== newVal) this.localSearch = newVal
     }
   },
   methods: {
     handleFilterChange() {
+      clearTimeout(this.searchTimer)
       this.$emit('filter-change', {
         statusFilter: this.localStatusFilter,
-        customerFilter: this.localCustomerFilter
+        customerFilter: this.localSearch
       })
     },
     handlePayBill(bill) {

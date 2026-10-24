@@ -1,7 +1,7 @@
 <template>
-  <div v-if="selectedBill" class="bg-white rounded-lg shadow-sm border" :class="isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'">
-    <div class="px-6 py-4 border-b" :class="isDark ? 'border-gray-700' : 'border-gray-200'">
-      <h3 class="text-lg font-semibold">Process Cash Payment</h3>
+  <div v-if="selectedBill" class="billing-panel bg-white rounded-lg shadow-sm border" :class="isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'">
+    <div class="dmbc-dialog-header billing-panel-header px-6 py-4 border-b" :class="isDark ? 'border-gray-700' : 'border-gray-200'">
+      <h3 class="text-lg font-semibold">Record payment</h3><p class="mt-1 text-sm text-slate-500">Confirm the bill balance and cash received before saving.</p>
     </div>
     <div class="p-6">
       <div class="mb-6 p-4 rounded-lg border" :class="isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'">
@@ -12,7 +12,7 @@
             <p><span class="font-medium">Customer:</span> {{ customerName }}</p>
           </div>
           <div>
-            <p><span class="font-medium">Amount Due:</span> ₱{{ formatMoney(selectedBill.total_due) }}</p>
+            <p><span class="font-medium">Amount Due:</span> ₱{{ formatMoney(billBalance(selectedBill)) }}</p>
             <p><span class="font-medium">Due Date:</span> {{ formatDate(selectedBill.due_date) }}</p>
           </div>
         </div>
@@ -29,7 +29,7 @@
             step="0.01"
             min="0"
             placeholder="0.00"
-            class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
             :class="isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'"
             required
           >
@@ -51,6 +51,7 @@
           <button
             type="button"
             @click="$emit('cancel-payment')"
+            :disabled="processingPayment"
             class="flex-1 px-4 py-2 rounded-lg font-medium transition-colors duration-200"
             :class="isDark ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-900'"
           >
@@ -59,7 +60,7 @@
           <button
             type="submit"
             :disabled="processingPayment || cashReceived <= 0 || changeAmount < 0"
-            class="flex-1 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium disabled:opacity-50 transition-colors duration-200"
+            class="billing-primary flex-1 bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg font-medium disabled:opacity-50 transition-colors duration-200"
           >
             {{ processingPayment ? 'Processing...' : 'Complete Payment' }}
           </button>
@@ -70,7 +71,8 @@
 </template>
 
 <script>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
+import { billBalance } from '../../utils/billingPresentation.js'
 
 export default {
   name: 'PaymentForm',
@@ -94,15 +96,17 @@ export default {
   },
   emits: ['process-payment', 'cancel-payment'],
   setup(props, { emit }) {
-    const cashReceived = ref(props.selectedBill ? props.selectedBill.total_due : 0)
+    const cashReceived = ref(billBalance(props.selectedBill))
+
+    watch(() => props.selectedBill, bill => { cashReceived.value = billBalance(bill) })
 
     const changeAmount = computed(() => {
       if (!props.selectedBill || cashReceived.value <= 0) return 0
-      return cashReceived.value - props.selectedBill.total_due
+      return Math.round((cashReceived.value - billBalance(props.selectedBill)) * 100) / 100
     })
 
     const handlePayment = () => {
-      if (!props.selectedBill || cashReceived.value <= 0 || changeAmount.value < 0) return
+      if (props.processingPayment || !props.selectedBill || !Number.isFinite(Number(cashReceived.value)) || cashReceived.value <= 0 || changeAmount.value < 0) return
 
       emit('process-payment', {
         bill: props.selectedBill,
@@ -122,6 +126,7 @@ export default {
     }
 
     return {
+      billBalance,
       cashReceived,
       changeAmount,
       handlePayment,
