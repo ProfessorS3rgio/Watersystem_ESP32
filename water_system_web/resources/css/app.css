@@ -12,6 +12,26 @@
 }
 
 /* Shared DMBC dialog treatment, enabled only on branded modal roots. */
+.sync-workspace { --sync-surface:#fff; --sync-soft:#edf6f4; --sync-line:#dcebe8; --sync-text:#173c39; background:#f5f8f7; color:var(--sync-text); }
+.sync-workspace[data-dark="true"] { --sync-surface:#10222c; --sync-soft:#162f38; --sync-line:#28454c; --sync-text:#e4f7f4; background:#020617; }
+.sync-workspace .sync-panel { background:var(--sync-surface); color:var(--sync-text); border:1px solid var(--sync-line); border-radius:22px; box-shadow:0 3px 18px rgb(15 70 70 / 3%); }
+.sync-workspace .sync-muted { color:#617b76; }
+.sync-workspace[data-dark="true"] .sync-muted { color:#a0bfbd; }
+.sync-workspace .sync-soft { background:var(--sync-soft); border-color:var(--sync-line); }
+.sync-workspace .sync-primary { padding:11px 18px; border-radius:12px; background:linear-gradient(110deg,#0f766e,#0e7490); color:#fff; font-size:14px; font-weight:650; }
+.sync-workspace .sync-secondary { padding:10px 16px; border:1px solid var(--sync-line); border-radius:12px; background:var(--sync-surface); color:var(--sync-text); font-size:13px; font-weight:650; }
+.sync-workspace button { cursor:pointer; transition:background .15s; }
+.sync-workspace button:disabled { cursor:not-allowed; }
+.sync-workspace button:focus-visible, .sync-workspace a:focus-visible { outline:3px solid #5eead4; outline-offset:3px; }
+.sync-workspace input:not([type="checkbox"]) { padding:10px 12px; border:1px solid var(--sync-line); border-radius:12px; background:var(--sync-surface); color:var(--sync-text); }
+.sync-workspace input:focus-visible { outline:3px solid rgb(20 184 166 / 20%); border-color:#0d9488; }
+.sync-workspace input[type="checkbox"] { accent-color:#0f766e; }
+.sync-workspace[data-dark="true"] .text-gray-900 { color:#e4f7f4; }
+.sync-workspace[data-dark="true"] :is(.text-gray-600,.text-gray-700) { color:#a0bfbd; }
+.sync-workspace[data-dark="true"] .bg-gray-100 { background:var(--sync-soft); }
+.sync-workspace table { border-color:var(--sync-line); }
+.sync-workspace table tr:hover { background:rgb(20 184 166 / 5%); }
+
 .billing-workspace { --billing-surface: #fff; --billing-soft: #f1f8f7; --billing-line: #dcebe8; --billing-text: #173c39; }
 .billing-workspace[data-dark="true"] { --billing-surface: #0f202b; --billing-soft: #162f38; --billing-line: #28454c; --billing-text: #e4f7f4; }
 .billing-workspace .billing-panel {

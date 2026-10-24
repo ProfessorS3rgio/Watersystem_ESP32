@@ -1,20 +1,26 @@
 <template>
   <AppSidebar v-slot="{ isDark }">
-    <div class="p-8">
-      <div class="mb-8">
-        <h1 class="text-3xl font-bold mb-2 transition-colors duration-200" :class="isDark ? 'text-white' : 'text-gray-900'">Sync Device</h1>
-        <p class="transition-colors duration-200" :class="isDark ? 'text-gray-400' : 'text-gray-600'">Connect and synchronize data with your ESP32 water system device</p>
-    </div>
-
-    <div v-if="$route.path === '/sync/normalize-dates'" class="mb-8 overflow-hidden rounded-2xl border shadow-lg" :class="isDark ? 'border-gray-700 bg-gray-800' : 'border-indigo-100 bg-white'">
-      <div class="bg-gradient-to-r from-indigo-600 to-violet-600 px-6 py-5 text-white">
+    <div class="sync-workspace min-h-full space-y-6 p-5 sm:p-8 lg:p-10" :data-dark="isDark">
+      <header class="flex flex-wrap items-start justify-between gap-4"><div><p class="mb-2 text-xs font-bold uppercase tracking-[.2em] text-teal-600">DMBC Water · Field operations</p><h1 class="text-3xl font-extrabold tracking-tight sm:text-4xl">Device sync center</h1><p class="mt-2 text-sm sync-muted">Bring your field records and association data together.</p></div><span class="sync-soft rounded-xl px-4 py-2 text-xs font-semibold">USB serial · 115200 baud</span></header>
+      <p v-if="navigationNotice && deviceBusy" role="status" class="rounded-xl bg-amber-50 p-4 text-sm text-amber-800">{{ navigationNotice }}</p>
+      <SyncConnectionCard :connected="isConnected" :connecting="isConnecting" :busy="deviceBusy" :syncing="isSyncing" :supported="serialSupported" :port="connectedPort" :error="connectionError" :stage="syncStage" :status="syncStatus" :sync-error="syncError" @connect="connectDevice" @disconnect="disconnectDevice" @sync="handleSyncData" />
+      <nav aria-label="Device workspace" class="sync-panel flex flex-wrap gap-2 p-2">
+        <RouterLink v-for="tab in [{ key: 'sync', label: 'Sync overview' }, { key: 'inspect', label: 'Reading inspector' }, { key: 'tools', label: 'Maintenance' }]" :key="tab.key" :to="{ path: '/sync', query: tab.key === 'sync' ? {} : { view: tab.key } }" :aria-current="activeWorkspace === tab.key && $route.path !== '/sync/normalize-dates' ? 'page' : undefined" class="flex-1 min-w-36 rounded-xl px-4 py-3 text-sm font-bold transition" :class="activeWorkspace === tab.key && $route.path !== '/sync/normalize-dates' ? 'bg-teal-700 text-white' : 'sync-muted hover:bg-teal-500/10'">{{ tab.label }}</RouterLink>
+        <RouterLink to="/sync/normalize-dates" class="flex-1 min-w-36 rounded-xl px-4 py-3 text-center text-sm font-bold" :class="$route.path === '/sync/normalize-dates' ? 'bg-teal-700 text-white' : 'sync-muted hover:bg-teal-500/10'">Date normalization</RouterLink>
+      </nav>
+      <template v-if="activeWorkspace === 'sync' && $route.path !== '/sync/normalize-dates'">
+        <div class="grid gap-4 md:grid-cols-2"><section class="sync-panel p-6"><p class="text-xs font-bold uppercase tracking-wider text-cyan-600">Device → Website</p><h2 class="mt-3 text-lg font-bold">Readings, bills &amp; payments</h2><p class="mt-2 text-sm leading-6 sync-muted">Import field activity so office accounts reflect the latest device records.</p></section><section class="sync-panel p-6"><p class="text-xs font-bold uppercase tracking-wider text-teal-600">Website → Device</p><h2 class="mt-3 text-lg font-bold">Members, rates &amp; reference data</h2><p class="mt-2 text-sm leading-6 sync-muted">Send account changes and billing settings to the field device. Each sync creates a web restore point before transferring data.</p></section></div>
+        <SyncDeviceInfo :connected="isConnected" :details="deviceDetails" />
+      </template>
+    <div v-if="$route.path === '/sync/normalize-dates'" class="sync-panel mb-6 overflow-hidden" :class="isDark ? 'border-gray-700 bg-gray-800' : 'border-teal-100 bg-white'">
+      <div class="bg-gradient-to-r from-teal-600 to-cyan-600 px-6 py-5 text-white">
         <div class="flex items-start gap-4">
           <div class="rounded-xl bg-white/15 p-3">
             <svg class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M7 3v18m10-18v18M3 7h18M3 17h18" /></svg>
           </div>
           <div>
             <h2 class="text-xl font-semibold">Normalize Record Dates</h2>
-            <p class="mt-1 text-sm text-indigo-100">Move records from selected dates to one target date on the connected ESP32.</p>
+            <p class="mt-1 text-sm text-teal-100">Move records from selected dates to one target date on the connected ESP32.</p>
           </div>
         </div>
       </div>
@@ -22,17 +28,17 @@
         <div class="grid gap-6 lg:grid-cols-[1fr_1fr_auto] lg:items-end">
           <label class="block">
             <span class="mb-2 block text-sm font-semibold" :class="isDark ? 'text-gray-200' : 'text-gray-700'">Target date</span>
-            <input v-model="normalizeTargetDate" type="date" class="w-full rounded-xl border px-4 py-3 text-sm shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500" :class="isDark ? 'border-gray-600 bg-gray-900 text-white' : 'border-gray-300 bg-white text-gray-900'" />
+            <input v-model="normalizeTargetDate" type="date" class="w-full rounded-xl border px-4 py-3 text-sm shadow-sm focus:border-teal-500 focus:ring-2 focus:ring-teal-500" :class="isDark ? 'border-gray-600 bg-gray-900 text-white' : 'border-gray-300 bg-white text-gray-900'" />
             <span class="mt-1 block text-xs" :class="isDark ? 'text-gray-400' : 'text-gray-500'">All selected records will use this date.</span>
           </label>
           <label class="block">
             <span class="mb-2 block text-sm font-semibold" :class="isDark ? 'text-gray-200' : 'text-gray-700'">Add source date</span>
             <div class="flex gap-2">
-              <input v-model="normalizeSourceDateDraft" type="date" @keyup.enter="addNormalizeSourceDate" class="min-w-0 flex-1 rounded-xl border px-4 py-3 text-sm shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500" :class="isDark ? 'border-gray-600 bg-gray-900 text-white' : 'border-gray-300 bg-white text-gray-900'" />
-              <button type="button" @click="addNormalizeSourceDate" class="rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700">Add</button>
+              <input v-model="normalizeSourceDateDraft" type="date" @keyup.enter="addNormalizeSourceDate" class="min-w-0 flex-1 rounded-xl border px-4 py-3 text-sm shadow-sm focus:border-teal-500 focus:ring-2 focus:ring-teal-500" :class="isDark ? 'border-gray-600 bg-gray-900 text-white' : 'border-gray-300 bg-white text-gray-900'" />
+              <button type="button" @click="addNormalizeSourceDate" class="rounded-xl bg-teal-600 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-teal-700">Add</button>
             </div>
           </label>
-          <button type="button" @click="normalizeDates" :disabled="isNormalizing || !isConnected" class="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50">
+          <button type="button" @click="normalizeDates" :disabled="deviceBusy || !isConnected" class="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50">
             <svg v-if="isNormalizing" class="h-5 w-5 animate-spin" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="3" stroke-dasharray="42 20" /></svg>
             <span>{{ isNormalizing ? 'Applying...' : 'Apply normalization' }}</span>
           </button>
@@ -46,9 +52,9 @@
             <button v-if="normalizeSourceDates.length" type="button" @click="normalizeSourceDates = []" class="text-xs font-semibold text-red-600 hover:text-red-700">Clear all</button>
           </div>
           <div v-if="normalizeSourceDates.length" class="mt-3 flex flex-wrap gap-2">
-            <span v-for="date in normalizeSourceDates" :key="date" class="inline-flex items-center gap-2 rounded-full bg-indigo-100 px-3 py-1.5 text-sm font-medium text-indigo-800">
+            <span v-for="date in normalizeSourceDates" :key="date" class="inline-flex items-center gap-2 rounded-full bg-teal-100 px-3 py-1.5 text-sm font-medium text-teal-800">
               {{ formatNormalizeDate(date) }}
-              <button type="button" @click="removeNormalizeSourceDate(date)" class="rounded-full text-indigo-600 hover:text-indigo-900" :aria-label="`Remove ${date}`">×</button>
+              <button type="button" @click="removeNormalizeSourceDate(date)" class="rounded-full text-teal-600 hover:text-teal-900" :aria-label="`Remove ${date}`">×</button>
             </span>
           </div>
           <p v-else class="mt-3 text-sm italic" :class="isDark ? 'text-gray-400' : 'text-gray-500'">Every device record will be considered.</p>
@@ -58,199 +64,22 @@
       </div>
     </div>
 
-    <!-- Connection Status -->
-    <div v-if="$route.path !== '/sync/normalize-dates'" class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-      <div class="bg-white rounded-lg shadow-lg p-6">
-        <h2 class="text-xl font-semibold text-gray-900 mb-4">Web Serial Connection</h2>
-        <div class="space-y-4">
-          <div v-if="!isConnected" class="text-center py-8">
-            <svg class="h-16 w-16 text-gray-400 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-            <p class="text-gray-600 mb-4">No device connected</p>
-            <button
-              @click="connectDevice"
-              class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-medium shadow-lg transition-all duration-200 inline-flex items-center space-x-2"
-            >
-              <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-              <span>Connect Device</span>
-            </button>
-          </div>
-
-          <div v-else class="space-y-4">
-            <div class="bg-green-50 border border-green-200 rounded-lg p-4">
-              <div class="flex items-center">
-                <svg class="h-6 w-6 text-green-600 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <div class="flex-1">
-                  <p class="text-sm font-medium text-green-800">Connected</p>
-                  <p class="text-xs text-green-600">{{ connectedPort }}</p>
-                </div>
-                <button
-                  @click="disconnectDevice"
-                  class="text-red-600 hover:text-red-800 text-sm font-medium"
-                >
-                  Disconnect
-                </button>
-              </div>
-            </div>
-
-            <div class="grid grid-cols-2 gap-4">
-              <button
-                @click="handleSyncData"
-                :disabled="isSyncing"
-                class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-lg font-medium shadow transition-all duration-200 disabled:opacity-50 flex items-center justify-center space-x-2"
-              >
-                <svg class="h-5 w-5" :class="{ 'animate-spin': isSyncing }" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                <span>{{ isSyncing ? 'Syncing...' : 'Sync Data' }}</span>
-              </button>
-
-              <button
-                @click="showResetConfirm = true"
-                class="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-3 rounded-lg font-medium shadow transition-all duration-200 flex items-center justify-center space-x-2"
-              >
-                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                <span>Reset Sync Status</span>
-              </button>
-
-              <button
-                @click="showFormatConfirm = true"
-                class="bg-red-600 hover:bg-red-700 text-white px-4 py-3 rounded-lg font-medium shadow transition-all duration-200 flex items-center justify-center space-x-2"
-              >
-                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-                <span>Format SD Card</span>
-              </button>
-
-              <button
-                @click="showRestartConfirm = true"
-                class="bg-orange-600 hover:bg-orange-700 text-white px-4 py-3 rounded-lg font-medium shadow transition-all duration-200 flex items-center justify-center space-x-2"
-              >
-                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15M4.75 4.75l.75.75m0 0l-.75.75M4.75 19.25l.75-.75m0 0l-.75-.75" />
-                </svg>
-                <span>Restart Device</span>
-              </button>
-            </div>
-
-            <!-- Custom Command Input -->
-            <div class="mt-4">
-              <label class="block text-sm font-medium text-gray-700 mb-2">Custom Command</label>
-              <div class="flex space-x-2">
-                <input
-                  v-model="customCommand"
-                  @keyup.enter="sendCustomCommand(addLog)"
-                  type="text"
-                  placeholder="Enter command to send to device..."
-                  class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-                <button
-                  @click="sendCustomCommand(addLog)"
-                  class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium shadow transition-all duration-200 flex items-center space-x-2"
-                >
-                  <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                  </svg>
-                  <span>Send</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Device Info -->
-      <div class="bg-white rounded-lg shadow-lg p-6">
-        <h2 class="text-xl font-semibold text-gray-900 mb-4">Device Information</h2>
-        <div class="space-y-3">
-          <div class="flex items-center justify-between py-2 border-b border-gray-200">
-            <span class="text-sm text-gray-600">Device Type</span>
-            <span class="text-sm font-medium text-gray-900">ESP32 Water System</span>
-          </div>
-          <div class="flex items-center justify-between py-2 border-b border-gray-200">
-            <span class="text-sm text-gray-600">Device ID</span>
-            <span class="text-sm font-medium text-gray-900">{{ deviceId || '-' }}</span>
-          </div>
-          <div class="flex items-center justify-between py-2 border-b border-gray-200">
-            <span class="text-sm text-gray-600">Barangay ID</span>
-            <span class="text-sm font-medium text-gray-900">{{ brgyId || '-' }}</span>
-          </div>
-          <div class="flex items-center justify-between py-2 border-b border-gray-200">
-            <span class="text-sm text-gray-600">Firmware Version</span>
-            <span class="text-sm font-medium text-gray-900">{{ firmwareVersion }}</span>
-          </div>
-          <div class="flex items-center justify-between py-2 border-b border-gray-200">
-            <span class="text-sm text-gray-600">Last Sync</span>
-            <span class="text-sm font-medium text-gray-900">{{ lastSync }}</span>
-          </div>
-          <div class="flex items-center justify-between py-2 border-b border-gray-200">
-            <span class="text-sm text-gray-600">Print counts</span>
-            <span class="text-sm font-medium text-gray-900">{{ printCount }}</span>
-          </div>
-          <div class="flex items-center justify-between py-2 border-b border-gray-200">
-            <span class="text-sm text-gray-600">Customer Count</span>
-            <span class="text-sm font-medium text-gray-900">{{ customerCount }}</span>
-          </div>
-          <div class="flex items-center justify-between py-2 border-b border-gray-200">
-            <span class="text-sm text-gray-600">Records Pending</span>
-            <span class="text-sm font-medium text-orange-600">{{ pendingRecords }}</span>
-          </div>
-          <div class="flex items-center justify-between py-2 border-b border-gray-200">
-            <span class="text-sm text-gray-600">SD Used</span>
-            <span class="text-sm font-medium text-gray-900">{{ formatBytes(sdUsedBytes) }}</span>
-          </div>
-          <div class="flex items-center justify-between py-2 border-b border-gray-200">
-            <span class="text-sm text-gray-600">SD Free</span>
-            <span class="text-sm font-medium text-gray-900">{{ formatBytes(sdFreeBytes) }}</span>
-          </div>
-          <div class="flex items-center justify-between py-2 border-b border-gray-200">
-            <span class="text-sm text-gray-600">SD Total</span>
-            <span class="text-sm font-medium text-gray-900">{{ formatBytes(sdTotalBytes) }}</span>
-          </div>
-          <div class="flex items-center justify-between py-2 border-b border-gray-200">
-            <span class="text-sm text-gray-600">CPU</span>
-            <span class="text-sm font-medium text-gray-900">{{ cpuFreqMhz > 0 ? (cpuFreqMhz + ' MHz') : '-' }}</span>
-          </div>
-          <div class="flex items-center justify-between py-2 border-b border-gray-200">
-            <span class="text-sm text-gray-600">Heap Free</span>
-            <span class="text-sm font-medium text-gray-900">{{ formatBytes(heapFreeBytes) }}</span>
-          </div>
-          <div class="flex items-center justify-between py-2">
-            <span class="text-sm text-gray-600">Battery Level</span>
-            <div class="flex items-center space-x-2">
-              <div class="w-20 h-2 bg-gray-200 rounded-full overflow-hidden">
-                <div class="h-full bg-green-500" :style="{ width: batteryLevel + '%' }"></div>
-              </div>
-              <span class="text-sm font-medium text-gray-900">{{ batteryLevel }}%</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
 
     <!-- Read-only device/database comparison. This never changes device sync state. -->
-    <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+    <div v-if="activeWorkspace === 'inspect' && $route.path !== '/sync/normalize-dates'" class="sync-panel p-6 mb-6">
       <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
         <div>
           <h2 class="text-xl font-semibold text-gray-900">Device Reading Inspector</h2>
           <p class="text-sm text-gray-600">Compare every ESP32 SQLite reading with the website without syncing or changing records.</p>
         </div>
-        <div class="flex gap-2">
+        <div class="flex flex-wrap gap-2">
           <input v-model.trim="deviceAccountQuery" @keyup.enter="runAccountInspection" class="w-44 px-3 py-2 border border-gray-300 rounded-lg" placeholder="Account, e.g. B-001" />
-          <button @click="runAccountInspection" :disabled="!isConnected || isInspecting || !deviceAccountQuery"
-            class="bg-violet-600 hover:bg-violet-700 text-white px-4 py-2 rounded-lg font-medium disabled:opacity-50">
+          <button @click="runAccountInspection" :disabled="!isConnected || deviceBusy || !deviceAccountQuery"
+            class="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg font-medium disabled:opacity-50">
             {{ isInspecting ? 'Inspecting…' : 'Inspect Account' }}
           </button>
-          <button @click="runReadingInspection" :disabled="!isConnected || isInspecting"
-            class="border border-violet-600 text-violet-700 hover:bg-violet-50 px-4 py-2 rounded-lg font-medium disabled:opacity-50">
+          <button @click="runReadingInspection" :disabled="!isConnected || deviceBusy"
+            class="border border-teal-600 text-teal-700 hover:bg-teal-50 px-4 py-2 rounded-lg font-medium disabled:opacity-50">
             Inspect All
           </button>
         </div>
@@ -267,20 +96,20 @@
         <div class="mb-3 flex flex-wrap items-end gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
           <div class="text-sm text-amber-900"><p class="font-semibold">Repair selected device dates</p><p class="text-xs">Moves each selected reading and its linked device bill. It does not remove duplicates.</p></div>
           <label class="ml-auto text-xs font-medium text-amber-900">New date<input v-model="inspectionRepairDate" type="date" class="ml-2 rounded border border-amber-300 bg-white px-2 py-1 text-sm" /></label>
-          <button @click="repairSelectedInspectionDates" :disabled="!isConnected || !inspectionRepairDate || !selectedInspectionReadingIds.length" class="rounded-lg bg-amber-600 px-3 py-2 text-sm font-semibold text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50">Set date for {{ selectedInspectionReadingIds.length || 'selected' }} reading(s)</button>
+          <button @click="repairSelectedInspectionDates" :disabled="deviceBusy || !isConnected || !inspectionRepairDate || !selectedInspectionReadingIds.length" class="rounded-lg bg-amber-600 px-3 py-2 text-sm font-semibold text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50">Set date for {{ selectedInspectionReadingIds.length || 'selected' }} reading(s)</button>
         </div>
         <div class="overflow-x-auto max-h-[32rem] border border-gray-200 rounded-xl">
           <table class="min-w-[820px] w-full text-sm">
             <thead class="sticky top-0 bg-gray-100 text-left text-gray-700"><tr><th class="px-3 py-2">Repair</th><th class="px-3 py-2">Status</th><th class="px-3 py-2">Account</th><th class="px-3 py-2">Device ID</th><th class="px-3 py-2">Device reading</th><th class="px-3 py-2">Reading date &amp; time</th><th class="px-3 py-2">Website reading</th></tr></thead>
             <tbody>
-              <tr v-for="row in filteredInspectionResults" :key="row.device.device_uid + ':' + row.device.reading_id" class="border-t border-gray-100 align-top hover:bg-violet-50/40">
+              <tr v-for="row in filteredInspectionResults" :key="row.device.device_uid + ':' + row.device.reading_id" class="border-t border-gray-100 align-top hover:bg-teal-50/40">
                 <td class="px-3 py-2"><input v-model="selectedInspectionReadingIds" :value="String(row.device.reading_id)" type="checkbox" :aria-label="`Repair device reading ${row.device.reading_id}`" /></td>
                 <td class="px-3 py-2"><span class="inline-flex rounded-full px-2 py-1 text-xs font-semibold capitalize whitespace-nowrap" :class="inspectionStatusBadgeClass(row.status)">{{ row.status.replaceAll('_', ' ') }}</span></td>
                 <td class="px-3 py-2 font-semibold text-gray-900 whitespace-nowrap">{{ row.device.customer_account_number }}</td>
                 <td class="px-3 py-2 text-gray-700 font-medium">#{{ row.device.reading_id }}</td>
-                <td class="px-3 py-2"><div class="grid grid-cols-3 gap-x-3"><div><div class="text-[10px] uppercase text-gray-500">Prev</div><div class="font-semibold text-blue-700 whitespace-nowrap">{{ row.device.previous_reading }}</div></div><div><div class="text-[10px] uppercase text-gray-500">Current</div><div class="font-semibold text-green-700 whitespace-nowrap">{{ row.device.current_reading }}</div></div><div><div class="text-[10px] uppercase text-gray-500">Usage</div><div class="font-semibold text-violet-700 whitespace-nowrap">{{ row.device.usage_m3 }} m³</div></div></div></td>
+                <td class="px-3 py-2"><div class="grid grid-cols-3 gap-x-3"><div><div class="text-[10px] uppercase text-gray-500">Prev</div><div class="font-semibold text-blue-700 whitespace-nowrap">{{ row.device.previous_reading }}</div></div><div><div class="text-[10px] uppercase text-gray-500">Current</div><div class="font-semibold text-green-700 whitespace-nowrap">{{ row.device.current_reading }}</div></div><div><div class="text-[10px] uppercase text-gray-500">Usage</div><div class="font-semibold text-teal-700 whitespace-nowrap">{{ row.device.usage_m3 }} m³</div></div></div></td>
                 <td class="px-3 py-2 text-xs font-medium text-gray-700 whitespace-nowrap">{{ formatReadingDateTime(row.device.reading_at) }}</td>
-                <td class="px-3 py-2"><template v-if="row.server"><div class="grid grid-cols-3 gap-x-3"><div><div class="text-[10px] uppercase text-gray-500">Prev</div><div class="font-semibold text-blue-700 whitespace-nowrap">{{ row.server.previous_reading }}</div></div><div><div class="text-[10px] uppercase text-gray-500">Current</div><div class="font-semibold text-green-700 whitespace-nowrap">{{ row.server.current_reading }}</div></div><div><div class="text-[10px] uppercase text-gray-500">Usage</div><div class="font-semibold text-violet-700 whitespace-nowrap">{{ row.server.usage_m3 }} m³</div></div></div></template><span v-else class="text-gray-400">No website record</span></td>
+                <td class="px-3 py-2"><template v-if="row.server"><div class="grid grid-cols-3 gap-x-3"><div><div class="text-[10px] uppercase text-gray-500">Prev</div><div class="font-semibold text-blue-700 whitespace-nowrap">{{ row.server.previous_reading }}</div></div><div><div class="text-[10px] uppercase text-gray-500">Current</div><div class="font-semibold text-green-700 whitespace-nowrap">{{ row.server.current_reading }}</div></div><div><div class="text-[10px] uppercase text-gray-500">Usage</div><div class="font-semibold text-teal-700 whitespace-nowrap">{{ row.server.usage_m3 }} m³</div></div></div></template><span v-else class="text-gray-400">No website record</span></td>
               </tr>
               <tr v-if="filteredInspectionResults.length === 0"><td colspan="7" class="p-4 text-center text-gray-500">No readings match this filter.</td></tr>
             </tbody>
@@ -289,48 +118,21 @@
       </template>
     </div>
 
-    <!-- Sync Log -->
-    <div class="bg-white rounded-lg shadow-lg p-6">
-      <div class="flex items-center justify-between mb-4">
-        <h2 class="text-xl font-semibold text-gray-900">Sync Log</h2>
-        <button
-          @click="clearSyncLogs"
-          class="text-gray-600 hover:text-gray-800 text-sm font-medium px-3 py-1 rounded border border-gray-300 hover:border-gray-400 transition-colors duration-200"
-        >
-          Clear Logs
-        </button>
-      </div>
-      <div class="bg-gray-900 text-green-400 font-mono text-sm p-4 rounded-lg h-96 overflow-y-auto">
-        <div v-for="(log, index) in filteredSyncLogs" :key="index" class="mb-1">
-          <span class="text-gray-500">[{{ log.time }}]</span> {{ log.message }}
-        </div>
-        <div v-if="syncLogs.length === 0" class="text-gray-600">
-          Waiting for connection...
-        </div>
-      </div>
-    </div>
 
-    <!-- Success Dialog -->
-    <div v-if="showSuccessDialog" class="fixed inset-0 flex items-center justify-center z-50">
-      <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-lg">
-        <div class="flex items-center mb-4">
-          <svg class="h-6 w-6 text-green-600 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          <h3 class="text-lg font-semibold text-gray-900">Sync Completed Successfully</h3>
+      <section v-if="activeWorkspace === 'tools' && $route.path !== '/sync/normalize-dates'" class="sync-panel p-6">
+        <h2 class="text-lg font-bold">Device maintenance</h2><p class="mt-1 text-sm sync-muted">Tools for troubleshooting and managing the connected device.</p>
+        <div class="mt-6 grid gap-4 md:grid-cols-3">
+          <article class="sync-soft rounded-2xl p-5"><h3 class="font-bold">Reset sync status</h3><p class="mt-2 text-sm leading-6 sync-muted">Mark website records as unsynced so they can be sent again.</p><button @click="showResetConfirm = true" :disabled="deviceBusy" class="sync-secondary mt-5 disabled:opacity-50">Reset web sync flags</button></article>
+          <article class="sync-soft rounded-2xl p-5"><h3 class="font-bold">Restart device</h3><p class="mt-2 text-sm leading-6 sync-muted">Restart the ESP32 and reconnect after it finishes booting.</p><button @click="showRestartConfirm = true" :disabled="!isConnected || deviceBusy" class="sync-secondary mt-5 disabled:opacity-50">Restart ESP32</button></article>
+          <article class="rounded-2xl border border-red-500/25 bg-red-500/5 p-5"><h3 class="font-bold text-red-500">Format SD card</h3><p class="mt-2 text-sm leading-6 sync-muted">Permanently erase device records, customers, and settings from the card.</p><button @click="showFormatConfirm = true" :disabled="!isConnected || deviceBusy" class="mt-5 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50">Format SD card</button></article>
         </div>
-        <p class="text-gray-600 mb-6">All data has been synchronized between the web app and your ESP32 device.</p>
-        <button
-          @click="showSuccessDialog = false"
-          class="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium"
-        >
-          OK
-        </button>
-      </div>
-    </div>
-
+        <details class="mt-6 border-t border-inherit pt-5"><summary class="cursor-pointer text-sm font-bold text-teal-600">Advanced serial command</summary><form class="mt-4 flex flex-wrap gap-3" @submit.prevent="!deviceBusy && sendCustomCommand(addLog)"><input v-model="customCommand" :disabled="deviceBusy || !isConnected" aria-label="Serial command" placeholder="Enter a device command…" class="min-w-0 flex-1"/><button :disabled="!isConnected || deviceBusy || !customCommand.trim()" class="sync-primary disabled:opacity-50">Send command</button></form></details>
+      </section>
+      <SyncActivityLog :logs="filteredSyncLogs" :busy="deviceBusy" @clear="clearSyncLogs" />
+      <SuccessModal :is-open="showSuccessDialog" :is-dark="isDark" title="Sync completed" message="Device and website data transfers have completed. Review the activity log for details." @close="showSuccessDialog = false" />
     <!-- Format SD Card Confirmation -->
     <ConfirmDialog
+      :is-dark="isDark"
       :is-open="showFormatConfirm"
       title="Format SD Card"
       :message="'This will permanently delete all data on the SD card including customers, readings, and settings. This action cannot be undone.<br><br>Are you sure you want to format the SD card?'"
@@ -343,6 +145,7 @@
 
     <!-- Restart Device Confirmation -->
     <ConfirmDialog
+      :is-dark="isDark"
       :is-open="showRestartConfirm"
       title="Restart Device"
       :message="'This will restart the ESP32 device. Any unsaved data may be lost.<br><br>Are you sure you want to restart the device?'"
@@ -355,29 +158,35 @@
 
     <!-- Reset Sync Status Confirmation -->
     <ConfirmDialog
+      :is-dark="isDark"
       :is-open="showResetConfirm"
       title="Reset Sync Status"
       :message="'This will reset the sync status for all records in the web database. All records will be marked as unsynced (Synced = 0, last_sync = null), allowing them to be synced again with the device.<br><br>Are you sure you want to reset the sync status?'"
       confirm-text="Reset Sync Status"
       cancel-text="Cancel"
-      :is-loading="false"
+      :is-loading="isResetting"
       @confirm="resetSyncStatus(addLog)"
       @cancel="showResetConfirm = false"
     />
 
     <!-- Command Success Modal -->
     <SuccessModal
+      :is-dark="isDark"
       :is-open="showCommandSuccess"
       title="Command Executed"
       :message="commandSuccessMessage"
       button-text="OK"
       @close="showCommandSuccess = false"
     />
+
     </div>
   </AppSidebar>
 </template>
 
 <script>
+import SyncConnectionCard from '../components/sync/SyncConnectionCard.vue'
+import SyncDeviceInfo from '../components/sync/SyncDeviceInfo.vue'
+import SyncActivityLog from '../components/sync/SyncActivityLog.vue'
 import AppSidebar from '../components/AppSidebar.vue'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
 import SuccessModal from '../components/SuccessModal.vue'
@@ -398,6 +207,9 @@ import { useSyncController } from '../composables/Sync/useSyncController'
 export default {
   name: 'SyncDevice',
   components: {
+    SyncConnectionCard,
+    SyncDeviceInfo,
+    SyncActivityLog,
     AppSidebar,
     ConfirmDialog,
     SuccessModal
@@ -464,6 +276,9 @@ export default {
 
     const {
       isSyncing,
+      syncStage,
+      syncStatus,
+      syncError,
       syncLogs,
       filteredSyncLogs,
       syncData,
@@ -473,6 +288,7 @@ export default {
     const {
       customCommand,
       isFormatting,
+      isResetting,
       isRestarting,
       showFormatConfirm,
       showRestartConfirm,
@@ -522,12 +338,16 @@ export default {
       handleExportLineBillTransactions,
       handleAckBillTransactions,
       isSyncing,
+      syncStage,
+      syncStatus,
+      syncError,
       syncLogs,
       filteredSyncLogs,
       syncData,
       addLog,
       customCommand,
       isFormatting,
+      isResetting,
       isRestarting,
       showFormatConfirm,
       showRestartConfirm,
@@ -547,7 +367,10 @@ export default {
     return {
       isConnected: false,
       connectedPort: '',
-      batteryLevel: 85,
+      isConnecting: false,
+      connectionError: '',
+      navigationNotice: '',
+      serialSupported: 'serial' in navigator,
 
       showSuccessDialog: false,
       isInspecting: false,
@@ -589,6 +412,12 @@ export default {
     // Try to reuse a previously-granted port without prompting again.
     void serialService.autoReconnect({ baudRate: 115200 }).catch(() => {})
   },
+  beforeRouteLeave() {
+    if (this.deviceBusy) {
+      this.navigationNotice = 'Wait for the current device operation to finish before leaving this page.'
+      return false
+    }
+  },
   beforeUnmount() {
     // Important: DO NOT disconnect on unmount; this keeps USB serial persistent across pages.
     if (this.unlistenLine) this.unlistenLine()
@@ -609,6 +438,7 @@ export default {
       return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })
     },
     async normalizeDates() {
+      if (this.deviceBusy) return
       if (!this.isConnected) {
         this.normalizeError = 'Connect an ESP32 device first.'
         return
@@ -638,6 +468,7 @@ export default {
       }
     },
     async runAccountInspection() {
+      if (this.deviceBusy) return
       if (!this.isConnected || this.isInspecting) return
       this.isInspecting = true
       this.inspectionError = ''
@@ -658,6 +489,7 @@ export default {
       }
     },
     async repairSelectedInspectionDates() {
+      if (this.deviceBusy) return
       const ids = [...new Set(this.selectedInspectionReadingIds.map(Number).filter(id => Number.isInteger(id) && id > 0))]
       if (!this.inspectionRepairDate || ids.length === 0 || !this.isConnected) return
       if (!window.confirm(`Set ${ids.length} selected device reading(s), plus their linked device bill(s), to ${this.formatNormalizeDate(this.inspectionRepairDate)}? This changes the ESP32 database.`)) return
@@ -670,6 +502,7 @@ export default {
       }
     },
     async runReadingInspection() {
+      if (this.deviceBusy) return
       if (!this.isConnected || this.isInspecting) return
       this.isInspecting = true
       this.inspectionError = ''
@@ -747,6 +580,9 @@ export default {
       return true
     },
     async connectDevice() {
+      if (this.isConnecting || this.deviceBusy) return
+      this.isConnecting = true
+      this.connectionError = ''
       try {
         await serialService.connect({ baudRate: 115200 })
         this.addLog('Device connected successfully')
@@ -755,16 +591,21 @@ export default {
         await this.refreshDeviceInfo()
       } catch (error) {
         this.addLog('Connection failed: ' + error.message)
+        this.connectionError = error.message || 'Unable to connect the device.'
         console.error('Serial connection error:', error)
+      } finally {
+        this.isConnecting = false
       }
     },
 
     async disconnectDevice() {
+      if (this.deviceBusy) return
       await serialService.disconnect()
       this.addLog('Device disconnected')
     },
 
     async handleSyncData() {
+      if (this.deviceBusy) return
       await this.syncData({
         isConnected: this.isConnected,
         exportDeviceInfoFromDevice: this.exportDeviceInfoFromDevice,
@@ -827,6 +668,27 @@ export default {
 
   }
   ,computed: {
+    activeWorkspace() {
+      const view = this.$route.query.view
+      return ['sync', 'inspect', 'tools'].includes(view) ? view : 'sync'
+    },
+    deviceBusy() {
+      return this.isConnecting || this.isSyncing || this.isInspecting || this.isNormalizing || this.isFormatting || this.isRestarting || this.isResetting
+    },
+    deviceDetails() {
+      return [
+        { label: 'Device ID / Barangay', value: (this.deviceId ?? '—') + ' / ' + (this.brgyId ?? '—') },
+        { label: 'Firmware', value: this.firmwareVersion },
+        { label: 'Last device sync', value: this.lastSync },
+        { label: 'Pending readings', value: this.pendingRecords },
+        { label: 'Member accounts', value: this.customerCount },
+        { label: 'Receipts printed', value: this.printCount },
+        { label: 'Storage used / total', value: this.formatBytes(this.sdUsedBytes) + ' / ' + this.formatBytes(this.sdTotalBytes) },
+        { label: 'Storage free', value: this.formatBytes(this.sdFreeBytes) },
+        { label: 'CPU', value: this.cpuFreqMhz > 0 ? this.cpuFreqMhz + ' MHz' : '—' },
+        { label: 'Free memory', value: this.formatBytes(this.heapFreeBytes) }
+      ]
+    },
     filteredInspectionResults() {
       const q = this.inspectionSearch.toLowerCase()
       if (!q) return this.inspectionResults

@@ -6,6 +6,9 @@ import { useSyncBillTransactions } from './useSyncBillTransactions'
 
 export function useSyncData() {
   const isSyncing = ref(false)
+  const syncStage = ref(-1)
+  const syncStatus = ref('idle')
+  const syncError = ref('')
   const syncStartTime = ref(null)
   const syncLogs = ref([])
 
@@ -62,6 +65,7 @@ export function useSyncData() {
     sendLineDevice,
     onSyncSuccess
   }) => {
+    if (isSyncing.value) return
     const st = serialService.getState()
     if (!isConnected || !st.writer) {
       addLog('Not connected. Connect a device first.')
@@ -69,6 +73,9 @@ export function useSyncData() {
     }
 
     isSyncing.value = true
+    syncStage.value = 0
+    syncStatus.value = 'running'
+    syncError.value = ''
     syncStartTime.value = Date.now()
     let syncRunStarted = false
     let syncRunStatus = 'completed'
@@ -126,6 +133,7 @@ export function useSyncData() {
       }
 
       // Sync customer types from DB to device first (needed for customer references)
+      syncStage.value = 1
       addLog('Fetching customer types from database...')
       const dbCustomerTypes = await databaseService.fetchCustomerTypesFromDatabase()
       const unsyncedCustomerTypes = dbCustomerTypes.filter(ct => !ct.Synced || ct.last_sync === null)
@@ -208,6 +216,7 @@ export function useSyncData() {
       }
 
       // Sync readings (device -> DB)
+      syncStage.value = 2
       await syncReadingsFromDevice()
 
       // Sync bills (device -> DB)
@@ -226,6 +235,7 @@ export function useSyncData() {
       }
 
       // Separate customers into new and updated
+      syncStage.value = 3
       const { newCustomers, updatedCustomers } = separateCustomersBySyncStatus(pendingCustomers)
 
       addLog(`New customers: ${newCustomers.length}, Updated customers: ${updatedCustomers.length}`)
@@ -250,6 +260,7 @@ export function useSyncData() {
       }
 
       // Always update last sync on the device at the end of a successful run.
+      syncStage.value = 4
       // (If there were no new readings, READINGS_SYNCED isn't sent, so device last_sync_epoch would stay 0.)
       const epochNow = Math.floor(Date.now() / 1000)
       await sendLineDevice('SET_LAST_SYNC|' + String(epochNow))
@@ -259,26 +270,37 @@ export function useSyncData() {
       // Show success dialog
       const elapsed = Date.now() - syncStartTime.value
       addLog('Sync completed in ' + formatElapsedTime(elapsed))
+      syncStatus.value = 'completed'
       if (onSyncSuccess) {
         onSyncSuccess()
       }
     } catch (error) {
       syncRunStatus = 'failed'
+      syncStatus.value = 'failed'
+      syncError.value = error?.message || String(error)
       addLog('Sync failed: ' + (error?.message || String(error)))
     } finally {
-      if (syncRunStarted) {
-        await databaseService.finishSyncRun(syncRunStatus, {
-          summary: syncRunStatus === 'completed' ? { elapsed_ms: Date.now() - syncStartTime.value } : null,
-          error: syncRunStatus === 'failed' ? 'Sync failed; see browser sync log for details.' : null,
-        })
+      try {
+        if (syncRunStarted) {
+          await databaseService.finishSyncRun(syncRunStatus, {
+            summary: syncRunStatus === 'completed' ? { elapsed_ms: Date.now() - syncStartTime.value } : null,
+            error: syncRunStatus === 'failed' ? syncError.value : null,
+          })
+        }
+      } catch (error) {
+        addLog('Could not save sync run history: ' + (error?.message || String(error)))
+      } finally {
+        isSyncing.value = false
+        syncStartTime.value = null
       }
-      isSyncing.value = false
-      syncStartTime.value = null
     }
   }
 
   return {
     isSyncing,
+    syncStage,
+    syncStatus,
+    syncError,
     syncLogs,
     filteredSyncLogs,
     syncData,

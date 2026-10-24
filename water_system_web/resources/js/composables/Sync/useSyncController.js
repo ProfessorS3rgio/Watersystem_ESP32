@@ -5,6 +5,7 @@ export function useSyncController() {
   const customCommand = ref('')
   const isFormatting = ref(false)
   const isRestarting = ref(false)
+  const isResetting = ref(false)
   const showFormatConfirm = ref(false)
   const showRestartConfirm = ref(false)
   const showDropConfirm = ref(false)
@@ -53,9 +54,9 @@ export function useSyncController() {
       // Wait for acknowledgment
       await new Promise(resolve => setTimeout(resolve, 2000))
 
-      commandSuccessMessage.value = 'SD card has been formatted successfully. The device will reinitialize the file system.'
+      commandSuccessMessage.value = 'Format command sent. Review the activity log for the device response before using the SD card again.'
       showCommandSuccess.value = true
-      addLog('✓ SD card formatted successfully')
+      addLog('Format command sent; check the device response for completion.')
     } catch (error) {
       addLog('Format failed: ' + (error?.message || String(error)))
     } finally {
@@ -119,6 +120,8 @@ export function useSyncController() {
   }
 
   const resetSyncStatus = async (addLog) => {
+    if (isResetting.value) return
+    isResetting.value = true
     try {
       addLog('Resetting sync status...')
       
@@ -143,6 +146,7 @@ export function useSyncController() {
     } catch (error) {
       addLog('Reset sync status failed: ' + (error?.message || String(error)))
     } finally {
+      isResetting.value = false
       showResetConfirm.value = false
     }
   }
@@ -152,6 +156,7 @@ export function useSyncController() {
     customCommand,
     isFormatting,
     isRestarting,
+    isResetting,
     showFormatConfirm,
     showRestartConfirm,
     showDropConfirm,

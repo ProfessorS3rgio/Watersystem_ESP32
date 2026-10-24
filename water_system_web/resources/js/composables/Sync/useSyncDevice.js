@@ -1,5 +1,6 @@
 import { ref } from 'vue'
 import { serialService } from '../../services/serialService'
+import { databaseService } from '../../services/databaseService'
 
 export function useSyncDevice() {
   const deviceId = ref(null)
