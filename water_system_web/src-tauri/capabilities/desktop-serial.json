@@ -1,0 +1,8 @@
+{
+  "identifier": "desktop-serial",
+  "description": "USB serial access for the local DMBC window only.",
+  "windows": ["main"],
+  "local": false,
+  "remote": { "urls": ["http://127.0.0.1:*"] },
+  "permissions": ["allow-serial-ports", "allow-serial-connect", "allow-serial-write", "allow-serial-disconnect"]
+}

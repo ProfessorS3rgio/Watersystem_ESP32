@@ -1,0 +1,15 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "DMBC Water",
+  "version": "0.1.1",
+  "identifier": "ph.dmbc.water.development",
+  "build": { "frontendDist": "../desktop/shell" },
+  "app": { "windows": [], "security": { "capabilities": ["desktop-serial"] } },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "resources": { "resources/backend/": "backend/", "resources/php/": "php/" },
+    "icon": ["icons/icon.ico"],
+    "windows": { "nsis": { "installMode": "currentUser" } }
+  }
+}

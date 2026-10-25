@@ -28,6 +28,7 @@ Route::get('/csrf-token', function () {
 });
 
 // Auth routes
+Route::get('/login', fn () => redirect('/#/login'))->name('login');
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth');
 Route::get('/user', [AuthController::class, 'user'])->middleware('auth');

@@ -24,7 +24,7 @@ return new class extends Migration
             $table->decimal('penalty', 10, 2);
             $table->decimal('total_due', 10, 2);
             $table->date('due_date')->nullable();
-            $table->enum('status', ['Paid', 'Void', 'Pending', 'Due'])->default('Pending');
+            $table->enum('status', ['Paid', 'Partially Paid', 'Void', 'Pending', 'Due'])->default('Pending');
             $table->boolean('Synced')->default(false);
             $table->datetime('last_sync')->nullable();
             $table->timestamps();

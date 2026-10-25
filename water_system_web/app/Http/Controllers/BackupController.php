@@ -101,13 +101,14 @@ class BackupController extends Controller
 
     public function export(Request $request, AuditLogService $audit)
     {
-        if (config('database.default') !== 'mysql') {
-            return response()->json(['message' => 'SQL backups currently require a MySQL database.'], 422);
+        $driver = DB::connection()->getDriverName();
+        if (!in_array($driver, ['mysql', 'sqlite'], true)) {
+            return response()->json(['message' => 'This database does not support archive exports.'], 422);
         }
 
         $audit->record('data_backup_created', 'Backup', null, null, ['source' => 'web']);
         $payload = $this->buildJsonPayload();
-        $sql = $this->createSqlDump();
+        $sql = $driver === 'mysql' ? $this->createSqlDump() : null;
         $filename = 'watersystem-backup-' . now()->format('Ymd-His') . '.zip';
         $zipPath = tempnam(storage_path('app'), 'watersystem-backup-');
 
@@ -117,7 +118,18 @@ class BackupController extends Controller
         }
 
         $zip->addFromString('watersystem-data.json', json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
-        $zip->addFromString('watersystem-database.sql', $sql);
+        if ($driver === 'sqlite') {
+            // VACUUM INTO creates a consistent standalone copy, including WAL data.
+            $sqlitePath = storage_path('app/backup-'.bin2hex(random_bytes(12)).'.sqlite');
+            try {
+                DB::statement('VACUUM INTO '.DB::connection()->getPdo()->quote($sqlitePath));
+                $zip->addFromString('watersystem-database.sqlite', file_get_contents($sqlitePath));
+            } finally {
+                if (is_file($sqlitePath)) unlink($sqlitePath);
+            }
+        } else {
+            $zip->addFromString('watersystem-database.sql', $sql);
+        }
         $zip->addFromString('backup-manifest.json', json_encode([
             'format' => 'watersystem-backup',
             'version' => 2,
@@ -154,7 +166,9 @@ class BackupController extends Controller
         if (DB::connection()->getDriverName() === 'mysql') {
             DB::statement('SET FOREIGN_KEY_CHECKS=' . ($enabled ? '1' : '0'));
         } elseif (DB::connection()->getDriverName() === 'sqlite') {
-            DB::statement('PRAGMA foreign_keys = ' . ($enabled ? 'ON' : 'OFF'));
+            // foreign_keys cannot be toggled inside the restore transaction.
+            // Defer checks until commit; SQLite resets this flag automatically.
+            if (!$enabled) DB::statement('PRAGMA defer_foreign_keys = ON');
         }
     }
 

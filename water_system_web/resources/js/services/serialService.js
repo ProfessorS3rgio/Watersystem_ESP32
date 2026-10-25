@@ -1,4 +1,5 @@
 import { createWifiTransport } from './wifiTransport.js';
+import { createDesktopSerial, isDesktop } from './desktopSerial.js';
 
 let port = null;
 let reader = null;
@@ -11,6 +12,7 @@ let rxBuffer = '';
 let transportMode = globalThis.localStorage?.getItem('dmbc-sync-transport') === 'wifi' ? 'wifi' : 'usb';
 let disconnectListenerInstalled = false;
 const wifi = createWifiTransport({ receive: handleChunk, statusChanged: emitStatus });
+const desktop = createDesktopSerial({ receive: handleChunk, statusChanged: emitStatus });
 
 const lineListeners = new Set();
 const statusListeners = new Set();
@@ -94,6 +96,7 @@ async function connect({ baudRate = 115200 } = {}) {
   if (wifi.connected) throw new Error('Disconnect Wi-Fi before switching to USB.');
   transportMode = 'usb';
   globalThis.localStorage?.setItem('dmbc-sync-transport', 'usb');
+  if (isDesktop()) { rxBuffer = ''; await desktop.connect({ baudRate }); return; }
   if (!('serial' in navigator)) {
     throw new Error('Web Serial API not supported (use Chrome/Edge)');
   }
@@ -118,6 +121,7 @@ async function connect({ baudRate = 115200 } = {}) {
 
 async function autoReconnect({ baudRate = 115200 } = {}) {
   if (transportMode === 'wifi') return wifi.connected;
+  if (isDesktop()) return desktop.connected;
   if (!('serial' in navigator)) return false;
   if (isConnected && port) return true;
 
@@ -140,6 +144,7 @@ async function autoReconnect({ baudRate = 115200 } = {}) {
 
 async function disconnect() {
   if (transportMode === 'wifi') { await wifi.disconnect(); rxBuffer = ''; return; }
+  if (isDesktop()) { await desktop.disconnect(); rxBuffer = ''; return; }
   isConnected = false;
   emitStatus();
 
@@ -173,6 +178,7 @@ async function disconnect() {
 
 async function sendLine(line) {
   if (transportMode === 'wifi') return wifi.sendLine(String(line).replace(/\r|\n/g, ''));
+  if (isDesktop()) return desktop.sendLine(String(line).replace(/\r|\n/g, ''));
   if (!writer) throw new Error('Serial writer not available');
   const text = String(line).replace(/\r|\n/g, '');
   const payload = textEncoder ? textEncoder.encode(text + '\n') : new TextEncoder().encode(text + '\n');
@@ -192,6 +198,7 @@ function onStatus(cb) {
 
 function getState() {
   if (transportMode === 'wifi') return { isConnected: wifi.connected, transport: 'wifi', port: null, reader: null, writer: wifi.connected ? { transport: 'wifi' } : null, connectedPortLabel: wifi.connected ? wifi.label : '' };
+  if (isDesktop()) return { isConnected: desktop.connected, transport: 'usb', port: null, reader: null, writer: desktop.connected ? { transport: 'desktop' } : null, connectedPortLabel: desktop.label };
   return {
     transport: 'usb',
     isConnected,
@@ -216,7 +223,7 @@ function installSerialDisconnectListener() {
 }
 
 async function connectWifi(token) {
-  if (isConnected) throw new Error('Disconnect USB before switching to Wi-Fi.');
+  if (isConnected || desktop.connected) throw new Error('Disconnect USB before switching to Wi-Fi.');
   transportMode = 'wifi';
   globalThis.localStorage?.setItem('dmbc-sync-transport', 'wifi');
   rxBuffer = '';

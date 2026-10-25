@@ -20,6 +20,7 @@ class AuthController extends Controller
             
             return response()->json([
                 'user' => Auth::user(),
+                'csrf_token' => csrf_token(),
                 'message' => 'Login successful'
             ]);
         }

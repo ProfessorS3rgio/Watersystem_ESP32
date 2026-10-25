@@ -74,7 +74,8 @@
 
           <div class="text-center">
             <p class="text-sm text-slate-500">
-              Default credentials: <strong>admin@localhost</strong> / <strong>admin</strong>
+              <template v-if="desktop">Desktop account: <strong>admin@dmbc.local</strong><br>Use the password in <strong>initial-login.txt</strong> in your DMBC data folder.</template>
+              <template v-else>Use your association’s administrator account to sign in.</template>
             </p>
           </div>
         </form>
@@ -85,10 +86,13 @@
 </template>
 
 <script>
+import { signIn } from '../services/authApi.js'
+
 export default {
   name: 'Login',
   data() {
     return {
+      desktop: Boolean(globalThis.__TAURI_INTERNALS__),
       form: {
         email: '',
         password: ''
@@ -103,25 +107,10 @@ export default {
       this.error = null
 
       try {
-        const response = await fetch('/login', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-          },
-          body: JSON.stringify(this.form)
-        })
-
-        const data = await response.json()
-
-        if (response.ok) {
-          // Login successful, redirect to dashboard
-          this.$router.push('/')
-        } else {
-          this.error = data.message || 'Login failed'
-        }
+        await signIn(this.form)
+        await this.$router.push('/')
       } catch (error) {
-        this.error = 'An error occurred. Please try again.'
+        this.error = error instanceof TypeError ? 'Cannot reach DMBC. Close and reopen the application, then try again.' : error.message || 'Unable to sign in. Please try again.'
       } finally {
         this.loading = false
       }

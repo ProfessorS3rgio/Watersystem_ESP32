@@ -24,7 +24,8 @@ class AuditHistoryTest extends TestCase
 
     private function event(array $attributes = []): AuditLog
     {
-        return AuditLog::create([...['actor_type' => 'user', 'actor_id' => 7, 'action' => 'customer_updated', 'auditable_type' => Customer::class, 'auditable_id' => 1], ...$attributes]);
+        // Date-boundary fixtures must override Eloquent's generated timestamps.
+        return AuditLog::forceCreate([...['actor_type' => 'user', 'actor_id' => 7, 'action' => 'customer_updated', 'auditable_type' => Customer::class, 'auditable_id' => 1], ...$attributes]);
     }
 
     public function test_capture_snapshots_actor_identity_and_redacts_nested_secrets(): void

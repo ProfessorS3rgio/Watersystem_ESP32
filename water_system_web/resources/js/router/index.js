@@ -9,19 +9,9 @@ import AllBills from '../components/billing/AllBills.vue';
 import SyncDevice from '../pages/SyncDevice.vue';
 import Settings from '../pages/Settings.vue';
 import AuditLogs from '../pages/AuditLogs.vue';
+import { checkAuthentication } from '../services/authApi.js';
 
-const checkAuth = async () => {
-  try {
-    const response = await fetch('/user', {
-      headers: {
-        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-      }
-    });
-    return response.ok;
-  } catch (error) {
-    return false;
-  }
-};
+const checkAuth = checkAuthentication;
 
 export const router = createRouter({
   history: createWebHashHistory(),

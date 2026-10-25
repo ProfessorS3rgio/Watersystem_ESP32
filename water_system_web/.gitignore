@@ -22,3 +22,11 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
+/src-tauri/target
+/src-tauri/resources
+/src-tauri/gen
+/desktop/.test-data
+/desktop/.transfer-data
+/database/*.sqlite
+/database/*.sqlite-wal
+/database/*.sqlite-shm

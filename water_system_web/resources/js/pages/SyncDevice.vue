@@ -370,7 +370,7 @@ export default {
       isConnecting: false,
       connectionError: '',
       navigationNotice: '',
-      serialSupported: 'serial' in navigator,
+      serialSupported: 'serial' in navigator || Boolean(globalThis.__TAURI_INTERNALS__),
       transportMode: localStorage.getItem('dmbc-sync-transport') === 'wifi' ? 'wifi' : 'usb',
       wifiPairingCode: '',
 
