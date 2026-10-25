@@ -10,7 +10,7 @@ $kernel->bootstrap();
 
 use Illuminate\Support\Facades\DB;
 
-const DATA_TABLES = ['users', 'barangay_sequence', 'deduction', 'customer_type', 'device', 'customer', 'reading', 'bill', 'customer_deduction', 'bill_deduction', 'bill_transaction', 'settings', 'sync_runs', 'backup_snapshots', 'audit_logs'];
+const DATA_TABLES = ['users', 'barangay_sequence', 'deduction', 'customer_type', 'device', 'customer', 'reading', 'bill', 'customer_deduction', 'bill_deduction', 'bill_transaction', 'settings', 'sync_runs', 'backup_snapshots', 'audit_logs', 'service_incidents', 'incident_events'];
 
 function database(string $path): PDO
 {
@@ -59,7 +59,7 @@ function validateDatabase(PDO $pdo): void
     if ($violations !== []) throw new RuntimeException('Foreign-key validation failed: '.json_encode($violations, JSON_THROW_ON_ERROR));
 }
 
-function stage(string $profile): void
+function stage(string $profile, bool $backupOnly = false): void
 {
     $source = DB::connection('mysql');
     $sourcePdo = $source->getPdo();
@@ -95,6 +95,10 @@ function stage(string $profile): void
         $source->commit();
     } catch (Throwable $error) { $source->rollBack(); throw $error; }
     saveJson($transfer.'/mysql-original.json', $snapshot);
+    if ($backupOnly) {
+        echo json_encode(['source_backup_directory' => $transfer, 'tables' => count($snapshot['tables'])], JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR)."\n";
+        return;
+    }
 
     $candidate = $candidateProfile.'/dmbc.sqlite';
     touch($candidate);
@@ -159,6 +163,7 @@ function assertSourceUnchanged(string $transfer): void
     $source->beginTransaction();
     try {
         foreach (DATA_TABLES as $table) {
+            if (!isset($snapshot['tables'][$table])) throw new RuntimeException('The schema has gained '.$table.' since this snapshot. Create a fresh stage before importing.');
             $columns = array_map(fn ($column) => (array) $column, $source->select('SHOW COLUMNS FROM `'.$table.'`'));
             if ($columns !== $snapshot['tables'][$table]['columns']) throw new RuntimeException('MySQL schema changed since staging: '.$table);
             $rows = array_map(fn ($row) => (array) $row, $source->table($table)->get()->all());
@@ -179,7 +184,7 @@ function finalize(string $profile, string $transfer): void
     $desktop = database($live);
     // This first deployment is empty apart from references, login and audit rows.
     // Stop rather than silently discard records entered in the desktop meanwhile.
-    foreach (['customer', 'reading', 'bill', 'bill_transaction', 'device', 'sync_runs', 'backup_snapshots'] as $table) {
+    foreach (['customer', 'reading', 'bill', 'bill_transaction', 'device', 'sync_runs', 'backup_snapshots', 'service_incidents', 'incident_events'] as $table) {
         if ((int) $desktop->query('SELECT COUNT(*) FROM "'.$table.'"')->fetchColumn() !== 0) throw new RuntimeException('Desktop already contains '.$table.' records; an explicit merge is required.');
     }
     $desktop->exec('VACUUM INTO '.$desktop->quote($transfer.'/desktop-before-import.sqlite'));
@@ -245,6 +250,7 @@ if (realpath($_SERVER['SCRIPT_FILENAME'] ?? '') === __FILE__) try {
     $profile = $argv[2] ?? '';
     if (!is_file($profile.'/dmbc.sqlite') || !is_file($profile.'/application.key')) throw new RuntimeException('An existing installed DMBC desktop profile is required.');
     if ($operation === 'stage') stage($profile);
+    elseif ($operation === 'backup-source') stage($profile, true);
     elseif ($operation === 'finalize' && !empty($argv[3])) { assertSourceUnchanged($argv[3]); finalize($profile, $argv[3]); }
     else throw new RuntimeException('Usage: php desktop/transfer-mysql.php stage <profile> OR finalize <profile> <transfer-directory>');
 } catch (Throwable $error) {

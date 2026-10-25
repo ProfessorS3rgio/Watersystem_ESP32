@@ -35,6 +35,12 @@ Route::get('/user', [AuthController::class, 'user'])->middleware('auth');
 
 // Customers (JSON)
 Route::middleware('auth')->group(function () {
+    Route::get('/incidents', [\App\Http\Controllers\IncidentController::class, 'index']);
+    Route::get('/incidents/customers', [\App\Http\Controllers\IncidentController::class, 'customers']);
+    Route::post('/incidents', [\App\Http\Controllers\IncidentController::class, 'store']);
+    Route::get('/incidents/{incident}', [\App\Http\Controllers\IncidentController::class, 'show'])->whereNumber('incident');
+    Route::get('/incidents/{incident}/history', [\App\Http\Controllers\IncidentController::class, 'history'])->whereNumber('incident');
+    Route::patch('/incidents/{incident}', [\App\Http\Controllers\IncidentController::class, 'update'])->whereNumber('incident');
     Route::post('/device-link/wifi/connect', [WirelessSyncController::class, 'connect'])->middleware('throttle:10,1');
     Route::post('/device-link/wifi/command', [WirelessSyncController::class, 'command']);
     Route::post('/device-link/wifi/disconnect', [WirelessSyncController::class, 'disconnect']);

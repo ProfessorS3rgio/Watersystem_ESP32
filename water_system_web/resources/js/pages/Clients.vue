@@ -175,6 +175,7 @@
                   <button @click="openViewModal(customer)" class="text-white box-border border border-transparent hover:bg-cyan-800 focus:ring-4 focus:ring-teal-200 shadow-xs font-semibold leading-5 rounded-full text-xs px-2.5 py-1 focus:outline-none bg-gradient-to-r from-teal-700 to-cyan-700">
                     View
                   </button>
+                  <RouterLink :to="{ path: '/incidents', query: { customer: String(customer.id || customer.customer_id), new: '1' } }" class="rounded-full border border-teal-300 px-2.5 py-1 text-xs font-semibold text-teal-600 hover:bg-teal-500/10">Report issue</RouterLink>
                   <button
                     v-if="customer.status === 'active'"
                     @click="disconnectCustomer(customer)"

@@ -1,114 +1,47 @@
 #ifndef READING_SYNC_H
 #define READING_SYNC_H
 #include "../sync_transport.h"
-
 #include "../../database/readings_database.h"
 #include "../../database/bill_database.h"
-#include <ArduinoJson.h>
+#include "export_json.h"
 
-// ===== READING SYNC OPERATIONS =====
-
-// Handle EXPORT_READINGS command
-// Inspection exports are deliberately read-only and include already-synced rows.
-// Normal sync exports only pending rows; neither export changes SQLite state.
+// Inspection and normal exports are read-only; only READINGS_SYNCED writes state.
 bool handleExportReadings(bool includeSynced = false) {
   syncOutput().println(F("Exporting readings..."));
-  // Get total count
-  sqlite3_stmt* countStmt;
-  const char* countSql = includeSynced
-    ? "SELECT COUNT(*) FROM readings;"
-    : "SELECT COUNT(*) FROM readings WHERE synced = 0 AND last_sync IS NULL;";
-  int rc = sqlite3_prepare_v2(db, countSql, -1, &countStmt, NULL);
-  if (rc != SQLITE_OK) {
-    syncOutput().println(F("Failed to prepare count query"));
-    return false;
-  }
-  rc = sqlite3_step(countStmt);
-  int totalReadings = 0;
-  if (rc == SQLITE_ROW) {
-    totalReadings = sqlite3_column_int(countStmt, 0);
-  }
-  sqlite3_finalize(countStmt);
-  const int CHUNK_SIZE = syncOverWifi() ? 20 : 500;
-  int totalChunks = (totalReadings + CHUNK_SIZE - 1) / CHUNK_SIZE;
-  syncOutput().print(F("BEGIN_READINGS_JSON|"));
-  syncOutput().println(totalChunks);
-
-  // Prepare statement for chunked query
-  sqlite3_stmt* stmt;
-  const char* sql = includeSynced
-    ? "SELECT reading_id, customer_id, device_uid, previous_reading, current_reading, usage_m3, reading_at, synced, last_sync, customer_account_number, CAST(strftime('%s', created_at) AS INTEGER) AS created_at_epoch, created_at FROM readings ORDER BY reading_id LIMIT ? OFFSET ?;"
-    : "SELECT reading_id, customer_id, device_uid, previous_reading, current_reading, usage_m3, reading_at, synced, last_sync, customer_account_number, CAST(strftime('%s', created_at) AS INTEGER) AS created_at_epoch, created_at FROM readings WHERE synced = 0 AND last_sync IS NULL ORDER BY reading_id LIMIT ? OFFSET ?;";
-  int rc2 = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
-  if (rc2 != SQLITE_OK) {
-    syncOutput().println(F("Failed to prepare readings query"));
-    return false;
-  }
-
-  for (int chunk = 0; chunk < totalChunks; ++chunk) {
-    syncOutput().printf("Heap free before chunk %d: %d\n", chunk, ESP.getFreeHeap());
-    int offset = chunk * CHUNK_SIZE;
-    sqlite3_bind_int(stmt, 1, CHUNK_SIZE);
-    sqlite3_bind_int(stmt, 2, offset);
-
-    DynamicJsonDocument doc(syncOverWifi() ? 16384 : 65536);  // Larger doc for 1000 items
-    JsonArray arr = doc.to<JsonArray>();
-
-    while (sqlite3_step(stmt) == SQLITE_ROW) {
-      JsonObject obj = arr.createNestedObject();
-      obj["reading_id"] = (int)sqlite3_column_int(stmt, 0);
-      obj["customer_id"] = (int)sqlite3_column_int(stmt, 1);
-      obj["device_uid"] = String((const char*)sqlite3_column_text(stmt, 2));
-      obj["previous_reading"] = (unsigned long)sqlite3_column_int64(stmt, 3);
-      obj["current_reading"] = (unsigned long)sqlite3_column_int64(stmt, 4);
-      obj["usage_m3"] = (unsigned long)sqlite3_column_int64(stmt, 5);
-      unsigned long originalReadingAt = (unsigned long)sqlite3_column_int64(stmt, 6);
-      unsigned long createdAtEpoch = (unsigned long)sqlite3_column_int64(stmt, 10);
-      // `reading_at` is the meter-reading time. Legacy rows sometimes contain
-      // values such as 87, so use their device-created timestamp only then.
-      const unsigned long MIN_VALID_EPOCH = 1577836800UL; // 2020-01-01 UTC
-      obj["reading_at"] = originalReadingAt >= MIN_VALID_EPOCH
-        ? originalReadingAt
-        : createdAtEpoch;
-      obj["synced"] = (int)sqlite3_column_int(stmt, 7);
-      obj["last_sync"] = sqlite3_column_text(stmt, 8) ? String((const char*)sqlite3_column_text(stmt, 8)) : "";
-      obj["customer_account_number"] = String((const char*)sqlite3_column_text(stmt, 9));
-      obj["created_at"] = sqlite3_column_text(stmt, 11) ? String((const char*)sqlite3_column_text(stmt, 11)) : "";
+  if (!db) { syncOutput().println(F("ERR|DATABASE_NOT_READY")); return false; }
+  SyncExportMemory memory(db);
+  int total = 0;
+  {
+    SyncExportStatement count;
+    const char* sql = includeSynced ? "SELECT COUNT(*) FROM readings;" : "SELECT COUNT(*) FROM readings WHERE synced = 0 AND last_sync IS NULL;";
+    if (sqlite3_prepare_v2(db, sql, -1, &count.value, nullptr) != SQLITE_OK || sqlite3_step(count.value) != SQLITE_ROW) {
+      syncOutput().println(F("ERR|READINGS_COUNT_FAILED")); return false;
     }
-
-    if (doc.overflowed()) { sqlite3_finalize(stmt); syncOutput().println(F("ERR|JSON_CAPACITY")); return false; }
-    syncOutput().print(F("READINGS_CHUNK|"));
-    syncOutput().print(chunk);
-    syncOutput().print(F("|"));
-    serializeJson(arr, syncOutput());
-    syncOutput().println();
-    doc.clear();
-
-    // Reset statement for next chunk
-    sqlite3_reset(stmt);
-    sqlite3_clear_bindings(stmt);
-
-    syncOutput().printf("Heap free after chunk %d: %d\n", chunk, ESP.getFreeHeap());
+    total = sqlite3_column_int(count.value, 0);
   }
-
-  sqlite3_finalize(stmt);
+  const int chunkSize = 20;
+  const int chunks = (total + chunkSize - 1) / chunkSize;
+  syncOutput().print(F("BEGIN_READINGS_JSON|")); syncOutput().println(chunks);
+  if (total) {
+    SyncExportStatement statement;
+    const char* sql = includeSynced
+      ? "SELECT reading_id, customer_id, device_uid, previous_reading, current_reading, usage_m3, reading_at, synced, last_sync, customer_account_number, CAST(strftime('%s', created_at) AS INTEGER), created_at FROM readings ORDER BY reading_id;"
+      : "SELECT reading_id, customer_id, device_uid, previous_reading, current_reading, usage_m3, reading_at, synced, last_sync, customer_account_number, CAST(strftime('%s', created_at) AS INTEGER), created_at FROM readings WHERE synced = 0 AND last_sync IS NULL ORDER BY reading_id;";
+    if (sqlite3_prepare_v2(db, sql, -1, &statement.value, nullptr) != SQLITE_OK) { syncOutput().println(F("ERR|READINGS_QUERY_FAILED")); return false; }
+    for (int chunk = 0; chunk < chunks; ++chunk) {
+      const int remaining = total - chunk * chunkSize;
+      if (!syncWriteExportChunk(syncOutput(), statement.value, "READINGS_CHUNK|", chunk, remaining < chunkSize ? remaining : chunkSize, writeReadingExportRow)) return false;
+    }
+    if (!syncExportCursorDone(syncOutput(), statement.value)) return false;
+  }
   syncOutput().println(F("END_READINGS_JSON"));
-  
-  // Sync state is changed only by READINGS_SYNCED after the web app confirms
-  // that it committed the import successfully.
   return true;
 }
 
-// Handle READINGS_SYNCED command
 bool handleReadingsSynced() {
   bool ok = markAllReadingsSynced();
-  if (ok) {
-    setLastSyncEpoch(deviceEpochNow());
-    syncOutput().println(F("ACK|READINGS_SYNCED"));
-  } else {
-    syncOutput().println(F("ERR|READINGS_SYNC_FAILED"));
-  }
+  if (ok) { setLastSyncEpoch(deviceEpochNow()); syncOutput().println(F("ACK|READINGS_SYNCED")); }
+  else syncOutput().println(F("ERR|READINGS_SYNC_FAILED"));
   return true;
 }
-
-#endif // READING_SYNC_H
+#endif

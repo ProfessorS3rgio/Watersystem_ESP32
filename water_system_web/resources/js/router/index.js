@@ -9,6 +9,7 @@ import AllBills from '../components/billing/AllBills.vue';
 import SyncDevice from '../pages/SyncDevice.vue';
 import Settings from '../pages/Settings.vue';
 import AuditLogs from '../pages/AuditLogs.vue';
+import Incidents from '../pages/Incidents.vue';
 import { checkAuthentication } from '../services/authApi.js';
 
 const checkAuth = checkAuthentication;
@@ -16,6 +17,7 @@ const checkAuth = checkAuthentication;
 export const router = createRouter({
   history: createWebHashHistory(),
   routes: [
+    { path: '/incidents', name: 'incidents', component: Incidents, meta: { requiresAuth: true } },
     {
       path: '/',
       name: 'home',

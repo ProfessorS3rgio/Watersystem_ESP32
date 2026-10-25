@@ -13,8 +13,9 @@ class BackupController extends Controller
     private const SNAPSHOT_TABLES = [
         'settings', 'customer_type', 'deduction', 'barangay_sequence', 'customer',
         'customer_deduction', 'device', 'reading', 'bill', 'bill_deduction',
-        'bill_transaction', 'audit_logs',
+        'bill_transaction', 'audit_logs', 'service_incidents', 'incident_events',
     ];
+    private const PRESERVED_TABLES = ['audit_logs', 'service_incidents', 'incident_events'];
 
     public function createRestorePoint(Request $request, AuditLogService $audit)
     {
@@ -68,31 +69,40 @@ class BackupController extends Controller
         }
 
         DB::transaction(function () use ($payload, $audit, $snapshot, $record) {
+            // Preserve operational history and only reattach an account with the same identity.
+            $links = DB::getSchemaBuilder()->hasTable('service_incidents')
+                ? DB::table('service_incidents as i')->leftJoin('customer as c', 'c.customer_id', '=', 'i.customer_id')
+                    ->whereNotNull('i.customer_id')->get(['i.id', 'i.customer_id', 'i.status', 'c.account_no as current_account'])
+                : collect();
             $this->setForeignKeyChecks(false);
             try {
                 foreach (array_reverse(self::SNAPSHOT_TABLES) as $table) {
-                    if ($table === 'audit_logs') continue;
-                    if (DB::getSchemaBuilder()->hasTable($table)) {
-                        DB::table($table)->delete();
-                    }
+                    if (in_array($table, self::PRESERVED_TABLES, true)) continue;
+                    if (DB::getSchemaBuilder()->hasTable($table)) DB::table($table)->delete();
                 }
-
                 foreach (self::SNAPSHOT_TABLES as $table) {
-                    if ($table === 'audit_logs') continue;
+                    if (in_array($table, self::PRESERVED_TABLES, true)) continue;
                     if (!DB::getSchemaBuilder()->hasTable($table)) continue;
-                    $rows = $payload['tables'][$table] ?? [];
-                    foreach (array_chunk($rows, 500) as $chunk) {
+                    foreach (array_chunk($payload['tables'][$table] ?? [], 500) as $chunk) {
                         if ($chunk) DB::table($table)->insert($chunk);
                     }
                 }
-            } finally {
-                $this->setForeignKeyChecks(true);
-            }
-
+                $restoredAccounts = $links->isEmpty() ? collect() : DB::table('customer')->whereIn('customer_id', $links->pluck('customer_id'))->pluck('account_no', 'customer_id');
+                foreach ($links as $link) {
+                    $retained = $link->current_account !== null && ($restoredAccounts[$link->customer_id] ?? null) === $link->current_account;
+                    DB::table('service_incidents')->where('id', $link->id)->update(['customer_id' => $retained ? $link->customer_id : null]);
+                    if (!$retained) {
+                        DB::table('service_incidents')->where('id', $link->id)->increment('version');
+                        \App\Models\IncidentEvent::create(['incident_id' => $link->id, 'actor_id' => auth()->id(), 'actor_name' => auth()->user()?->name ?? 'System',
+                            'kind' => 'account_unlinked', 'from_status' => $link->status, 'to_status' => $link->status,
+                            'message' => 'The linked account was not present with the same identity in restored data. Original customer details and incident history were retained.',
+                            'changes' => ['customer_id' => ['before' => $link->customer_id, 'after' => null]], 'created_at' => now()]);
+                    }
+                }
+            } finally { $this->setForeignKeyChecks(true); }
             $audit->record('restore_point_restored', 'BackupSnapshot', null, ['id' => $snapshot], [
-                'auditable_id' => $snapshot,
-                'row_count' => $record->row_count,
-                'audit_history_preserved' => true,
+                'auditable_id' => $snapshot, 'row_count' => $record->row_count,
+                'audit_history_preserved' => true, 'incident_history_preserved' => true,
             ]);
         });
 

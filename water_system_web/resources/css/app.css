@@ -11,6 +11,27 @@
         'Noto Color Emoji';
 }
 
+/* Customer-linked service care workspace. */
+.incident-workspace { --incident-surface:#fff; --incident-soft:#edf7f5; --incident-line:#dce9e6; --incident-ink:#183e38; --incident-muted:#607b75; color:var(--incident-ink); background:#f5f8f7; }
+.incident-workspace[data-dark="true"] { --incident-surface:#10222c; --incident-soft:#162f38; --incident-line:#28454c; --incident-ink:#e4f7f4; --incident-muted:#a0bfbd; background:#020617; }
+.incident-panel { border:1px solid var(--incident-line); background:var(--incident-surface); border-radius:22px; box-shadow:0 3px 18px rgb(15 70 70 / 3%); }
+.incident-muted { color:var(--incident-muted); }
+.incident-soft { background:var(--incident-soft); }
+.incident-outline { border:1px solid var(--incident-line); }
+.incident-eyebrow { font-size:10px; font-weight:750; text-transform:uppercase; letter-spacing:.18em; color:#0e968c; }
+.incident-workspace :is(.border-inherit,.incident-divide > * + *) { border-color:var(--incident-line); }
+.incident-workspace label { font-size:12px; font-weight:650; }
+.incident-workspace :is(input,select,textarea) { min-width:0; border:1px solid var(--incident-line); border-radius:12px; background:var(--incident-surface); color:var(--incident-ink); padding:11px 12px; font-size:13px; }
+.incident-workspace :is(input,select,textarea):focus-visible { outline:3px solid rgb(20 184 166 / 18%); border-color:#0d9488; }
+.incident-primary { border-radius:12px; padding:12px 18px; background:linear-gradient(110deg,#0f766e,#0e7490); color:white; font-size:13px; font-weight:700; }
+.incident-secondary { border:1px solid var(--incident-line); border-radius:10px; padding:9px 13px; color:var(--incident-ink); background:var(--incident-surface); font-size:12px; font-weight:650; }
+.incident-badge { display:inline-flex; align-items:center; border-radius:999px; padding:4px 9px; font-size:10px; font-weight:750; }
+.incident-workspace button { cursor:pointer; }
+.incident-workspace button:disabled { opacity:.45; cursor:not-allowed; }
+.incident-workspace :is(button,a,summary):focus-visible { outline:3px solid #5eead4; outline-offset:3px; }
+.incident-row:hover { background:rgb(20 184 166 / 4%); }
+.incident-workspace.incident-overlay { position:fixed; inset:0; z-index:45; display:flex; align-items:center; justify-content:center; padding:16px; background:rgb(2 25 32 / 65%); backdrop-filter:blur(4px); }
+
 /* Shared DMBC dialog treatment, enabled only on branded modal roots. */
 .audit-workspace { --audit-surface:#fff; --audit-soft:#edf6f4; --audit-line:#dce9e6; --audit-ink:#183e38; --audit-muted:#607b75; background:#f5f8f7; color:var(--audit-ink); }
 .audit-workspace[data-dark="true"] { --audit-surface:#10222c; --audit-soft:#162f38; --audit-line:#28454c; --audit-ink:#e4f7f4; --audit-muted:#a0bfbd; background:#020617; }

@@ -4,6 +4,7 @@ use rand::RngCore;
 use std::{fs, net::{TcpListener, TcpStream}, path::{Path, PathBuf}, process::{Child, Command, Stdio}, sync::Mutex, time::{Duration, Instant}};
 use tauri::Manager;
 mod serial;
+mod reports;
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
 
@@ -135,7 +136,7 @@ fn report_startup_error(message: &str) {
 fn main() {
     let application = tauri::Builder::default()
         .manage(serial::SerialState(Mutex::new(None)))
-        .invoke_handler(tauri::generate_handler![serial::serial_ports, serial::serial_connect, serial::serial_write, serial::serial_disconnect])
+        .invoke_handler(tauri::generate_handler![serial::serial_ports, serial::serial_connect, serial::serial_write, serial::serial_disconnect, reports::save_billing_report])
         .on_window_event(|window, event| {
             if window.label() == "main" && matches!(event, tauri::WindowEvent::Destroyed) { window.app_handle().exit(0); }
         })

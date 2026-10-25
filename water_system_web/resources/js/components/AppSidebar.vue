@@ -63,6 +63,7 @@ const navigation = [
     ] }
   ] },
   { label: 'Operations', items: [
+    { label: 'Service incidents', to: '/incidents', icon: 'M12 3 2 21h20L12 3Zm0 6v5m0 3v.01' },
     { label: 'Device sync', key: 'sync', prefix: '/sync', icon: 'M20 7h-9m9 0-3-3m3 3-3 3M4 17h9m-9 0 3-3m-3 3 3 3M4 7a8 8 0 0 1 13-4M20 17a8 8 0 0 1-13 4', children: [{ label: 'Sync workspace', to: '/sync' }, { label: 'Date normalization', to: '/sync/normalize-dates' }] },
     { label: 'Settings', key: 'settings', prefix: '/settings', icon: 'M4 7h16M4 17h16M8 4v6m8 4v6', children: settingsSections },
     { label: 'Audit logs', to: '/audit-logs', icon: 'M5 3h14v18H5V3Zm4 5h6m-6 4h6m-6 4h4' }

@@ -9,12 +9,14 @@
             <label class="text-sm font-medium" :class="isDark ? 'text-gray-200' : 'text-gray-700'">Report:</label>
             <input
               v-model="reportMonth"
+              :disabled="exportingReport"
               type="month"
               class="px-2 py-1 text-sm border rounded focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
               :class="isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'"
             >
             <select
               v-model="reportBarangayId"
+              :disabled="exportingReport"
               class="max-w-36 px-2 py-1 text-sm border rounded focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
               :class="isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'"
             >
@@ -25,11 +27,13 @@
             </select>
             <button
               type="button"
-              :disabled="!reportMonth"
-              class="bg-teal-600 hover:bg-teal-700 text-white px-3 py-1 rounded text-sm font-medium disabled:opacity-50 transition-colors duration-200"
+              :disabled="!reportMonth || exportingReport"
+              :aria-busy="exportingReport"
+              class="inline-flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white px-3 py-1 rounded text-sm font-medium disabled:opacity-50 transition-colors duration-200"
               @click="downloadMonthlyReport"
             >
-              Export Excel
+              <span v-if="exportingReport" aria-hidden="true" class="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white motion-reduce:animate-none"></span>
+              {{ exportingReport ? 'Exporting…' : 'Export Excel' }}
             </button>
           </div>
           <div class="flex items-center gap-2">
@@ -61,6 +65,12 @@
       </div>
     </div>
     <div class="p-6">
+      <div v-if="exportingReport" role="status" aria-live="polite" class="mb-5 flex items-center gap-4 rounded-2xl border p-5" :class="isDark ? 'border-teal-800 bg-teal-950/40 text-teal-100' : 'border-teal-200 bg-teal-50 text-teal-900'">
+        <span aria-hidden="true" class="h-9 w-9 shrink-0 animate-spin rounded-full border-4 border-teal-500/20 border-t-teal-500 motion-reduce:animate-none"></span>
+        <div><p class="font-bold">{{ reportExportStage }}</p><p class="mt-1 text-sm opacity-75">Please keep DMBC open while we prepare and save your report.</p></div>
+      </div>
+      <p v-if="reportExportError" role="alert" class="mb-5 rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-800">{{ reportExportError }}</p>
+      <p v-if="reportExportResult" role="status" class="mb-5 break-words rounded-xl border p-4 text-sm" :class="isDark ? 'border-teal-800 bg-teal-950/40 text-teal-100' : 'border-teal-200 bg-teal-50 text-teal-900'">{{ reportExportResult }}</p>
       <div v-if="loadingAllBills" class="text-center py-8">
         <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600 mx-auto"></div>
         <p class="mt-2 text-sm" :class="isDark ? 'text-gray-400' : 'text-gray-600'">Loading bills...</p>
@@ -170,6 +180,10 @@
 export default {
   name: 'AllBills',
   props: {
+    exportingReport: { type: Boolean, default: false },
+    reportExportStage: { type: String, default: '' },
+    reportExportError: { type: String, default: '' },
+    reportExportResult: { type: String, default: '' },
     isDark: {
       type: Boolean,
       default: false

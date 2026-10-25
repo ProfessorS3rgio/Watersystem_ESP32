@@ -41,4 +41,9 @@ class Customer extends Model
     {
         return $this->belongsToMany(Deduction::class, 'customer_deduction', 'customer_id', 'deduction_id');
     }
+
+    public function incidents()
+    {
+        return $this->hasMany(ServiceIncident::class, 'customer_id', 'customer_id');
+    }
 }

@@ -90,7 +90,7 @@ void createAllTables() {
 sqlite3_exec(db, "PRAGMA journal_mode = WAL;", NULL, NULL, NULL);
 sqlite3_exec(db, "PRAGMA synchronous = NORMAL;", NULL, NULL, NULL);
 sqlite3_exec(db, "PRAGMA temp_store = MEMORY;", NULL, NULL, NULL);
-sqlite3_exec(db, "PRAGMA cache_size = -10;", NULL, NULL, NULL); // ~40KB
+sqlite3_exec(db, "PRAGMA cache_size = -10;", NULL, NULL, NULL); // Negative value is KiB: about 10 KiB.
 sqlite3_exec(db, "PRAGMA mmap_size = 0;", NULL, NULL, NULL);
 
   // Initialize default device if empty

@@ -1,4 +1,5 @@
 import { parseSyncChunks } from '../../utils/parseSyncChunks.js'
+import { createExportWatchdog } from '../../utils/exportWatchdog.js'
 import { ref } from 'vue'
 import { serialService } from '../../services/serialService'
 import { databaseService } from '../../services/databaseService'
@@ -8,7 +9,7 @@ export function useSyncReadings() {
   const exportLines = ref([])
   const exportResolve = ref(null)
   const exportReject = ref(null)
-  const exportTimeoutId = ref(null)
+  const exportWatchdog = createExportWatchdog(error => finishExport(error))
   const exportBeginMarker = ref(null)
   const exportEndMarker = ref(null)
   const exportLinePrefix = ref(null)
@@ -45,9 +46,7 @@ export function useSyncReadings() {
     const promise = new Promise((resolve, reject) => {
       exportResolve.value = resolve
       exportReject.value = reject
-      exportTimeoutId.value = setTimeout(() => {
-        finishExport(new Error('Timed out waiting for device export'))
-      }, 60000)
+      exportWatchdog.start(60000, 'Timed out waiting for device export progress')
     })
 
     promise.catch(() => {})
@@ -58,10 +57,8 @@ export function useSyncReadings() {
   }
 
   const finishExport = (error, lines = null) => {
-    if (exportTimeoutId.value) {
-      clearTimeout(exportTimeoutId.value)
-      exportTimeoutId.value = null
-    }
+    exportWatchdog.stop()
+    exportCollecting.value = false
     exportInProgress.value = false
     if (error) {
       if (exportReject.value) {
@@ -149,7 +146,7 @@ export function useSyncReadings() {
     const promise = new Promise((resolve, reject) => {
       exportResolve.value = resolve
       exportReject.value = reject
-      exportTimeoutId.value = setTimeout(() => finishExport(new Error('Timed out waiting for device query')), 15000)
+      exportWatchdog.start(15000, 'Timed out waiting for device query progress')
     })
     promise.catch(() => {})
     try { await sendLine('QUERY_READINGS|' + account) } catch (error) { finishExport(error) }
@@ -166,7 +163,8 @@ export function useSyncReadings() {
     if (line.startsWith('QUERY_RESULT|')) return
 
     // Begin marker: start collecting
-    if (exportBeginMarker.value && line.startsWith(exportBeginMarker.value)) {
+    if (exportBeginMarker.value && line.startsWith(exportBeginMarker.value + '|')) {
+      exportWatchdog.progress()
       exportLines.value = [line]
       exportCollecting.value = true
       return
@@ -174,7 +172,7 @@ export function useSyncReadings() {
 
     // End marker: stop collecting and finish
 
-    if (exportEndMarker.value && line.startsWith(exportEndMarker.value)) {
+    if (exportEndMarker.value && line === exportEndMarker.value) {
       exportCollecting.value = false
       const lines = exportLines.value.slice()
       exportLines.value = []
@@ -184,6 +182,7 @@ export function useSyncReadings() {
 
     // Capture every incoming line while export is in progress (includes READINGS_CHUNK, heap prints, fragments)
     exportLines.value.push(line)
+    if (exportCollecting.value && line.startsWith('READINGS_CHUNK|')) exportWatchdog.progress()
 
     if (line.startsWith('ERR|')) {
       exportCollecting.value = false

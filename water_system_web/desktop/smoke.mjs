@@ -109,11 +109,42 @@ try {
   assert.equal(customerResponse.status, 201, await customerResponse.text());
   const members = (await (await fetch('/customers')).json()).data;
   assert.equal(members[0].customer_name, 'Desktop test member');
+  // Generate real workbooks through the same export flow used by the UI.
+  // The native save bridge is captured here; Rust tests cover writing files.
+  const { useMonthlyReportExport } = await vite.ssrLoadModule('/resources/js/composables/useMonthlyReportExport.js');
+  const reportExport = useMonthlyReportExport({ desktop: true, save: async ({ filename, bytes }) => {
+    assert.ok(filename.startsWith('monthly-billing-report-') && filename.endsWith('.xlsx'));
+    const workbook = Buffer.from(bytes);
+    assert.equal(workbook.subarray(0,4).toString('hex'), '504b0304');
+    assert.ok(workbook.includes(Buffer.from('xl/workbook.xml')));
+    return [join(data, filename), true];
+  } });
+  for (const barangayId of ['', '1']) {
+    await reportExport.downloadMonthlyReport({ month: '2026-10', barangayId });
+    assert.equal(reportExport.reportExportError.value, '');
+    assert.match(reportExport.reportExportResult.value, /File Explorer opened/);
+    assert.equal(reportExport.exportingReport.value, false);
+  }
+  const { incidentApi, incidentToken } = await import('../resources/js/services/incidentApi.js');
+  const incidentPayload = { client_token: incidentToken(), customer_id: members[0].id || members[0].customer_id, title: 'Test leak at the meter', description: 'Water leaking at the test household connection.', location: 'Beside the test meter', category: 'leak', priority: 'urgent', pipe_section: 'meter', assigned_to: 'Test repair crew' };
+  const incident = (await incidentApi.create(incidentPayload)).data;
+  assert.equal((await incidentApi.create(incidentPayload)).data.id, incident.id, 'retrying a saved submission must not duplicate the report');
+  assert.equal((await incidentApi.customers({ id: incidentPayload.customer_id })).data[0].open_incidents_count, 1);
+  let repaired = (await incidentApi.update(incident.id, { version: 1, status: 'in_progress', note: 'Inspection started.' })).data;
+  await assert.rejects(incidentApi.update(incident.id, { version: 1, priority: 'normal' }), error => error.status === 409);
+  repaired = (await incidentApi.update(incident.id, { version: repaired.version, status: 'resolved', resolution: 'Replaced the fitting and checked for leaks.' })).data;
+  repaired = (await incidentApi.update(incident.id, { version: repaired.version, status: 'closed' })).data;
+  assert.equal((await incidentApi.list({ status: 'completed' })).total, 1);
+  repaired = (await incidentApi.update(incident.id, { version: repaired.version, status: 'in_progress', note: 'Leak returned during the next inspection.' })).data;
+  assert.equal(repaired.resolution, null);
+  assert.equal(repaired.reopened_count, 1);
   const snapshot = await fetch('/backup/restore-points', { method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken }, body: JSON.stringify({ label: 'Desktop smoke snapshot', source: 'manual' }) });
   assert.equal(snapshot.status, 201);
   const snapshotId = (await snapshot.json()).id;
+  repaired = (await incidentApi.update(incident.id, { version: repaired.version, note: 'This progress note was written after the snapshot.' })).data;
   const restore = await fetch(`/backup/restore-points/${snapshotId}/restore`, { method: 'POST', headers: { Accept: 'application/json', 'X-CSRF-TOKEN': csrfToken } });
   assert.equal(restore.status, 200, await restore.text());
+  assert.equal((await incidentApi.detail(incident.id)).data.version, repaired.version, 'snapshot restores must preserve later incident progress');
 
   await new Promise(resolve => { server.once('exit', resolve); server.kill(); });
   initialize();
@@ -123,6 +154,7 @@ try {
   assert.equal(await checkAuthentication(), true, 'login session survives backend restart');
   assert.equal((await (await fetch('/settings')).json()).data.bill_due_days, 12);
   assert.equal((await (await fetch('/customers')).json()).data[0].customer_name, 'Desktop test member');
+  assert.equal((await incidentApi.detail(incident.id)).data.events[0].message, 'This progress note was written after the snapshot.');
   const logout = await fetch('/logout', { method: 'POST', headers: { Accept: 'application/json', 'X-CSRF-TOKEN': csrfToken } });
   assert.equal(logout.status, 200);
   assert.equal(await checkAuthentication(), false);
@@ -130,7 +162,7 @@ try {
   await Login.methods.handleLogin.call(form);
   assert.equal(form.error, null);
   assert.equal(await checkAuthentication(), true);
-  console.log('Desktop smoke checks passed: real Vue login form (wrong/correct credentials), logout/re-login, restart persistence, all main read endpoints, customer creation, settings save, snapshot restore, SQLite ZIP export, local access guard. All writes used a temporary test profile.');
+  console.log('Desktop smoke checks passed: login, logout/re-login, restart persistence, customer creation, settings save, snapshot restore, ZIP export, all-barangay and selected-barangay Excel export, incident report retries, repair/close/reopen workflow, stale edit conflicts, and incident progress retained across restore/restart. All writes used a temporary test profile.');
 } finally {
   globalThis.fetch = originalFetch;
   globalThis.document = originalDocument;

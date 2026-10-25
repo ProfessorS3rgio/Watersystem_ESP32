@@ -1,6 +1,7 @@
 #ifndef BILL_SYNC_H
 #define BILL_SYNC_H
 #include "../sync_transport.h"
+#include "export_json.h"
 
 #include "../../database/bill_database.h"
 #include "../../database/bill_transactions_database.h"
@@ -174,84 +175,33 @@ bool handleUpsertBillsJsonChunk(String payload) {
 // Handle EXPORT_BILLS command
 bool handleExportBills() {
   syncOutput().println(F("Exporting bills..."));
-  // Get total count
-  sqlite3_stmt* countStmt;
-  const char* countSql = "SELECT COUNT(*) FROM bills WHERE synced = 0 AND last_sync IS NULL;";
-  int rc = sqlite3_prepare_v2(db, countSql, -1, &countStmt, NULL);
-  if (rc != SQLITE_OK) {
-    syncOutput().println(F("Failed to prepare count query"));
-    return false;
-  }
-  rc = sqlite3_step(countStmt);
-  int totalBills = 0;
-  if (rc == SQLITE_ROW) {
-    totalBills = sqlite3_column_int(countStmt, 0);
-  }
-  sqlite3_finalize(countStmt);
-  const int CHUNK_SIZE = syncOverWifi() ? 20 : 400;
-  int totalChunks = (totalBills + CHUNK_SIZE - 1) / CHUNK_SIZE;
-  syncOutput().print(F("BEGIN_BILLS_JSON|"));
-  syncOutput().println(totalChunks);
-
-  // Prepare statement for chunked query
-  sqlite3_stmt* stmt;
-  const char* sql = "SELECT bill_id, reference_number, customer_id, reading_id, device_uid, bill_date, rate_per_m3, charges, penalty, total_due, status, synced, last_sync, customer_account_number FROM bills WHERE synced = 0 AND last_sync IS NULL ORDER BY bill_id LIMIT ? OFFSET ?;";
-  int rc2 = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
-  if (rc2 != SQLITE_OK) {
-    syncOutput().println(F("Failed to prepare bills query"));
-    return false;
-  }
-
-  for (int chunk = 0; chunk < totalChunks; ++chunk) {
-    syncOutput().printf("Heap free before chunk %d: %d\n", chunk, ESP.getFreeHeap());
-    int offset = chunk * CHUNK_SIZE;
-    sqlite3_bind_int(stmt, 1, CHUNK_SIZE);
-    sqlite3_bind_int(stmt, 2, offset);
-
-    DynamicJsonDocument doc(syncOverWifi() ? 16384 : 65536);  // Larger doc for 150 items
-    JsonArray arr = doc.to<JsonArray>();
-
-    while (sqlite3_step(stmt) == SQLITE_ROW) {
-      JsonObject obj = arr.createNestedObject();
-      obj["bill_id"] = (int)sqlite3_column_int(stmt, 0);
-      obj["reference_number"] = String((const char*)sqlite3_column_text(stmt, 1));
-      obj["customer_id"] = (int)sqlite3_column_int(stmt, 2);
-      obj["reading_id"] = (int)sqlite3_column_int(stmt, 3);
-      obj["device_uid"] = String((const char*)sqlite3_column_text(stmt, 4));
-      obj["bill_date"] = String((const char*)sqlite3_column_text(stmt, 5));
-      obj["rate_per_m3"] = (float)sqlite3_column_double(stmt, 6);
-      obj["charges"] = (float)sqlite3_column_double(stmt, 7);
-      obj["penalty"] = (float)sqlite3_column_double(stmt, 8);
-      obj["total_due"] = (float)sqlite3_column_double(stmt, 9);
-      obj["status"] = String((const char*)sqlite3_column_text(stmt, 10));
-      obj["synced"] = (int)sqlite3_column_int(stmt, 11);
-      obj["last_sync"] = sqlite3_column_text(stmt, 12) ? String((const char*)sqlite3_column_text(stmt, 12)) : "";
-      obj["customer_account_number"] = String((const char*)sqlite3_column_text(stmt, 13));
+  if (!db) { syncOutput().println(F("ERR|DATABASE_NOT_READY")); return false; }
+  SyncExportMemory memory(db);
+  int total = 0;
+  {
+    SyncExportStatement count;
+    if (sqlite3_prepare_v2(db, "SELECT COUNT(*) FROM bills WHERE synced = 0 AND last_sync IS NULL;", -1, &count.value, nullptr) != SQLITE_OK || sqlite3_step(count.value) != SQLITE_ROW) {
+      syncOutput().println(F("ERR|EXPORT_COUNT_FAILED")); return false;
     }
-
-    if (doc.overflowed()) { sqlite3_finalize(stmt); syncOutput().println(F("ERR|JSON_CAPACITY")); return false; }
-    syncOutput().print(F("BILLS_CHUNK|"));
-    syncOutput().print(chunk);
-    syncOutput().print(F("|"));
-    serializeJson(arr, syncOutput());
-    syncOutput().println();
-    doc.clear();
-
-    // Reset statement for next chunk
-    sqlite3_reset(stmt);
-    sqlite3_clear_bindings(stmt);
-
-    syncOutput().printf("Heap free after chunk %d: %d\n", chunk, ESP.getFreeHeap());
+    total = sqlite3_column_int(count.value, 0);
   }
-
-  sqlite3_finalize(stmt);
+  const int chunkSize = 20;
+  const int chunks = (total + chunkSize - 1) / chunkSize;
+  syncOutput().print(F("BEGIN_BILLS_JSON|")); syncOutput().println(chunks);
+  if (total) {
+    SyncExportStatement statement;
+    const char* sql = "SELECT bill_id, reference_number, customer_id, reading_id, device_uid, bill_date, rate_per_m3, charges, penalty, total_due, status, synced, last_sync, customer_account_number FROM bills WHERE synced = 0 AND last_sync IS NULL ORDER BY bill_id;";
+    if (sqlite3_prepare_v2(db, sql, -1, &statement.value, nullptr) != SQLITE_OK) { syncOutput().println(F("ERR|EXPORT_QUERY_FAILED")); return false; }
+    for (int chunk = 0; chunk < chunks; ++chunk) {
+      const int remaining = total - chunk * chunkSize;
+      if (!syncWriteExportChunk(syncOutput(), statement.value, "BILLS_CHUNK|", chunk, remaining < chunkSize ? remaining : chunkSize, writeBillExportRow)) return false;
+    }
+    if (!syncExportCursorDone(syncOutput(), statement.value)) return false;
+  }
   syncOutput().println(F("END_BILLS_JSON"));
-  
-  // BILLS_SYNCED is sent only after the website commits the complete import.
-  
+  // Do not mark records synced until the website's committed-import acknowledgment.
   return true;
 }
-
 // Handle BILLS_SYNCED command
 bool handleBillsSynced() {
   bool ok = markAllBillsSynced();

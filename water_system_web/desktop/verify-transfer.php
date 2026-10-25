@@ -9,6 +9,7 @@ $pdo = database($profile.'/dmbc.sqlite');
 validateDatabase($pdo);
 $counts = [];
 foreach (DATA_TABLES as $table) {
+    if (!isset($snapshot['tables'][$table])) continue;
     $expected = $snapshot['tables'][$table];
     if (in_array($table, ['users', 'audit_logs'], true)) {
         $ids = array_column($expected['rows'], 'id');

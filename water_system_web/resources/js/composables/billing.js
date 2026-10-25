@@ -1,8 +1,10 @@
 import { ref, computed, onMounted } from 'vue'
 import { billBalance } from '../utils/billingPresentation.js'
 import { openReceiptWindow, printReceiptDocument } from '../utils/receipt.js'
+import { useMonthlyReportExport } from './useMonthlyReportExport.js'
 
 export function useBilling() {
+    const reportExport = useMonthlyReportExport()
     // Tab management
     const activeTab = ref('customer')
 
@@ -374,12 +376,6 @@ export function useBilling() {
       }
     }
 
-    const downloadMonthlyReport = ({ month, barangayId }) => {
-      const params = new URLSearchParams({ month })
-      if (barangayId) params.set('brgy_id', barangayId)
-      window.location.assign(`/bills/monthly-report?${params.toString()}`)
-    }
-
     const handleFilterChange = ({ statusFilter: newStatusFilter, customerFilter: newCustomerFilter }) => {
       statusFilter.value = newStatusFilter
       customerFilter.value = newCustomerFilter
@@ -541,7 +537,7 @@ export function useBilling() {
       loadAllBills,
       barangays,
       loadBarangays,
-      downloadMonthlyReport,
+      ...reportExport,
       handleFilterChange,
       payBill,
       voidBill,
