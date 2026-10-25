@@ -4,11 +4,13 @@
 #include "../../database/readings_database.h"
 #include "../../database/bill_database.h"
 #include "export_json.h"
+static const char* readingsPendingExportSql = "SELECT reading_id, customer_id, device_uid, previous_reading, current_reading, usage_m3, reading_at, synced, last_sync, customer_account_number, CAST(strftime('%s', created_at) AS INTEGER), created_at FROM readings WHERE synced = 0 AND last_sync IS NULL ORDER BY reading_id;";
 
 // Inspection and normal exports are read-only; only READINGS_SYNCED writes state.
 bool handleExportReadings(bool includeSynced = false) {
   syncOutput().println(F("Exporting readings..."));
   if (!db) { syncOutput().println(F("ERR|DATABASE_NOT_READY")); return false; }
+  if (!includeSynced) g_readingExportStamp = SyncExportStamp{};
   SyncExportMemory memory(db);
   int total = 0;
   {
@@ -26,20 +28,22 @@ bool handleExportReadings(bool includeSynced = false) {
     SyncExportStatement statement;
     const char* sql = includeSynced
       ? "SELECT reading_id, customer_id, device_uid, previous_reading, current_reading, usage_m3, reading_at, synced, last_sync, customer_account_number, CAST(strftime('%s', created_at) AS INTEGER), created_at FROM readings ORDER BY reading_id;"
-      : "SELECT reading_id, customer_id, device_uid, previous_reading, current_reading, usage_m3, reading_at, synced, last_sync, customer_account_number, CAST(strftime('%s', created_at) AS INTEGER), created_at FROM readings WHERE synced = 0 AND last_sync IS NULL ORDER BY reading_id;";
+      : readingsPendingExportSql;
     if (sqlite3_prepare_v2(db, sql, -1, &statement.value, nullptr) != SQLITE_OK) { syncOutput().println(F("ERR|READINGS_QUERY_FAILED")); return false; }
     for (int chunk = 0; chunk < chunks; ++chunk) {
       const int remaining = total - chunk * chunkSize;
-      if (!syncWriteExportChunk(syncOutput(), statement.value, "READINGS_CHUNK|", chunk, remaining < chunkSize ? remaining : chunkSize, writeReadingExportRow)) return false;
+      if (!syncWriteExportChunk(syncOutput(), statement.value, "READINGS_CHUNK|", chunk, remaining < chunkSize ? remaining : chunkSize, writeReadingExportRow, includeSynced ? nullptr : &g_readingExportStamp)) return false;
     }
     if (!syncExportCursorDone(syncOutput(), statement.value)) return false;
   }
+  if (!includeSynced) g_readingExportStamp.valid = true;
   syncOutput().println(F("END_READINGS_JSON"));
   return true;
 }
 
 bool handleReadingsSynced() {
-  bool ok = markAllReadingsSynced();
+  const String ackTime = getCurrentDateTimeString();
+  bool ok = syncAcknowledgeExport(db, g_readingExportStamp, readingsPendingExportSql, "readings", ackTime.c_str(), writeReadingExportRow, syncOutput());
   if (ok) { setLastSyncEpoch(deviceEpochNow()); syncOutput().println(F("ACK|READINGS_SYNCED")); }
   else syncOutput().println(F("ERR|READINGS_SYNC_FAILED"));
   return true;

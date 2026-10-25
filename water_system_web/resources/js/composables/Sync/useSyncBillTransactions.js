@@ -1,14 +1,14 @@
 import { parseSyncChunks } from '../../utils/parseSyncChunks.js'
+import { createExportWatchdog } from '../../utils/exportWatchdog.js'
 import { ref } from 'vue'
 import { serialService } from '../../services/serialService'
-import { databaseService } from '../../services/databaseService'
 
 export function useSyncBillTransactions() {
   const exportInProgress = ref(false)
   const exportLines = ref([])
   const exportResolve = ref(null)
   const exportReject = ref(null)
-  const exportTimeoutId = ref(null)
+  const watchdog = createExportWatchdog(error => finishExport(error))
   const exportBeginMarker = ref(null)
   const exportEndMarker = ref(null)
   const exportLinePrefix = ref(null)
@@ -34,9 +34,7 @@ export function useSyncBillTransactions() {
     const promise = new Promise((resolve, reject) => {
       exportResolve.value = resolve
       exportReject.value = reject
-      exportTimeoutId.value = setTimeout(() => {
-        finishExport(new Error('Timed out waiting for device export'))
-      }, 60000)
+      watchdog.start(60000, 'Timed out waiting for transaction export progress')
     })
 
     promise.catch(() => {})
@@ -47,9 +45,7 @@ export function useSyncBillTransactions() {
   }
 
   const finishExport = (error, lines = null) => {
-    if (exportTimeoutId.value) {
-      clearTimeout(exportTimeoutId.value)
-    }
+    watchdog.stop()
     exportInProgress.value = false
     if (error) {
       if (exportReject.value) {
@@ -64,16 +60,7 @@ export function useSyncBillTransactions() {
     exportReject.value = null
   }
 
-  const parseBillTransactionsExportLines = async lines => {
-    const transactions = parseSyncChunks(lines, 'BEGIN_BILL_TRANSACTIONS_JSON', 'BILL_TRANSACTIONS_CHUNK|')
-    if (!transactions.length) return 0
-    const processed = await databaseService.syncBillTransactionsToDatabase(transactions)
-    if (Number(processed) !== transactions.length) {
-      throw new Error('Some payments could not be imported; device transactions were left unsynced')
-    }
-    await sendLine('BILL_TRANSACTIONS_SYNCED')
-    return Number(processed || 0)
-  }
+  const parseBillTransactionsExportLines = lines => parseSyncChunks(lines, 'BEGIN_BILL_TRANSACTIONS_JSON', 'BILL_TRANSACTIONS_CHUNK|')
 
   const handleExportLine = (line) => {
     if (!exportInProgress.value) return
@@ -82,6 +69,7 @@ export function useSyncBillTransactions() {
 
     // Device sends BEGIN marker with chunk count, e.g. BEGIN_BILL_TRANSACTIONS_JSON|2
     if (exportBeginMarker.value && t.startsWith(exportBeginMarker.value)) {
+      watchdog.progress()
       exportLines.value = []
       exportLines.value.push(t)
       return
@@ -93,6 +81,7 @@ export function useSyncBillTransactions() {
     }
 
     exportLines.value.push(t)
+    if (t.startsWith('BILL_TRANSACTIONS_CHUNK|')) watchdog.progress()
 
     if (t.startsWith('ERR|')) {
       finishExport(new Error('Device error: ' + t))

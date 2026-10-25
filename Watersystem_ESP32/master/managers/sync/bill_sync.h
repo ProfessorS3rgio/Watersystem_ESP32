@@ -2,6 +2,7 @@
 #define BILL_SYNC_H
 #include "../sync_transport.h"
 #include "export_json.h"
+static const char* billsPendingExportSql = "SELECT bill_id, reference_number, customer_id, reading_id, device_uid, bill_date, rate_per_m3, charges, penalty, total_due, status, synced, last_sync, customer_account_number FROM bills WHERE synced = 0 AND last_sync IS NULL ORDER BY bill_id;";
 
 #include "../../database/bill_database.h"
 #include "../../database/bill_transactions_database.h"
@@ -176,6 +177,7 @@ bool handleUpsertBillsJsonChunk(String payload) {
 bool handleExportBills() {
   syncOutput().println(F("Exporting bills..."));
   if (!db) { syncOutput().println(F("ERR|DATABASE_NOT_READY")); return false; }
+  g_billExportStamp = SyncExportStamp{};
   SyncExportMemory memory(db);
   int total = 0;
   {
@@ -190,21 +192,23 @@ bool handleExportBills() {
   syncOutput().print(F("BEGIN_BILLS_JSON|")); syncOutput().println(chunks);
   if (total) {
     SyncExportStatement statement;
-    const char* sql = "SELECT bill_id, reference_number, customer_id, reading_id, device_uid, bill_date, rate_per_m3, charges, penalty, total_due, status, synced, last_sync, customer_account_number FROM bills WHERE synced = 0 AND last_sync IS NULL ORDER BY bill_id;";
+    const char* sql = billsPendingExportSql;
     if (sqlite3_prepare_v2(db, sql, -1, &statement.value, nullptr) != SQLITE_OK) { syncOutput().println(F("ERR|EXPORT_QUERY_FAILED")); return false; }
     for (int chunk = 0; chunk < chunks; ++chunk) {
       const int remaining = total - chunk * chunkSize;
-      if (!syncWriteExportChunk(syncOutput(), statement.value, "BILLS_CHUNK|", chunk, remaining < chunkSize ? remaining : chunkSize, writeBillExportRow)) return false;
+      if (!syncWriteExportChunk(syncOutput(), statement.value, "BILLS_CHUNK|", chunk, remaining < chunkSize ? remaining : chunkSize, writeBillExportRow, &g_billExportStamp)) return false;
     }
     if (!syncExportCursorDone(syncOutput(), statement.value)) return false;
   }
+  g_billExportStamp.valid = true;
   syncOutput().println(F("END_BILLS_JSON"));
   // Do not mark records synced until the website's committed-import acknowledgment.
   return true;
 }
 // Handle BILLS_SYNCED command
 bool handleBillsSynced() {
-  bool ok = markAllBillsSynced();
+  const String ackTime = getCurrentDateTimeString();
+  bool ok = syncAcknowledgeExport(db, g_billExportStamp, billsPendingExportSql, "bills", ackTime.c_str(), writeBillExportRow, syncOutput());
   if (ok) {
     setLastSyncEpoch(deviceEpochNow());
     syncOutput().println(F("ACK|BILLS_SYNCED"));

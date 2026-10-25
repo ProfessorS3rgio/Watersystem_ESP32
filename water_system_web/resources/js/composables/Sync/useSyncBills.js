@@ -1,14 +1,14 @@
 import { parseSyncChunks } from '../../utils/parseSyncChunks.js'
+import { createExportWatchdog } from '../../utils/exportWatchdog.js'
 import { ref } from 'vue'
 import { serialService } from '../../services/serialService'
-import { databaseService } from '../../services/databaseService'
 
 export function useSyncBills() {
   const exportInProgress = ref(false)
   const exportLines = ref([])
   const exportResolve = ref(null)
   const exportReject = ref(null)
-  const exportTimeoutId = ref(null)
+  const watchdog = createExportWatchdog(error => finishExport(error))
   const exportBeginMarker = ref(null)
   const exportEndMarker = ref(null)
   const exportLinePrefix = ref(null)
@@ -34,9 +34,7 @@ export function useSyncBills() {
     const promise = new Promise((resolve, reject) => {
       exportResolve.value = resolve
       exportReject.value = reject
-      exportTimeoutId.value = setTimeout(() => {
-        finishExport(new Error('Timed out waiting for device export'))
-      }, 60000)
+      watchdog.start(60000, 'Timed out waiting for bill export progress')
     })
 
     promise.catch(() => {})
@@ -47,10 +45,7 @@ export function useSyncBills() {
   }
 
   const finishExport = (error, lines = null) => {
-    if (exportTimeoutId.value) {
-      clearTimeout(exportTimeoutId.value)
-      exportTimeoutId.value = null
-    }
+    watchdog.stop()
     exportInProgress.value = false
     if (error) {
       if (exportReject.value) {
@@ -67,30 +62,11 @@ export function useSyncBills() {
 
   const parseBillsExportLines = lines => parseSyncChunks(lines, 'BEGIN_BILLS_JSON', 'BILLS_CHUNK|')
 
-  const syncBillsFromDevice = async () => {
-    const deviceBills = await exportBillsFromDevice()
-
-    if (deviceBills.length === 0) {
-      return
-    }
-
-    console.log('Bills exported from device:', deviceBills)
-
-    const processed = await databaseService.upsertBillsToDatabase(deviceBills)
-    console.log('Bills synced to database, processed:', processed)
-
-    if (Number(processed) !== deviceBills.length) {
-      throw new Error('Some bills could not be imported; device records were left unsynced')
-    }
-
-    await sendLine('BILLS_SYNCED')
-    return processed
-  }
-
   const handleDeviceLine = (line) => {
     if (!exportInProgress.value) return
 
     if (line.startsWith(exportBeginMarker.value)) {
+      watchdog.progress()
       exportLines.value = [line]
       return
     }
@@ -102,11 +78,11 @@ export function useSyncBills() {
     }
 
     exportLines.value.push(line)
+    if (line.startsWith('BILLS_CHUNK|')) watchdog.progress()
   }
 
   return {
     exportBillsFromDevice,
-    syncBillsFromDevice,
     handleDeviceLine
   }
 }

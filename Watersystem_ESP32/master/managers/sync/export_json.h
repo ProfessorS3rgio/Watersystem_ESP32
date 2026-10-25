@@ -90,17 +90,62 @@ static void writeTransactionExportRow(sqlite3_stmt* stmt, Print& output) {
 }
 
 typedef void (*SyncExportRowWriter)(sqlite3_stmt*, Print&);
-static bool syncWriteExportChunk(Print& output, sqlite3_stmt* stmt, const char* prefix, int index, int rows, SyncExportRowWriter writer) {
+struct SyncExportStamp { uint64_t hash = 14695981039346656037ULL; uint32_t rows = 0; bool valid = false; };
+static SyncExportStamp g_readingExportStamp, g_billExportStamp, g_transactionExportStamp;
+class SyncDigestOutput : public Print {
+  Print* target;
+  SyncExportStamp& stamp;
+public:
+  using Print::write;
+  SyncDigestOutput(Print* output, SyncExportStamp& value) : target(output), stamp(value) {}
+  size_t write(uint8_t value) override {
+    stamp.hash = (stamp.hash ^ value) * 1099511628211ULL;
+    return target ? target->write(value) : 1;
+  }
+};
+static bool syncWriteExportChunk(Print& output, sqlite3_stmt* stmt, const char* prefix, int index, int rows, SyncExportRowWriter writer, SyncExportStamp* stamp = nullptr) {
   output.print(prefix); output.print(index); output.print("|[");
   for (int i = 0; i < rows; ++i) {
     if (sqlite3_step(stmt) != SQLITE_ROW) { output.println(']'); output.println("ERR|SQLITE_EXPORT_FAILED"); return false; }
     if (i) output.write(',');
-    writer(stmt, output); delay(0);
+    if (stamp) { SyncDigestOutput digest(&output, *stamp); writer(stmt, digest); ++stamp->rows; }
+    else writer(stmt, output);
+    delay(0);
   }
   output.println(']'); return true;
 }
 static bool syncExportCursorDone(Print& output, sqlite3_stmt* stmt) {
   if (sqlite3_step(stmt) == SQLITE_DONE) return true;
   output.println("ERR|EXPORT_COUNT_CHANGED"); return false;
+}
+// Compare the last successful pending export under a SQLite write lock.
+// A new or edited record leaves the entire pending group untouched.
+static bool syncAcknowledgeExport(sqlite3* connection, SyncExportStamp& expected, const char* selectSql, const char* table, const char* timestamp, SyncExportRowWriter writer, Print& output) {
+  if (!connection || !expected.valid) { output.println("ERR|EXPORT_REQUIRED"); return false; }
+  SyncExportMemory memory(connection);
+  if (sqlite3_exec(connection, "BEGIN IMMEDIATE;", nullptr, nullptr, nullptr) != SQLITE_OK) { output.println("ERR|ACK_BUSY"); return false; }
+  SyncExportStamp current;
+  bool valid = true;
+  {
+    SyncExportStatement statement;
+    if (sqlite3_prepare_v2(connection, selectSql, -1, &statement.value, nullptr) != SQLITE_OK) valid = false;
+    else {
+      SyncDigestOutput digest(nullptr, current);
+      int rc;
+      while ((rc = sqlite3_step(statement.value)) == SQLITE_ROW) { writer(statement.value, digest); ++current.rows; delay(0); }
+      valid = rc == SQLITE_DONE && current.rows == expected.rows && current.hash == expected.hash;
+    }
+  }
+  if (!valid) {
+    sqlite3_exec(connection, "ROLLBACK;", nullptr, nullptr, nullptr);
+    expected.valid = false; output.println("ERR|EXPORT_CHANGED_REVIEW_AGAIN"); return false;
+  }
+  char sql[256];
+  snprintf(sql, sizeof(sql), "UPDATE %s SET synced=1,last_sync='%s',updated_at='%s' WHERE synced=0 AND last_sync IS NULL;", table, timestamp, timestamp);
+  if (sqlite3_exec(connection, sql, nullptr, nullptr, nullptr) != SQLITE_OK || sqlite3_exec(connection, "COMMIT;", nullptr, nullptr, nullptr) != SQLITE_OK) {
+    sqlite3_exec(connection, "ROLLBACK;", nullptr, nullptr, nullptr); output.println("ERR|ACK_SAVE_FAILED"); return false;
+  }
+  expected.valid = false;
+  return true;
 }
 #endif

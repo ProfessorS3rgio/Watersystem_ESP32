@@ -19,7 +19,7 @@ Find the installer in:
 water_system_web\src-tauri\target\release\bundle\nsis\
 ```
 
-Its filename includes the version in `src-tauri/tauri.conf.json`, currently `DMBC Water_0.2.1_x64-setup.exe`. Close DMBC, then run the newly generated installer to update the installed application. Its existing SQLite data lives separately under `%LOCALAPPDATA%\ph.dmbc.water.development`. Keep the application identifier unchanged when upgrading this development profile. Make a backup from DMBC before installing an update.
+Its filename includes the version in `src-tauri/tauri.conf.json`, currently `DMBC Water_0.3.0_x64-setup.exe`. Close DMBC, then run the newly generated installer to update the installed application. Its existing SQLite data lives separately under `%LOCALAPPDATA%\ph.dmbc.water.development`. Keep the application identifier unchanged when upgrading this development profile. Make a backup from DMBC before installing an update.
 
 `npm run build` only builds the web interface; it does not create an installer. For desktop development, use `npm run desktop:dev`. This setup stages the application at startup, so stop it with Ctrl+C and run it again after changes. It uses the development profile, so changes made while testing can affect that profile's data.
 

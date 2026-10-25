@@ -9,7 +9,7 @@
       <div class="flex shrink-0 flex-wrap gap-3"><button v-if="connected" @click="$emit('disconnect')" :disabled="busy" class="sync-secondary disabled:opacity-50">Disconnect</button><button v-else @click="$emit('connect')" :disabled="connecting || (transport === 'usb' && !supported) || (transport === 'wifi' && !/^[A-F0-9]{8}$/.test(pairingCode || ''))" class="sync-primary disabled:opacity-50">{{ connecting ? 'Connecting…' : transport === 'wifi' ? 'Pair over Wi-Fi' : 'Connect device' }}</button><button v-if="connected" @click="$emit('sync')" :disabled="busy" class="sync-primary disabled:opacity-50">{{ syncing ? 'Synchronizing…' : 'Start sync' }}</button></div>
     </div>
     <div class="sync-soft border-t border-inherit p-6">
-      <div class="mb-4 flex flex-wrap justify-between gap-2 text-sm"><p class="font-semibold">{{ syncing ? 'Synchronization in progress' : status === 'completed' ? 'Last sync completed' : status === 'failed' ? 'Sync stopped — review the activity log' : 'Sync workflow' }}</p><span class="sync-muted">Web ↔ ESP32</span></div>
+      <div class="mb-4 flex flex-wrap justify-between gap-2 text-sm"><p class="font-semibold">{{ syncing ? 'Synchronization in progress' : status === 'completed' ? 'Last sync completed' : status === 'cancelled' ? 'Sync cancelled — device records remain pending' : status === 'failed' ? 'Sync stopped — review the activity log' : 'Sync workflow' }}</p><span class="sync-muted">Web ↔ ESP32</span></div>
       <ol class="grid gap-3 sm:grid-cols-5"><li v-for="(step, index) in steps" :key="step" class="flex items-center gap-2 text-xs" :class="stage === index && syncing ? 'font-bold text-teal-600' : 'sync-muted'"><span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border" :class="status === 'completed' || index < stage ? 'border-teal-600 bg-teal-600 text-white' : stage === index && syncing ? 'border-teal-500 text-teal-600 animate-pulse' : 'border-inherit'">{{ status === 'completed' || index < stage ? '✓' : index + 1 }}</span>{{ step }}</li></ol>
       <p v-if="syncError" role="alert" class="mt-4 text-sm text-red-500">{{ syncError }}</p>
     </div>
@@ -19,5 +19,5 @@
 <script setup>
 defineProps({ connected: Boolean, connecting: Boolean, busy: Boolean, syncing: Boolean, supported: Boolean, port: String, error: String, status: String, syncError: String, stage: Number, transport: { type: String, default: 'usb' }, pairingCode: String })
 defineEmits(['connect', 'disconnect', 'sync', 'update:transport', 'update:pairingCode'])
-const steps = ['Restore point', 'Reference data', 'Readings & bills', 'Member accounts', 'Finalize']
+const steps = ['Restore point', 'Review & approve', 'Reference data', 'Member accounts', 'Finalize']
 </script>

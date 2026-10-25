@@ -24,5 +24,24 @@ int main() {
   assert(strstr(output.buffer,"ERR|SQLITE_EXPORT_FAILED"));
   sqlite3_stmt extra;
   assert(!syncExportCursorDone(output,&extra));
+  // Exercise the real ACK guard with deterministic SQLite stand-ins.
+  for (int scenario=0;scenario<5;++scenario) {
+    sqlite3 connection;
+    sqlite3_stmt cursor; cursor.limit=2; cursor.owner=&connection;
+    SyncExportStamp stamp;
+    SyncDigestOutput digest(nullptr,stamp);
+    while (sqlite3_step(&cursor)==SQLITE_ROW) { writeReadingExportRow(&cursor,digest); ++stamp.rows; }
+    stamp.valid=true;
+    if (scenario==1) connection.limit=3; // New reading after review.
+    if (scenario==2) connection.edits=1; // Existing reading edited after review.
+    if (scenario==3) connection.failUpdate=true;
+    if (scenario==4) stamp.valid=false;
+    output.used=0;
+    const bool accepted=syncAcknowledgeExport(&connection,stamp,"SELECT pending", "readings", "2026-10-26 00:00:00",writeReadingExportRow,output);
+    assert(accepted==(scenario==0));
+    assert(connection.commits==(scenario==0?1:0));
+    assert(connection.updates==(scenario==0?1:0));
+    if (scenario==1 || scenario==2) assert(strstr(output.buffer,"EXPORT_CHANGED_REVIEW_AGAIN"));
+  }
   forbidAllocation = false;
 }

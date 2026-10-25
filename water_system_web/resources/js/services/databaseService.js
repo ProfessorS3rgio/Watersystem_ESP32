@@ -2,6 +2,15 @@
 let activeSyncRunId = null
 
 export const databaseService = {
+  async previewSyncBatch(payload) {
+    return (await window.axios.post('/sync-reviews', payload)).data.review
+  },
+  async approveSyncBatch(id, deviceUid, acceptWarnings) {
+    return (await window.axios.post(`/sync-reviews/${id}/approve`, { device_uid: deviceUid, accept_warnings: acceptWarnings })).data.receipt
+  },
+  async cancelSyncReview(id) { await window.axios.post(`/sync-reviews/${id}/cancel`) },
+  async acknowledgeSyncReview(id) { await window.axios.post(`/sync-reviews/${id}/acknowledged`) },
+  async syncReviewHistory() { return (await window.axios.get('/sync-reviews')).data.reviews },
   async startSyncRun() {
     const res = await window.axios.post('/sync-runs')
     activeSyncRunId = res.data?.run_id || null
@@ -113,44 +122,9 @@ export const databaseService = {
     }
   },
 
-  async upsertReadingsToDatabase(readings) {
-    try {
-      const res = await window.axios.post('/readings/sync', { readings })
-      return {
-        processed: Number(res.data?.processed || 0),
-        inserted: Number(res.data?.inserted || 0),
-        updated: Number(res.data?.updated || 0),
-        skipped: Number(res.data?.skipped || 0),
-      }
-    } catch (error) {
-      if (error.response?.status === 401) throw new Error('Unauthorized (login required)')
-      throw new Error('Readings sync failed: ' + (error.response?.data?.message || error.message))
-    }
-  },
-
   async inspectDeviceReadings(readings) {
     const res = await window.axios.post('/readings/inspect', { readings })
     return res.data
-  },
-
-  async upsertBillsToDatabase(bills) {
-    try {
-      const res = await window.axios.post('/bills/sync', { bills })
-      return Number(res.data?.processed || 0)
-    } catch (error) {
-      if (error.response?.status === 401) throw new Error('Unauthorized (login required)')
-      throw new Error('Bills sync failed: ' + (error.response?.data?.message || error.message))
-    }
-  },
-
-  async syncBillTransactionsToDatabase(billTransactions) {
-    try {
-      const res = await window.axios.post('/bill-transactions/sync', { bill_transactions: billTransactions })
-      return Number(res.data?.processed || 0)
-    } catch (error) {
-      if (error.response?.status === 401) throw new Error('Unauthorized (login required)')
-      throw new Error('Bill transactions sync failed: ' + (error.response?.data?.message || error.message))
-    }
   },
 
   async syncDeviceInfoToDatabase(deviceInfo) {

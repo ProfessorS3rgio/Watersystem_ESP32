@@ -8,7 +8,7 @@ class Print {
 public:
   char buffer[32768] = {};
   size_t used = 0;
-  size_t write(uint8_t value) { assert(used + 1 < sizeof(buffer)); buffer[used++] = value; buffer[used] = 0; return 1; }
+  virtual size_t write(uint8_t value) { assert(used + 1 < sizeof(buffer)); buffer[used++] = value; buffer[used] = 0; return 1; }
   size_t write(const uint8_t* data, size_t size) { for (size_t i=0;i<size;++i) write(data[i]); return size; }
   void print(const char* value) { write(reinterpret_cast<const uint8_t*>(value), strlen(value)); }
   void print(int value) { char number[24]; snprintf(number, sizeof(number), "%d", value); print(number); }

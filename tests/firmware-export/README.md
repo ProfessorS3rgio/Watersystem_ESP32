@@ -1,6 +1,6 @@
 # Native firmware export check
 
-These fixtures compile the actual `export_json.h` against small Arduino/SQLite stand-ins. They check 3,000 streamed rows while C++ allocation is forbidden, then parse every frame with Node. Coverage includes Unicode, quotes, slashes, embedded control/NUL characters, null text, 64-bit IDs, fallback timestamps, money, and cursor errors. This is a serializer test, not a replacement for testing the real SQLite library and device heap.
+These fixtures compile the actual `export_json.h` against small Arduino/SQLite stand-ins. They check 3,000 streamed rows while C++ allocation is forbidden, then parse every frame with Node. Coverage includes Unicode, quotes, slashes, embedded control/NUL characters, null text, 64-bit IDs, fallback timestamps, money, and cursor errors. They also exercise the acknowledgment guard with unchanged rows, newly added rows, edited values, a failed update, and a missing successful export. SQLite is a stand-in here; compilation and physical device checks are still needed.
 
 In a **Developer Command Prompt for VS 2022**, change to a temporary build directory and run these commands (adjust the repository path if moved):
 

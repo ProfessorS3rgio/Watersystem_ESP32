@@ -27,7 +27,7 @@ globalThis.fetch = async (url, options) => {
   throw new Error('Unexpected test command: ' + command)
 }
 
-const server = await createServer({ configFile: false, server: { middlewareMode: true }, appType: 'custom' })
+const server = await createServer({ configFile: false, optimizeDeps: { noDiscovery: true, entries: [] }, server: { middlewareMode: true, hmr: false }, appType: 'custom' })
 try {
   const { serialService } = await server.ssrLoadModule('/resources/js/services/serialService.js')
   const { databaseService } = await server.ssrLoadModule('/resources/js/services/databaseService.js')
@@ -53,23 +53,16 @@ try {
   assert.equal(serialService.getState().transport, 'wifi')
   assert.ok(serialService.getState().writer, 'existing sync handlers see a connected transport')
   await settings.pushSettingsToDevice([{ id: 1, bill_due_days: 5, disconnection_days: 8 }])
-  await readings.syncReadingsFromDevice()
-  assert.equal(commands.at(-1), 'READINGS_SYNCED')
-  await transactions.exportBillTransactionsFromDevice()
-  assert.equal(commands.at(-1), 'BILL_TRANSACTIONS_SYNCED')
-  databaseService.syncBillTransactionsToDatabase = async () => 0
-  const transactionAcks = commands.filter(c => c === 'BILL_TRANSACTIONS_SYNCED').length
-  await assert.rejects(transactions.exportBillTransactionsFromDevice(), /left unsynced/)
-  assert.equal(commands.filter(c => c === 'BILL_TRANSACTIONS_SYNCED').length, transactionAcks)
-  await bills.syncBillsFromDevice()
-  assert.equal(commands.at(-1), 'BILLS_SYNCED')
-  const acknowledgments = commands.filter(c => c === 'BILLS_SYNCED').length
-  failImport = true
-  committed = false
-  await assert.rejects(bills.syncBillsFromDevice(), /Import failed/)
-  assert.equal(commands.filter(c => c === 'BILLS_SYNCED').length, acknowledgments)
+  assert.equal((await readings.exportReadingsFromDevice()).length,1)
+  assert.equal((await transactions.exportBillTransactionsFromDevice())[0].notes,'cash | office')
+  assert.equal((await bills.exportBillsFromDevice())[0].reference_number,'TEST|1')
+  assert.equal(commands.some(command => command.endsWith('_SYNCED')),false,'all exports must remain read-only until review approval')
+  const { acknowledgeVerifiedGroup } = await import('../resources/js/utils/verifiedSync.js')
+  committed = true
+  await acknowledgeVerifiedGroup(serialService,'BILLS_SYNCED')
+  assert.equal(commands.at(-1),'BILLS_SYNCED')
   failExport = true
-  await assert.rejects(bills.syncBillsFromDevice(), /Device disconnected/)
+  await assert.rejects(bills.exportBillsFromDevice(), /Device disconnected/)
   assert.equal(serialService.getState().isConnected, false)
   console.log('Wi-Fi integration checks passed: immediate ACKs, commit-before-acknowledge, failed import, disconnected exports.')
 } finally {

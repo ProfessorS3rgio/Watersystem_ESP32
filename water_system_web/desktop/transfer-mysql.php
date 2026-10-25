@@ -10,7 +10,7 @@ $kernel->bootstrap();
 
 use Illuminate\Support\Facades\DB;
 
-const DATA_TABLES = ['users', 'barangay_sequence', 'deduction', 'customer_type', 'device', 'customer', 'reading', 'bill', 'customer_deduction', 'bill_deduction', 'bill_transaction', 'settings', 'sync_runs', 'backup_snapshots', 'audit_logs', 'service_incidents', 'incident_events'];
+const DATA_TABLES = ['users', 'barangay_sequence', 'deduction', 'customer_type', 'device', 'customer', 'reading', 'bill', 'customer_deduction', 'bill_deduction', 'bill_transaction', 'settings', 'sync_runs', 'backup_snapshots', 'audit_logs', 'service_incidents', 'incident_events', 'sync_reviews'];
 
 function database(string $path): PDO
 {

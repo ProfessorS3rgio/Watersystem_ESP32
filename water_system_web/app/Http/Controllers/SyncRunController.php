@@ -31,7 +31,7 @@ class SyncRunController extends Controller
     {
         $syncRun = SyncRun::where('run_uuid', $run)->firstOrFail();
         $status = $request->input('status', 'completed');
-        if (!in_array($status, ['completed', 'failed'], true)) {
+        if (!in_array($status, ['completed', 'failed', 'cancelled'], true)) {
             return response()->json(['message' => 'Invalid sync status.'], 422);
         }
 
@@ -42,7 +42,7 @@ class SyncRunController extends Controller
             'finished_at' => now(),
         ]);
 
-        $audit->record($status === 'completed' ? 'sync_completed' : 'sync_failed', 'SyncRun', null, [
+        $audit->record('sync_'.$status, 'SyncRun', null, [
             'run_uuid' => $syncRun->run_uuid,
             'status' => $status,
             'summary' => $syncRun->summary,

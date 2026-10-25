@@ -83,49 +83,6 @@ export function useSyncReadings() {
     reading_at: Number(reading.reading_at || 0) >= 1577836800 ? Number(reading.reading_at) : parseCreatedAtToEpoch(reading.created_at),
   }))
 
-  const syncReadingsFromDevice = async () => {
-    // Ensure device has a usable clock (epoch seconds)
-    const epochNow = Math.floor(Date.now() / 1000)
-    await sendLine('SET_TIME|' + String(epochNow))
-
-    const deviceReadings = await exportReadingsFromDevice()
-
-    if (deviceReadings.length === 0) {
-      return
-    }
-
-    console.log('Readings exported from device (count):', deviceReadings.length)
-    let syncResult = { processed: 0, inserted: 0, updated: 0, skipped: 0 }
-    try {
-      syncResult = await databaseService.upsertReadingsToDatabase(deviceReadings)
-      console.log('Readings synced to database:', syncResult)
-
-      const processed = Number(syncResult.processed || 0)
-      const skipped = Number(syncResult.skipped || 0)
-      const totalHandled = processed + skipped
-
-      if (skipped > 0) {
-        console.warn('Some exported readings were skipped because the matching customer was missing in the web database:', skipped)
-        throw new Error(`${skipped} reading(s) could not be matched to a website customer; device records were left unsynced`)
-      }
-
-      if (totalHandled !== Number(deviceReadings.length)) {
-        throw new Error(`Reading export mismatch: device exported ${deviceReadings.length}, handled ${totalHandled}`)
-      }
-
-      // The import marks its own website rows synced. Device IDs are not
-      // website primary keys, so never use them in a server-side WHERE IN.
-    } catch (err) {
-      console.error('Failed to upsert readings to database:', err)
-      throw err
-    }
-
-    // Mark device readings as synced (so next export is incremental)
-    await sendLine('READINGS_SYNCED')
-
-    return syncResult.processed
-  }
-
   const inspectReadingsFromDevice = async () => {
     const readings = await exportReadingsFromDevice(true)
     return databaseService.inspectDeviceReadings(readings)
@@ -191,7 +148,6 @@ export function useSyncReadings() {
   }
 
   return {
-    syncReadingsFromDevice,
     inspectReadingsFromDevice,
     inspectReadingsForAccount,
     exportReadingsFromDevice,

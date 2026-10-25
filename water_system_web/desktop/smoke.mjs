@@ -109,6 +109,25 @@ try {
   assert.equal(customerResponse.status, 201, await customerResponse.text());
   const members = (await (await fetch('/customers')).json()).data;
   assert.equal(members[0].customer_name, 'Desktop test member');
+  const jsonHeaders = { Accept:'application/json', 'Content-Type':'application/json', 'X-CSRF-TOKEN':csrfToken };
+  const localDate = new Date().toLocaleString('sv-SE', { timeZone:'Asia/Manila' });
+  const batch = {
+    device: {device_uid:'DESKTOP-VERIFY',brgy_id:1,firmware_version:'v1.1.0',verified_sync_ack:1},
+    readings:[{reading_id:1,device_uid:'DESKTOP-VERIFY',customer_account_number:members[0].account_no,previous_reading:0,current_reading:10,usage_m3:10,reading_at:Math.floor(Date.now()/1000)}],
+    bills:[{bill_id:1,reading_id:1,device_uid:'DESKTOP-VERIFY',customer_account_number:members[0].account_no,reference_number:'DESKTOP-VERIFY-BILL',bill_date:localDate.slice(0,10),rate_per_m3:10,charges:100,penalty:0,total_due:100,status:'Paid'}],
+    transactions:[{bill_transaction_id:1,bill_reference_number:'DESKTOP-VERIFY-BILL',processed_by_device_uid:'DESKTOP-VERIFY',type:'payment',source:'Device',amount:100,cash_received:100,change:0,transaction_date:localDate,payment_method:'cash'}],
+  };
+  const staged = await fetch('/sync-reviews',{method:'POST',headers:jsonHeaders,body:JSON.stringify(batch)});
+  assert.equal(staged.status,201,await staged.clone().text());
+  const review = (await staged.json()).review;
+  assert.equal(review.preview.can_approve,true);
+  for (let attempt=0;attempt<2;attempt++) {
+    const approval = await fetch(`/sync-reviews/${review.id}/approve`,{method:'POST',headers:jsonHeaders,body:JSON.stringify({device_uid:'DESKTOP-VERIFY',accept_warnings:false})});
+    assert.equal(approval.status,200,await approval.clone().text());
+    assert.equal((await approval.json()).receipt.review_id,review.id);
+  }
+  const confirmation = await fetch(`/sync-reviews/${review.id}/acknowledged`,{method:'POST',headers:jsonHeaders});
+  assert.equal(confirmation.status,200);
   // Generate real workbooks through the same export flow used by the UI.
   // The native save bridge is captured here; Rust tests cover writing files.
   const { useMonthlyReportExport } = await vite.ssrLoadModule('/resources/js/composables/useMonthlyReportExport.js');
@@ -145,6 +164,7 @@ try {
   const restore = await fetch(`/backup/restore-points/${snapshotId}/restore`, { method: 'POST', headers: { Accept: 'application/json', 'X-CSRF-TOKEN': csrfToken } });
   assert.equal(restore.status, 200, await restore.text());
   assert.equal((await incidentApi.detail(incident.id)).data.version, repaired.version, 'snapshot restores must preserve later incident progress');
+  assert.equal((await (await fetch('/sync-reviews')).json()).reviews[0].id,review.id,'restore preserves verification receipts');
 
   await new Promise(resolve => { server.once('exit', resolve); server.kill(); });
   initialize();
@@ -162,7 +182,7 @@ try {
   await Login.methods.handleLogin.call(form);
   assert.equal(form.error, null);
   assert.equal(await checkAuthentication(), true);
-  console.log('Desktop smoke checks passed: login, logout/re-login, restart persistence, customer creation, settings save, snapshot restore, ZIP export, all-barangay and selected-barangay Excel export, incident report retries, repair/close/reopen workflow, stale edit conflicts, and incident progress retained across restore/restart. All writes used a temporary test profile.');
+  console.log('Desktop smoke checks passed: login, logout/re-login, restart persistence, customer creation, settings save, snapshot restore, ZIP export, all-barangay and selected-barangay Excel export, batch review/approval/retry/receipt preservation, incident report retries, repair/close/reopen workflow, stale edit conflicts, and incident progress retained across restore/restart. All writes used a temporary test profile.');
 } finally {
   globalThis.fetch = originalFetch;
   globalThis.document = originalDocument;

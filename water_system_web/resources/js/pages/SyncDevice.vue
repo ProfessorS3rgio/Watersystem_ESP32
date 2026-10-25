@@ -129,6 +129,11 @@
         <details class="mt-6 border-t border-inherit pt-5"><summary class="cursor-pointer text-sm font-bold text-teal-600">Advanced serial command</summary><form class="mt-4 flex flex-wrap gap-3" @submit.prevent="!deviceBusy && sendCustomCommand(addLog)"><input v-model="customCommand" :disabled="deviceBusy || !isConnected" aria-label="Serial command" placeholder="Enter a device command…" class="min-w-0 flex-1"/><button :disabled="!isConnected || deviceBusy || !customCommand.trim()" class="sync-primary disabled:opacity-50">Send command</button></form></details>
       </section>
       <SyncActivityLog :logs="filteredSyncLogs" :busy="deviceBusy" @clear="clearSyncLogs" />
+      <section v-if="reviewHistory.length" class="sync-panel p-6">
+        <h2 class="text-lg font-bold">Verification receipts</h2><p class="mt-1 text-sm sync-muted">Your recent batch reviews and master confirmations.</p>
+        <div class="mt-4 space-y-3"><article v-for="review in reviewHistory.slice(0, 10)" :key="review.id" class="sync-soft rounded-xl p-4 text-sm"><div class="flex flex-wrap justify-between gap-2"><p class="font-bold">{{ review.device_uid }} · {{ review.status === 'approved' ? (review.acknowledged_at ? 'Saved & confirmed' : 'Saved · device confirmation pending') : review.status }}</p><span class="sync-muted">{{ new Date(review.created_at).toLocaleString('en-PH') }}</span></div><p v-if="review.receipt" class="mt-2 sync-muted">Approved by {{ review.actor_name }} · {{ review.receipt.summary.ready }} ready · {{ review.receipt.summary.already_saved }} already saved · {{ review.receipt.summary.warnings }} warnings accepted</p><p class="mt-2 break-all text-xs sync-muted">Receipt {{ review.id }}</p></article></div>
+      </section>
+      <SyncReviewModal v-if="syncReview" :review="syncReview" :busy="reviewBusy" :error="reviewError" :is-dark="isDark" @approve="approveSyncReview" @refresh="refreshSyncReview" @cancel="cancelSyncReview" />
       <SuccessModal :is-open="showSuccessDialog" :is-dark="isDark" title="Sync completed" message="Device and website data transfers have completed. Review the activity log for details." @close="showSuccessDialog = false" />
     <!-- Format SD Card Confirmation -->
     <ConfirmDialog
@@ -187,6 +192,8 @@
 import SyncConnectionCard from '../components/sync/SyncConnectionCard.vue'
 import SyncDeviceInfo from '../components/sync/SyncDeviceInfo.vue'
 import SyncActivityLog from '../components/sync/SyncActivityLog.vue'
+import SyncReviewModal from '../components/sync/SyncReviewModal.vue'
+import { useSyncVerification } from '../composables/Sync/useSyncVerification.js'
 import AppSidebar from '../components/AppSidebar.vue'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
 import SuccessModal from '../components/SuccessModal.vue'
@@ -210,11 +217,13 @@ export default {
     SyncConnectionCard,
     SyncDeviceInfo,
     SyncActivityLog,
+    SyncReviewModal,
     AppSidebar,
     ConfirmDialog,
     SuccessModal
   },
   setup() {
+    const verification = useSyncVerification()
     const {
       deviceId,
       brgyId,
@@ -257,14 +266,14 @@ export default {
     } = useSyncSettings()
 
     const {
-      syncReadingsFromDevice,
+      exportReadingsFromDevice,
       inspectReadingsFromDevice,
       inspectReadingsForAccount,
       handleDeviceLine: handleDeviceLineReadings
     } = useSyncReadings()
 
     const {
-      syncBillsFromDevice,
+      exportBillsFromDevice,
       handleDeviceLine: handleDeviceLineBills
     } = useSyncBills()
 
@@ -305,6 +314,7 @@ export default {
     } = useSyncController()
 
     return {
+      ...verification,
       deviceId,
       brgyId,
       firmwareVersion,
@@ -328,11 +338,11 @@ export default {
       pushBarangaysToDevice,
       pushSettingsToDevice,
       handleAckSettings,
-      syncReadingsFromDevice,
+      exportReadingsFromDevice,
       inspectReadingsFromDevice,
       inspectReadingsForAccount,
       handleDeviceLineReadings,
-      syncBillsFromDevice,
+      exportBillsFromDevice,
       handleDeviceLineBills,
       exportBillTransactionsFromDevice,
       handleExportLineBillTransactions,
@@ -375,6 +385,7 @@ export default {
       wifiPairingCode: '',
 
       showSuccessDialog: false,
+      reviewHistory: [],
       isInspecting: false,
       inspectionError: '',
       inspectionSummary: null,
@@ -396,6 +407,7 @@ export default {
     }
   },
   mounted() {
+    void this.loadReviewHistory()
     serialService.installSerialDisconnectListener()
 
     this.unlistenLine = serialService.onLine((line) => {
@@ -617,8 +629,9 @@ export default {
         pushDeductionsToDevice: this.pushDeductionsToDevice,
         pushBarangaysToDevice: this.pushBarangaysToDevice,
         pushSettingsToDevice: this.pushSettingsToDevice,
-        syncReadingsFromDevice: this.syncReadingsFromDevice,
-        syncBillsFromDevice: this.syncBillsFromDevice,
+        exportReadingsFromDevice: this.exportReadingsFromDevice,
+        exportBillsFromDevice: this.exportBillsFromDevice,
+        reviewIncomingBatch: this.reviewIncomingBatch,
         exportBillTransactionsFromDevice: this.exportBillTransactionsFromDevice,
         pushCustomersToDevice: this.pushCustomersToDevice,
         refreshDeviceInfo: this.refreshDeviceInfo,
@@ -627,6 +640,10 @@ export default {
           this.showSuccessDialog = true
         }
       })
+      await this.loadReviewHistory()
+    },
+    async loadReviewHistory() {
+      try { this.reviewHistory = await databaseService.syncReviewHistory() } catch { /* Receipt history must not block device tools. */ }
     },
 
     formatBytes(value) {

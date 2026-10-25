@@ -96,6 +96,11 @@ Route::middleware('auth')->group(function () {
 
     Route::post('/sync/reset-status', [SyncController::class, 'resetStatus']);
     Route::post('/sync-runs', [SyncRunController::class, 'start']);
+    Route::get('/sync-reviews', [\App\Http\Controllers\SyncReviewController::class, 'history']);
+    Route::post('/sync-reviews', [\App\Http\Controllers\SyncReviewController::class, 'preview']);
+    Route::post('/sync-reviews/{id}/approve', [\App\Http\Controllers\SyncReviewController::class, 'approve']);
+    Route::post('/sync-reviews/{id}/cancel', [\App\Http\Controllers\SyncReviewController::class, 'cancel']);
+    Route::post('/sync-reviews/{id}/acknowledged', [\App\Http\Controllers\SyncReviewController::class, 'acknowledged']);
     Route::post('/sync-runs/{run}/finish', [SyncRunController::class, 'finish']);
     Route::get('/audit-logs', [AuditLogController::class, 'index']);
     Route::get('/audit-logs/{auditLog}', [AuditLogController::class, 'show'])->whereNumber('auditLog');

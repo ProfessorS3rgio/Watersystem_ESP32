@@ -2,6 +2,7 @@
 #define BILL_TRANSACTION_SYNC_H
 #include "../sync_transport.h"
 #include "export_json.h"
+static const char* bill_transactionsPendingExportSql = "SELECT bill_transaction_id, bill_id, bill_reference_number, type, source, amount, cash_received, change, transaction_date, payment_method, processed_by_device_uid, notes, created_at, updated_at, synced, last_sync FROM bill_transactions WHERE synced = 0 AND last_sync IS NULL ORDER BY bill_transaction_id;";
 
 #include "../../database/bill_transactions_database.h"
 #include "../../configuration/config.h"
@@ -14,6 +15,7 @@
 bool handleExportBillTransactions() {
   syncOutput().println(F("Exporting bill transactions..."));
   if (!db) { syncOutput().println(F("ERR|DATABASE_NOT_READY")); return false; }
+  g_transactionExportStamp = SyncExportStamp{};
   SyncExportMemory memory(db);
   int total = 0;
   {
@@ -28,14 +30,15 @@ bool handleExportBillTransactions() {
   syncOutput().print(F("BEGIN_BILL_TRANSACTIONS_JSON|")); syncOutput().println(chunks);
   if (total) {
     SyncExportStatement statement;
-    const char* sql = "SELECT bill_transaction_id, bill_id, bill_reference_number, type, source, amount, cash_received, change, transaction_date, payment_method, processed_by_device_uid, notes, created_at, updated_at, synced, last_sync FROM bill_transactions WHERE synced = 0 AND last_sync IS NULL ORDER BY bill_transaction_id;";
+    const char* sql = bill_transactionsPendingExportSql;
     if (sqlite3_prepare_v2(db, sql, -1, &statement.value, nullptr) != SQLITE_OK) { syncOutput().println(F("ERR|EXPORT_QUERY_FAILED")); return false; }
     for (int chunk = 0; chunk < chunks; ++chunk) {
       const int remaining = total - chunk * chunkSize;
-      if (!syncWriteExportChunk(syncOutput(), statement.value, "BILL_TRANSACTIONS_CHUNK|", chunk, remaining < chunkSize ? remaining : chunkSize, writeTransactionExportRow)) return false;
+      if (!syncWriteExportChunk(syncOutput(), statement.value, "BILL_TRANSACTIONS_CHUNK|", chunk, remaining < chunkSize ? remaining : chunkSize, writeTransactionExportRow, &g_transactionExportStamp)) return false;
     }
     if (!syncExportCursorDone(syncOutput(), statement.value)) return false;
   }
+  g_transactionExportStamp.valid = true;
   syncOutput().println(F("END_BILL_TRANSACTIONS_JSON"));
   // Do not mark records synced until the website's committed-import acknowledgment.
   return true;
@@ -43,7 +46,8 @@ bool handleExportBillTransactions() {
 // Handle BILL_TRANSACTIONS_SYNCED command
 bool handleBillTransactionsSynced() {
   syncOutput().println(F("Marking bill transactions as synced..."));
-  bool ok = markAllBillTransactionsSynced();
+  const String ackTime = getCurrentDateTimeString();
+  bool ok = syncAcknowledgeExport(db, g_transactionExportStamp, bill_transactionsPendingExportSql, "bill_transactions", ackTime.c_str(), writeTransactionExportRow, syncOutput());
   syncOutput().println(ok ? F("ACK|BILL_TRANSACTIONS_SYNCED") : F("ERR|BILL_TRANSACTIONS_SYNC_FAILED"));
   return true;
 }

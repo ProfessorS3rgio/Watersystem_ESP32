@@ -1,8 +1,7 @@
 import { ref, computed } from 'vue'
 import { serialService } from '../../services/serialService'
 import { databaseService } from '../../services/databaseService'
-import { useSyncSettings } from './useSyncSettings'
-import { useSyncBillTransactions } from './useSyncBillTransactions'
+import { syncSnapshot, acknowledgeVerifiedGroup } from '../../utils/verifiedSync.js'
 
 export function useSyncData() {
   const isSyncing = ref(false)
@@ -57,9 +56,10 @@ export function useSyncData() {
     pushDeductionsToDevice,
     pushBarangaysToDevice,
     pushSettingsToDevice,
-    syncReadingsFromDevice,
-    syncBillsFromDevice,
+    exportReadingsFromDevice,
+    exportBillsFromDevice,
     exportBillTransactionsFromDevice,
+    reviewIncomingBatch,
     pushCustomersToDevice,
     refreshDeviceInfo,
     sendLineDevice,
@@ -79,6 +79,7 @@ export function useSyncData() {
     syncStartTime.value = Date.now()
     let syncRunStarted = false
     let syncRunStatus = 'completed'
+    let verificationReceipt = null
 
     try {
       await databaseService.startSyncRun()
@@ -95,6 +96,41 @@ export function useSyncData() {
       const deviceId = deviceInfo?.device_id || 1
       const lastSyncEpoch = deviceInfo?.last_sync_epoch || 0
       addLog(`Device ID: ${deviceId}, Barangay ID: ${deviceBrgyId}, Last Sync: ${lastSyncEpoch}`)
+
+      // Gather every incoming group before pushing or importing anything.
+      syncStage.value = 1
+      addLog('Reading pending records for verification…')
+      const batch = {
+        device: deviceInfo,
+        readings: await exportReadingsFromDevice(),
+        bills: await exportBillsFromDevice(),
+        transactions: await exportBillTransactionsFromDevice(),
+      }
+      if (batch.readings.length + batch.bills.length + batch.transactions.length > 0) {
+        addLog('Waiting for batch review. No incoming records have been saved.')
+        const recheck = async () => {
+          const currentDevice = await exportDeviceInfoFromDevice()
+          if (currentDevice.device_uid !== deviceInfo.device_uid || Number(currentDevice.brgy_id) !== Number(deviceInfo.brgy_id)) throw new Error('Connected master changed. Cancel and start a new sync.')
+          if (Number(currentDevice.verified_sync_ack) !== 1) throw new Error('The master needs firmware v1.1.0 before this batch can be approved.')
+          const current = { readings: await exportReadingsFromDevice(), bills: await exportBillsFromDevice(), transactions: await exportBillTransactionsFromDevice() }
+          for (const kind of ['readings', 'bills', 'transactions']) if (syncSnapshot(current[kind]) !== syncSnapshot(batch[kind])) throw new Error('Device records changed during review. Cancel and start a new sync to include them.')
+        }
+        verificationReceipt = await reviewIncomingBatch(batch, recheck)
+        addLog(`✓ Approved batch saved. Receipt: ${verificationReceipt.review_id}`)
+        // Each ACK is preceded by another read, then verified under a write
+        // lock by the master firmware. A changed pending set is never marked.
+        for (const [kind, read, command] of [
+          ['readings', exportReadingsFromDevice, 'READINGS_SYNCED'],
+          ['bills', exportBillsFromDevice, 'BILLS_SYNCED'],
+          ['transactions', exportBillTransactionsFromDevice, 'BILL_TRANSACTIONS_SYNCED'],
+        ]) {
+          if (!batch[kind].length) continue
+          if (syncSnapshot(await read()) !== syncSnapshot(batch[kind])) throw new Error('Website batch was saved, but the device changed before confirmation. Sync again; saved records will be recognised.')
+          await acknowledgeVerifiedGroup(serialService, command)
+        }
+        await databaseService.acknowledgeSyncReview(verificationReceipt.review_id)
+        addLog('✓ Master confirmed the saved batch.')
+      } else addLog('No incoming readings, bills, or payments need review.')
 
       // Sync device info to server immediately
       try {
@@ -133,7 +169,7 @@ export function useSyncData() {
       }
 
       // Sync customer types from DB to device first (needed for customer references)
-      syncStage.value = 1
+      syncStage.value = 2
       addLog('Fetching customer types from database...')
       const dbCustomerTypes = await databaseService.fetchCustomerTypesFromDatabase()
       const unsyncedCustomerTypes = dbCustomerTypes.filter(ct => !ct.Synced || ct.last_sync === null)
@@ -215,24 +251,7 @@ export function useSyncData() {
         addLog('Settings are already synced, skipping...')
       }
 
-      // Sync readings (device -> DB)
-      syncStage.value = 2
-      await syncReadingsFromDevice()
-
-      // Sync bills (device -> DB)
-      await syncBillsFromDevice()
-
-      // Sync bill transactions (device -> DB)
-      try {
-        const processed = await exportBillTransactionsFromDevice()
-        if (Number(processed) > 0) {
-          addLog(`✓ Synced ${processed} bill transactions`)
-        } else {
-          addLog('Bill transactions are already synced, skipping...')
-        }
-      } catch (e) {
-        throw new Error('Bill transactions sync failed: ' + (e?.message || String(e)))
-      }
+      // Incoming records were already verified and saved together above.
 
       // Separate customers into new and updated
       syncStage.value = 3
@@ -275,15 +294,15 @@ export function useSyncData() {
         onSyncSuccess()
       }
     } catch (error) {
-      syncRunStatus = 'failed'
-      syncStatus.value = 'failed'
-      syncError.value = error?.message || String(error)
-      addLog('Sync failed: ' + (error?.message || String(error)))
+      syncRunStatus = error?.code === 'SYNC_CANCELLED' ? 'cancelled' : 'failed'
+      syncStatus.value = syncRunStatus
+      syncError.value = error?.response?.data?.message || error?.message || String(error)
+      addLog(syncError.value)
     } finally {
       try {
         if (syncRunStarted) {
           await databaseService.finishSyncRun(syncRunStatus, {
-            summary: syncRunStatus === 'completed' ? { elapsed_ms: Date.now() - syncStartTime.value } : null,
+            summary: { elapsed_ms: Date.now() - syncStartTime.value, verification: verificationReceipt },
             error: syncRunStatus === 'failed' ? syncError.value : null,
           })
         }

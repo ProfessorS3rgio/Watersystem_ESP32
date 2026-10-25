@@ -10,7 +10,7 @@
 // Table: (brgy_id INTEGER, device_mac TEXT UNIQUE, device_uid TEXT, firmware_version TEXT, device_name TEXT, collector TEXT, print_count INTEGER, customer_count INTEGER, last_sync TEXT, created_at TEXT, updated_at TEXT)
 
 static const char* DEVICE_TYPE_VALUE = "ESP32 Water System";
-static const char* FIRMWARE_VERSION_VALUE = "v1.0.0";
+static const char* FIRMWARE_VERSION_VALUE = "v1.1.0";
 // static const char* COLLECTOR_NAME_VALUE = "DIOSDADO A. BALANSAG"; // BULUAN
 // static const char* COLLECTOR_NAME_VALUE = "ESMERALDA S. REBONANZA"; // DONA JOSEFA
 // Device UID - unique identifier (MAC address)
@@ -208,6 +208,7 @@ static void exportDeviceInfoForSync(Print& output = Serial) {
 
   output.print(F("INFO|firmware_version|"));
   output.println(FIRMWARE_VERSION_VALUE);
+  output.println(F("INFO|verified_sync_ack|1"));
 
   output.print(F("INFO|device_id|"));
   output.println(g_deviceId);

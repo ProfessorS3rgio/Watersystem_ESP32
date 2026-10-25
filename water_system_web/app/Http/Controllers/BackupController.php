@@ -13,9 +13,9 @@ class BackupController extends Controller
     private const SNAPSHOT_TABLES = [
         'settings', 'customer_type', 'deduction', 'barangay_sequence', 'customer',
         'customer_deduction', 'device', 'reading', 'bill', 'bill_deduction',
-        'bill_transaction', 'audit_logs', 'service_incidents', 'incident_events',
+        'bill_transaction', 'audit_logs', 'service_incidents', 'incident_events', 'sync_reviews',
     ];
-    private const PRESERVED_TABLES = ['audit_logs', 'service_incidents', 'incident_events'];
+    private const PRESERVED_TABLES = ['audit_logs', 'service_incidents', 'incident_events', 'sync_reviews'];
 
     public function createRestorePoint(Request $request, AuditLogService $audit)
     {
