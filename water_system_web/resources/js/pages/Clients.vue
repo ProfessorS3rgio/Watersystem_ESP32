@@ -83,7 +83,7 @@
           </span>
           <input
             type="search"
-            placeholder="Search clients..."
+            placeholder="Search name, account, or meter…"
             v-model="search"
             class="min-w-52 rounded-xl border px-4 py-2.5 text-sm outline-none focus:border-teal-600 focus:ring-4 focus:ring-teal-100"
             :class="isDark ? 'bg-slate-800 border-slate-700 text-white placeholder-slate-400' : 'bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400'"
@@ -144,7 +144,8 @@
                     <span class="font-semibold text-xs" :class="isDark ? 'text-teal-200' : 'text-teal-700'">{{ (customer.customer_name || '?').charAt(0) }}</span>
                   </div>
                   <div class="ml-2">
-                    <p class="text-sm font-medium" :class="isDark ? 'text-white' : 'text-gray-900'">{{ customer.customer_name }}</p>
+                    <RouterLink :to="`/clients/${customer.id}/profile`" class="text-sm font-semibold hover:text-teal-500 hover:underline" :class="isDark ? 'text-white' : 'text-gray-900'">{{ customer.customer_name }}</RouterLink>
+                    <p v-if="customer.meter_number" class="mt-1 text-xs opacity-60">Meter {{ customer.meter_number }}</p>
                   </div>
                 </div>
               </td>
@@ -171,37 +172,17 @@
                 </button>
               </td>
               <td class="px-4 py-2.5 whitespace-nowrap text-sm">
-                <div class="flex flex-wrap gap-1.5">
-                  <button @click="openViewModal(customer)" class="text-white box-border border border-transparent hover:bg-cyan-800 focus:ring-4 focus:ring-teal-200 shadow-xs font-semibold leading-5 rounded-full text-xs px-2.5 py-1 focus:outline-none bg-gradient-to-r from-teal-700 to-cyan-700">
-                    View
-                  </button>
-                  <RouterLink :to="{ path: '/incidents', query: { customer: String(customer.id || customer.customer_id), new: '1' } }" class="rounded-full border border-teal-300 px-2.5 py-1 text-xs font-semibold text-teal-600 hover:bg-teal-500/10">Report issue</RouterLink>
-                  <button
-                    v-if="customer.status === 'active'"
-                    @click="disconnectCustomer(customer)"
-                    class="text-white box-border border border-transparent hover:bg-red-700 focus:ring-4 focus:ring-red-300 shadow-xs font-medium leading-5 rounded-full text-xs px-2.5 py-1 focus:outline-none bg-red-600"
-                    title="Disconnect this customer"
-                  >
-                    Disconnect
-                  </button>
-                  <button
-                    v-else
-                    @click="reconnectCustomer(customer)"
-                    class="text-white box-border border border-transparent hover:bg-green-700 focus:ring-4 focus:ring-green-300 shadow-xs font-medium leading-5 rounded-full text-xs px-2.5 py-1 focus:outline-none bg-green-600"
-                    title="Reconnect this customer"
-                  >
-                    Reconnect
-                  </button>
-                  <button @click="openEditModal(customer)" class="text-white box-border border border-transparent hover:bg-blue-700 focus:ring-4 focus:ring-blue-300 shadow-xs font-medium leading-5 rounded-full text-xs px-2.5 py-1 focus:outline-none bg-blue-600">
-                    Edit
-                  </button>
-                  <button @click="openSwapModal(customer)" class="text-white box-border border border-transparent hover:bg-amber-700 focus:ring-4 focus:ring-amber-300 shadow-xs font-medium leading-5 rounded-full text-xs px-2.5 py-1 focus:outline-none bg-amber-600">
-                    Swap No
-                  </button>
-                  <button @click="openDeleteModal(customer)" class="text-white box-border border border-transparent hover:bg-red-700 focus:ring-4 focus:ring-red-300 shadow-xs font-medium leading-5 rounded-full text-xs px-2.5 py-1 focus:outline-none bg-red-600">
-                    Remove
-                  </button>
-                </div>
+                <select :aria-label="`Actions for ${customer.customer_name}`" @change="handleMemberAction($event, customer)" class="w-44 rounded-xl border px-3 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-teal-500/25" :class="isDark ? 'border-teal-700 bg-slate-900 text-teal-200' : 'border-teal-200 bg-teal-50 text-teal-800'">
+                  <option value="">Actions</option>
+                  <option value="profile">Member profile</option>
+                  <option value="summary">Account summary</option>
+                  <option value="edit">Edit account</option>
+                  <option value="usage">Usage history</option>
+                  <option value="incident">Report service issue</option>
+                  <option :value="customer.status === 'active' ? 'disconnect' : 'reconnect'">{{ customer.status === 'active' ? 'Disconnect member' : 'Reconnect member' }}</option>
+                  <option value="swap">Swap account numbers</option>
+                  <option value="remove">Remove member</option>
+                </select>
               </td>
             </tr>
           </tbody>
@@ -407,6 +388,7 @@
 
 <script>
 import { ref, computed, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { openReceiptWindow, printReceiptDocument } from '../utils/receipt.js'
 import AppSidebar from '../components/AppSidebar.vue'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
@@ -432,6 +414,7 @@ export default {
     ReadingImportModal
   },
   setup() {
+    const router = useRouter()
     const customersComposable = useCustomers()
     const modalsComposable = useModals()
     const formComposable = useCustomerForm()
@@ -529,6 +512,14 @@ export default {
       isViewModalOpen.value = false
       viewingCustomer.value = null
     }
+    const handleMemberAction = (event, customer) => {
+      const action = event.target.value
+      event.target.value = ''
+      if (action === 'profile') return router.push(`/clients/${customer.id}/profile`)
+      if (action === 'incident') return router.push({ path: '/incidents', query: { customer: String(customer.id), new: '1' } })
+      const actions = { summary: openViewModal, edit: openEditModal, usage: openUsageModal, disconnect: disconnectCustomer, reconnect: reconnectCustomer, swap: openSwapModal, remove: openDeleteModal }
+      return actions[action]?.(customer)
+    }
 
     // Modal handlers with form integration
     const openAddModal = () => {
@@ -544,6 +535,7 @@ export default {
     const openEditModal = (customer) => {
       formComposable.resetEditCustomer()
       Object.assign(formComposable.editCustomer, {
+        profile_manages_name: Boolean(Number(customer.profile_manages_name)),
         account_no: customer.account_no || '',
         customer_name: customer.customer_name || '',
         type_id: customer.type_id || null,
@@ -947,6 +939,7 @@ export default {
       closeUsageModal,
       printUsageReceipt,
       openViewModal,
+      handleMemberAction,
       closeViewModal,
       openSwapModal,
       closeSwapModal,

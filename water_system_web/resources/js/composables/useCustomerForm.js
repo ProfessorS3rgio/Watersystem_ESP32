@@ -18,6 +18,7 @@ export function useCustomerForm() {
   })
 
   const editCustomer = reactive({
+    profile_manages_name: false,
     account_no: '',
     type_id: null,
     customer_name: '',
@@ -46,6 +47,7 @@ export function useCustomerForm() {
 
   const resetEditCustomer = () => {
     Object.assign(editCustomer, {
+      profile_manages_name: false,
       account_no: '',
       type_id: null,
       customer_name: '',

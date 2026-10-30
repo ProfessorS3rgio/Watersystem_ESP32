@@ -178,12 +178,14 @@
               <label class="block text-sm font-medium mb-1">Customer Name</label>
               <input
                 v-model.trim="editCustomer.customer_name"
+                :readonly="editCustomer.profile_manages_name"
                 type="text"
                 class="w-full px-4 py-2 rounded-lg border"
                 :class="inputClass(isDark)"
                 placeholder="Full name"
                 required
               />
+              <p v-if="editCustomer.profile_manages_name" class="mt-2 text-xs text-teal-600">Change name details from Actions → Member profile.</p>
               <p v-if="fieldError('customer_name')" class="text-sm text-red-600 mt-1">{{ fieldError('customer_name') }}</p>
             </div>
           </div>

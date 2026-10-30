@@ -55,6 +55,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/deductions/mark-synced', [DeductionController::class, 'markSynced']);
 
     Route::get('/customers', [CustomerController::class, 'index']);
+    Route::get('/customers/{customer}/profile', [\App\Http\Controllers\CustomerProfileController::class, 'show'])->whereNumber('customer');
+    Route::put('/customers/{customer}/profile', [\App\Http\Controllers\CustomerProfileController::class, 'update'])->whereNumber('customer');
     Route::post('/customers/readings-import/preview', [ReadingImportController::class, 'preview']);
     Route::post('/customers/readings-import/confirm', [ReadingImportController::class, 'confirm']);
     Route::post('/customers', [CustomerController::class, 'store']);

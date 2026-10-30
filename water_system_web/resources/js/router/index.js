@@ -35,6 +35,7 @@ export const router = createRouter({
       component: Clients,
       meta: { requiresAuth: true }
     },
+    { path: '/clients/:id(\\d+)/profile', name: 'member-profile', component: () => import('../pages/MemberProfile.vue'), meta: { requiresAuth: true } },
     {
       path: '/billing',
       name: 'billing',

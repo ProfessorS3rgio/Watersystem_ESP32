@@ -16,7 +16,7 @@
                 <svg class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path :d="item.icon" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="flex-1 text-left">{{ item.label }}</span>
                 <svg class="h-4 w-4 transition-transform" :class="openGroups[item.label] ? 'rotate-90' : ''" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m9 5 7 7-7 7" stroke-width="2"/></svg>
               </button>
-              <RouterLink v-else :to="item.to" class="dmbc-nav-item" :class="{ 'is-active': route.path === item.to }" :aria-current="route.path === item.to ? 'page' : undefined"><svg class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path :d="item.icon" stroke-linecap="round" stroke-linejoin="round"/></svg>{{ item.label }}</RouterLink>
+              <RouterLink v-else :to="item.to" class="dmbc-nav-item" :class="{ 'is-active': isNavActive(item) }" :aria-current="route.path === item.to ? 'page' : undefined"><svg class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path :d="item.icon" stroke-linecap="round" stroke-linejoin="round"/></svg>{{ item.label }}</RouterLink>
               <div v-if="item.children && openGroups[item.label]" :id="'nav-' + item.key" class="ml-5 mt-2 space-y-1 border-l border-teal-500/20 pl-4">
                 <RouterLink v-for="child in item.children" :key="child.to" :to="child.to" class="dmbc-nav-child" :class="{ 'is-active': route.path === child.to }" :aria-current="route.path === child.to ? 'page' : undefined"><span class="flex items-center gap-2"><svg v-if="child.icon" class="h-4 w-4 shrink-0 text-teal-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path :d="child.icon" stroke-linecap="round" stroke-linejoin="round"/></svg><span>{{ child.label }}</span></span><span v-if="child.description" class="mt-1 block text-[10px] font-normal leading-4 opacity-70">{{ child.description }}</span></RouterLink>
               </div>
@@ -69,6 +69,7 @@ const navigation = [
     { label: 'Audit logs', to: '/audit-logs', icon: 'M5 3h14v18H5V3Zm4 5h6m-6 4h6m-6 4h4' }
   ] }
 ]
+const isNavActive = item => route.path === item.to || (item.to === '/clients' && route.path.startsWith('/clients/'))
 const isSectionActive = item => route.path.startsWith(item.prefix)
 watch(() => route.path, () => {
   mobileOpen.value = false

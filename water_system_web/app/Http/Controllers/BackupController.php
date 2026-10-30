@@ -11,7 +11,7 @@ use ZipArchive;
 class BackupController extends Controller
 {
     private const SNAPSHOT_TABLES = [
-        'settings', 'customer_type', 'deduction', 'barangay_sequence', 'customer',
+        'settings', 'customer_type', 'deduction', 'barangay_sequence', 'customer', 'customer_profiles',
         'customer_deduction', 'device', 'reading', 'bill', 'bill_deduction',
         'bill_transaction', 'audit_logs', 'service_incidents', 'incident_events', 'sync_reviews',
     ];
@@ -69,6 +69,10 @@ class BackupController extends Controller
         }
 
         DB::transaction(function () use ($payload, $audit, $snapshot, $record) {
+            // A snapshot from before profiles existed must not erase newer
+            // personal records. Retain only profiles of the same account/ID.
+            $legacyProfiles = !array_key_exists('customer_profiles', $payload['tables']) && DB::getSchemaBuilder()->hasTable('customer_profiles')
+                ? DB::table('customer_profiles as p')->join('customer as c', 'c.customer_id', '=', 'p.customer_id')->get(['p.*', 'c.account_no as original_account_no']) : collect();
             // Preserve operational history and only reattach an account with the same identity.
             $links = DB::getSchemaBuilder()->hasTable('service_incidents')
                 ? DB::table('service_incidents as i')->leftJoin('customer as c', 'c.customer_id', '=', 'i.customer_id')
@@ -88,6 +92,16 @@ class BackupController extends Controller
                     }
                 }
                 $restoredAccounts = $links->isEmpty() ? collect() : DB::table('customer')->whereIn('customer_id', $links->pluck('customer_id'))->pluck('account_no', 'customer_id');
+                foreach ($legacyProfiles as $legacy) {
+                    $sameAccount = DB::table('customer')->where('customer_id', $legacy->customer_id)->where('account_no', $legacy->original_account_no)->exists();
+                    if ($sameAccount) {
+                        $row = (array) $legacy; unset($row['original_account_no']);
+                        DB::table('customer_profiles')->insert($row);
+                        // Keep the restored display name in agreement with the retained name parts.
+                        $profile = new \App\Models\CustomerProfile($row);
+                        if ($profile->hasStructuredName()) DB::table('customer')->where('customer_id', $legacy->customer_id)->update(['customer_name' => $profile->fullName(), 'Synced' => false]);
+                    }
+                }
                 foreach ($links as $link) {
                     $retained = $link->current_account !== null && ($restoredAccounts[$link->customer_id] ?? null) === $link->current_account;
                     DB::table('service_incidents')->where('id', $link->id)->update(['customer_id' => $retained ? $link->customer_id : null]);

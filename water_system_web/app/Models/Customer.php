@@ -7,6 +7,17 @@ use App\Models\Deduction;
 
 class Customer extends Model
 {
+    protected static function booted(): void {
+        static::saving(function (Customer $customer) {
+            if ($customer->exists && $customer->isDirty('customer_name')) {
+                $profile = $customer->profile()->first();
+                if ($profile?->hasStructuredName() && $customer->customer_name !== $profile->fullName()) {
+                    throw \Illuminate\Validation\ValidationException::withMessages(['customer_name' => 'Update this member’s name through Member profile so the name fields stay consistent.']);
+                }
+            }
+        });
+    }
+    public function profile() { return $this->hasOne(CustomerProfile::class, 'customer_id', 'customer_id'); }
     protected $table = 'customer';
     protected $primaryKey = 'customer_id';
 

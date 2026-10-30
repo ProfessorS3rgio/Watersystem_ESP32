@@ -29,6 +29,7 @@ class CustomerController extends Controller
         $query = DB::table('customer')
             ->leftJoin('customer_type as ct', 'ct.type_id', '=', 'customer.type_id')
             ->leftJoin('deduction as d', 'd.deduction_id', '=', 'customer.deduction_id');
+        $query->leftJoin('customer_profiles as cp', 'cp.customer_id', '=', 'customer.customer_id');
 
         if ($accountNo) {
             $query->where('account_no', $accountNo);
@@ -43,6 +44,7 @@ class CustomerController extends Controller
             $query->where(function ($sub) use ($like) {
                 $sub->where('customer.account_no', 'like', $like)
                     ->orWhere('customer.customer_name', 'like', $like)
+                    ->orWhere('cp.meter_number', 'like', $like)
                     ->orWhere('customer.address', 'like', $like)
                     ->orWhere('ct.type_name', 'like', $like)
                     ->orWhere('d.name', 'like', $like);
@@ -114,6 +116,8 @@ class CustomerController extends Controller
                 'customer.last_sync',
                 'customer.created_at',
                 'customer.updated_at',
+                'cp.meter_number',
+                DB::raw("CASE WHEN cp.first_name IS NOT NULL AND cp.last_name IS NOT NULL THEN 1 ELSE 0 END as profile_manages_name"),
                 DB::raw('r.current_reading as current_reading'),
                 DB::raw('r.usage_m3 as last_usage_m3'),
                 DB::raw('r.reading_at as last_reading_at'),
@@ -236,7 +240,9 @@ class CustomerController extends Controller
         $customers = $validated['customers'];
         $processed = 0;
 
+        DB::transaction(function () use ($customers, &$processed, $audit) {
         foreach ($customers as $row) {
+            Customer::where('account_no', $row['account_no'])->lockForUpdate()->first();
             $deductionId = $row['deduction_id'] ?? null;
             $customer = Customer::updateOrCreate(
                 ['account_no' => $row['account_no']],
@@ -264,6 +270,7 @@ class CustomerController extends Controller
         }
 
         $audit->syncOperation('customers', count($customers), ['processed' => $processed]);
+        });
 
         return response()->json([
             'processed' => $processed,
@@ -308,6 +315,8 @@ class CustomerController extends Controller
         $deductionId = $validated['deduction_id'] ?? null;
 
         DB::transaction(function () use ($customer, $validated, $deductionId, $audit) {
+            Customer::whereKey($customer->customer_id)->lockForUpdate()->firstOrFail();
+            $customer->refresh();
             $before = $customer->getAttributes();
             $latestReading = Reading::where('customer_id', $customer->customer_id)
                 ->orderByDesc('reading_at')
