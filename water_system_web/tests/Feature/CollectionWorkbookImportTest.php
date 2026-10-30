@@ -125,6 +125,7 @@ class CollectionWorkbookImportTest extends TestCase
         $this->confirm($preview->json('token'))->assertUnprocessable();
         $this->assertDatabaseCount('customer_profiles', 0);
         $this->assertDatabaseCount('bill_transaction', 0);
+        $this->assertDatabaseCount('backup_snapshots', 0);
         $preview = $this->preview();
         $this->member->update(['account_no' => 'M-009']);
         $this->confirm($preview->json('token'))->assertUnprocessable();
@@ -279,5 +280,64 @@ class CollectionWorkbookImportTest extends TestCase
         $this->confirm($preview->json('token'))->assertOk()->assertJsonPath('payments_imported', 0);
         $this->assertDatabaseCount('bill_transaction', 0);
         $this->assertDatabaseHas('customer', ['customer_name' => 'Anaclita Layson', 'status' => 'active']);
+    }
+
+    public function test_collection_import_saves_a_restorable_point_before_any_changes(): void
+    {
+        $preview = $this->preview();
+        $this->assertDatabaseCount('backup_snapshots', 0);
+        $response = $this->confirm($preview->json('token'))->assertOk();
+        $id = $response->json('restore_point_id');
+        $this->assertNotNull($id);
+        $snapshot = DB::table('backup_snapshots')->where('id', $id)->first();
+        $this->assertSame('excel_import', $snapshot->source);
+        $this->assertStringContainsString('September 2026.xlsx', $snapshot->label);
+        $data = json_decode($snapshot->payload, true);
+        $this->assertEquals(0, $data['tables']['bill'][0]['amount_paid']);
+        $this->assertSame([], $data['tables']['customer_profiles']);
+        $this->assertSame([], $data['tables']['bill_transaction']);
+        $this->assertDatabaseCount('backup_snapshots', 1);
+        $this->getJson('/backup/restore-points')->assertOk()->assertJsonPath('data.0.id', $id);
+        $this->postJson('/backup/restore-points/'.$id.'/restore')->assertOk();
+        $this->assertDatabaseHas('bill', ['bill_id' => $this->bill->bill_id, 'amount_paid' => 0, 'balance_due' => 200]);
+        $this->assertDatabaseCount('customer_profiles', 0);
+        $this->assertDatabaseCount('bill_transaction', 0);
+    }
+
+    public function test_legacy_reading_import_also_saves_pre_import_restore_point(): void
+    {
+        $upload = $this->workbook(legacy: true);
+        $book = IOFactory::load($upload->getRealPath());
+        $book->getActiveSheet()->setCellValue('D5', 28);
+        IOFactory::createWriter($book, 'Xlsx')->save($upload->getRealPath());
+        DB::table('bill')->where('bill_id', $this->bill->bill_id)->update(['bill_date' => '2026-09-30']);
+        $preview = $this->post('/customers/readings-import/preview', ['file' => $upload], ['Accept' => 'application/json'])->assertOk();
+        $response = $this->confirm($preview->json('token'))->assertOk();
+        $id = $response->json('restore_point_id');
+        $this->assertNotNull($id);
+        $snapshot = json_decode(DB::table('backup_snapshots')->where('id', $id)->value('payload'), true);
+        $this->assertEquals(27, $snapshot['tables']['reading'][0]['current_reading']);
+        $this->assertDatabaseHas('reading', ['reading_id' => $this->bill->reading_id, 'current_reading' => 28]);
+        $this->postJson('/backup/restore-points/'.$id.'/restore')->assertOk();
+        $this->assertDatabaseHas('reading', ['reading_id' => $this->bill->reading_id, 'current_reading' => 27]);
+    }
+
+    public function test_restore_point_failure_stops_import_before_any_mutation(): void
+    {
+        $preview = $this->preview();
+        $this->mock(\App\Services\RestorePointService::class, function ($mock) {
+            $mock->shouldReceive('create')->once()->andThrow(new \RuntimeException('Backup storage unavailable'));
+        });
+        $this->withoutExceptionHandling();
+        try {
+            $this->confirm($preview->json('token'));
+            $this->fail('Import must stop if its restore point cannot be saved.');
+        } catch (\RuntimeException $error) {
+            $this->assertSame('Backup storage unavailable', $error->getMessage());
+        }
+        $this->assertDatabaseCount('backup_snapshots', 0);
+        $this->assertDatabaseCount('customer_profiles', 0);
+        $this->assertDatabaseCount('bill_transaction', 0);
+        $this->assertDatabaseHas('bill', ['bill_id' => $this->bill->bill_id, 'amount_paid' => 0]);
     }
 }

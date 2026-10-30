@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\AuditLogService;
+use App\Services\RestorePointService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\Process\Process;
@@ -10,39 +11,17 @@ use ZipArchive;
 
 class BackupController extends Controller
 {
-    private const SNAPSHOT_TABLES = [
-        'settings', 'customer_type', 'deduction', 'barangay_sequence', 'customer', 'customer_profiles',
-        'customer_deduction', 'device', 'reading', 'bill', 'bill_deduction',
-        'bill_transaction', 'audit_logs', 'service_incidents', 'incident_events', 'sync_reviews',
-    ];
+    private const SNAPSHOT_TABLES = RestorePointService::TABLES;
     private const PRESERVED_TABLES = ['audit_logs', 'service_incidents', 'incident_events', 'sync_reviews'];
 
     public function createRestorePoint(Request $request, AuditLogService $audit)
     {
-        $payload = $this->buildJsonPayload();
-        $rowCount = collect($payload['tables'])->sum(fn ($rows) => count($rows));
-        $snapshot = DB::table('backup_snapshots')->insertGetId([
-            'label' => $request->input('label', 'Before device sync'),
-            'source' => $request->input('source', 'sync'),
-            'created_by' => $request->user()?->id,
-            'table_count' => count($payload['tables']),
-            'row_count' => $rowCount,
-            'payload' => json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        $audit->record('restore_point_created', 'BackupSnapshot', null, ['id' => $snapshot], [
-            'auditable_id' => $snapshot,
-            'source' => $request->input('source', 'sync'),
-            'row_count' => $rowCount,
-        ]);
-
-        return response()->json([
-            'id' => $snapshot,
-            'label' => $request->input('label', 'Before device sync'),
-            'row_count' => $rowCount,
-        ], 201);
+        return response()->json(app(RestorePointService::class)->create(
+            $request->input('label', 'Before device sync'),
+            $request->input('source', 'sync'),
+            $request->user()?->id,
+            $audit
+        ), 201);
     }
 
     public function restorePoints()
@@ -168,21 +147,7 @@ class BackupController extends Controller
 
     private function buildJsonPayload(): array
     {
-        $payload = [
-            'format' => 'watersystem-backup',
-            'version' => 2,
-            'created_at' => now()->toIso8601String(),
-            'application' => config('app.name'),
-            'tables' => [],
-        ];
-
-        foreach (self::SNAPSHOT_TABLES as $table) {
-            if (DB::getSchemaBuilder()->hasTable($table)) {
-                $payload['tables'][$table] = DB::table($table)->get()->map(fn ($row) => (array) $row)->all();
-            }
-        }
-
-        return $payload;
+        return app(RestorePointService::class)->buildPayload();
     }
 
     private function setForeignKeyChecks(bool $enabled): void

@@ -431,6 +431,9 @@ class ReadingImportController extends Controller
         }
 
         $result = DB::transaction(function () use ($selectedRows, $sourceFile, $userId, $payload, $audit) {
+            $restorePoint = app(\App\Services\RestorePointService::class)->create(
+                'Before Excel import: '.$sourceFile, 'excel_import', $userId, $audit
+            );
             $updated = 0;
             $created = 0;
             $billsCreated = 0;
@@ -600,7 +603,7 @@ class ReadingImportController extends Controller
                         'previous_to' => $row['new_previous'],
                         'present_to' => $row['new_present'],
                     ] : null,
-                    'bill_status' => ! empty($row['bill_id']) ? [
+                    'bill_status' => ! empty($row['new_bill_status']) ? [
                         'from' => $row['old_bill_status'],
                         'to' => $row['new_bill_status'],
                     ] : null,
@@ -608,6 +611,7 @@ class ReadingImportController extends Controller
             }
 
             $result = [
+                'restore_point_id' => $restorePoint['id'],
                 'updated' => $updated,
                 'created' => $created,
                 'bills_created' => $billsCreated,
@@ -632,6 +636,7 @@ class ReadingImportController extends Controller
 
         return response()->json([
             'applied' => $applied,
+            'restore_point_id' => $result['restore_point_id'],
             'updated' => $result['updated'],
             'created' => $result['created'],
             'bills_created' => $result['bills_created'],

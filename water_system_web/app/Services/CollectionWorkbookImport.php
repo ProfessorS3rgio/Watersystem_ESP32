@@ -255,6 +255,9 @@ class CollectionWorkbookImport
     public function confirm(Collection $rows, array $payload, AuditLogService $audit)
     {
         $result = DB::transaction(function () use ($rows, $payload, $audit) {
+            $restorePoint = app(RestorePointService::class)->create(
+                'Before Excel import: '.$payload['source_file'], 'excel_import', auth()->id(), $audit
+            );
             $payments = 0; $meters = 0;
             foreach ($rows as $row) {
                 $customer = Customer::whereKey($row['customer_id'])->lockForUpdate()->first();
@@ -288,7 +291,7 @@ class CollectionWorkbookImport
                     $payments++;
                 }
             }
-            $result = ['applied' => $rows->count(), 'payments_imported' => $payments, 'meters_updated' => $meters,
+            $result = ['restore_point_id' => $restorePoint['id'], 'applied' => $rows->count(), 'payments_imported' => $payments, 'meters_updated' => $meters,
                 'updated' => 0, 'created' => 0, 'bills_created' => 0, 'bills_updated' => 0, 'bill_statuses_updated' => $payments];
             $audit->record('monthly_collections_imported', 'ReadingImport', null, $result, ['source_file' => $payload['source_file'],
                 'billing_month' => $payload['billing_month'], 'imported_rows' => $rows->all()]);

@@ -42,7 +42,7 @@
             </div>
 
             <div class="border-l-4 border-amber-500 px-4 py-3 text-sm" :class="isDark ? 'bg-amber-950/40 text-amber-100' : 'bg-amber-50 text-amber-900'">
-              Reviewing a file does not change the database. A separate confirmation is required after validation.
+              Reviewing a file does not change the database. An automatic restore point is saved before confirmed changes are applied.
             </div>
           </div>
 
