@@ -28,7 +28,7 @@
                 Browse XLSX File
               </label>
               <p v-if="selectedFile" class="mt-4 font-medium text-green-600">Selected: {{ selectedFile.name }}</p>
-              <p class="mt-3 text-xs" :class="mutedClass">Best results: Account Number, Previous Reading, and Present Reading. Numbered legacy customer lists are also supported. Maximum file size: 5 MB.</p>
+              <p class="mt-3 text-xs" :class="mutedClass">Supports reading workbooks, numbered legacy lists, and monthly collection workbooks with meter numbers. Maximum file size: 5 MB.</p>
             </div>
 
             <div v-if="sheetOptions.length" class="border p-4" :class="panelClass">
@@ -89,7 +89,7 @@
               {{ preview.summary.errors }} error {{ preview.summary.errors === 1 ? 'row is' : 'rows are' }} excluded. You can apply the {{ selectedImportableCount }} marked valid {{ selectedImportableCount === 1 ? 'row' : 'rows' }}.
             </div>
             <div v-else-if="importableCount === 0" class="border-l-4 border-green-500 px-4 py-3 text-sm" :class="isDark ? 'bg-green-950/40 text-green-100' : 'bg-green-50 text-green-900'">
-              All populated readings already match the database. There is nothing to update.
+              All workbook rows already match the database. There is nothing to update.
             </div>
 
             <div class="max-h-[55vh] overflow-y-auto overflow-x-hidden border" :class="isDark ? 'border-gray-700' : 'border-gray-200'">
@@ -146,7 +146,7 @@
                     </td>
                     <td class="px-1 py-2" :class="mutedClass">{{ row.row }}</td>
                     <td class="whitespace-nowrap px-1 py-2 font-semibold">{{ row.account_no }}</td>
-                    <td class="break-words px-1 py-2 leading-tight">{{ row.customer_name }}</td>
+                    <td class="break-words px-1 py-2 leading-tight">{{ row.customer_name }}<p v-if="row.file_meter_number" class="mt-1" :class="mutedClass">Meter: {{ row.database_meter_number || '—' }} → {{ row.file_meter_number }}<span v-if="row.meter_update_skipped"> (update skipped)</span></p></td>
                     <td class="px-1 py-2 text-right">{{ valueOrDash(row.database_previous) }}</td>
                     <td class="px-1 py-2 text-right font-medium">{{ valueOrDash(row.file_previous) }}</td>
                     <td class="px-1 py-2 text-right">{{ valueOrDash(row.database_present) }}</td>
@@ -160,6 +160,7 @@
                     <td class="px-1 py-2">
                       <span v-if="row.file_payment_status" class="inline-block px-1 py-0.5 font-semibold" :class="paymentStatusClass(row.file_payment_status)">{{ row.file_payment_status }}</span>
                       <span v-else :class="mutedClass">-</span>
+                      <p v-if="row.file_payment_amount !== undefined" class="mt-1">{{ formatCurrency(row.file_payment_amount) }}</p>
                     </td>
                     <td class="px-1 py-2">{{ row.bill_action || '-' }}</td>
                     <td class="px-1 py-2 text-right">{{ formatCurrency(row.proposed_bill_amount) }}</td>
@@ -172,7 +173,8 @@
               </table>
             </div>
 
-            <p class="text-xs" :class="mutedClass">Valid reading rows create one Pending bill for the workbook month, or update that month's existing unpaid bill. The proposed bill includes the customer type rate, minimum-charge rule, and deduction. Blank workbook payment status means Paid; Not Paid and Not Pad mean Pending.</p>
+            <p v-if="preview.format === 'monthly_collection'" class="text-xs" :class="mutedClass">Monthly collections combine both collection columns and apply to the existing bill for the workbook month. Zero or blank amounts leave payments unchanged. Meter numbers are matched by barangay, account sequence, and name. Penalty columns are ignored. Import readings first if the month's bill is missing.</p>
+            <p v-else class="text-xs" :class="mutedClass">Valid reading rows create one Pending bill for the workbook month, or update that month's existing unpaid bill. The proposed bill includes the customer type rate, minimum-charge rule, and deduction. Blank workbook payment status means Paid; Not Paid and Not Pad mean Pending.</p>
           </div>
 
           <p v-if="error" class="mt-4 text-sm text-red-600">{{ error }}</p>

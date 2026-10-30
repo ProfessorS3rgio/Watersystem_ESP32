@@ -32,6 +32,10 @@ class ReadingImportController extends Controller
         $reader = IOFactory::createReader('Xlsx');
         $reader->setReadDataOnly(true);
         $spreadsheet = $reader->load($validated['file']->getRealPath());
+        $collectionImport = app(\App\Services\CollectionWorkbookImport::class);
+        if ($collectionImport->supports($spreadsheet)) {
+            return $collectionImport->preview($request, $spreadsheet);
+        }
         $locatedSheets = $this->locateReadingSheets($spreadsheet);
         $requestedSheet = $validated['sheet_name'] ?? null;
 
@@ -421,6 +425,10 @@ class ReadingImportController extends Controller
 
         $sourceFile = $payload['source_file'] ?? 'workbook import';
         $userId = auth()->id();
+
+        if (($payload['format'] ?? null) === 'monthly_collection') {
+            return app(\App\Services\CollectionWorkbookImport::class)->confirm($selectedRows, $payload, $audit);
+        }
 
         $result = DB::transaction(function () use ($selectedRows, $sourceFile, $userId, $payload, $audit) {
             $updated = 0;
