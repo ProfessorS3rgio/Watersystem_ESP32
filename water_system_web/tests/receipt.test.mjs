@@ -30,9 +30,9 @@ test('blocked popups give a useful error', () => {
   delete globalThis.window
 })
 
-test('detailed receipt separates the bill from this payment and prints safe sample contacts', () => {
+test('A4 receipt repeats payment data and TIN on the Customer and Office copies', () => {
   const html = receiptMarkup({
-    customer_type: 'Residential', address: 'Purok 2 <West>', barangay: 'Makilas',
+    id: 27, meter_number: '00123', customer_type: 'Residential', address: 'Purok 2 <West>', barangay: 'Makilas',
     billing_period: 'Oct 1, 2026 – Oct 24, 2026', due_date: '2026-10-29',
     previous_reading: 0, current_reading: 12, usage_m3: 12,
     rate_per_m3: 20, charges: 240, penalty: 20, total_due: 260,
@@ -42,11 +42,16 @@ test('detailed receipt separates the bill from this payment and prints safe samp
       office_hours: 'Mon–Fri', office_address: '<Example office>' },
   })
   for (const detail of ['Residential', 'Purok 2 &lt;West&gt;', 'Makilas',
-    'Used (m³)', '>0</strong>', 'PHP 260.00', 'PHP 100.00', 'PHP 160.00',
-    'Oct 29, 2026', 'Ana &amp; Co.', 'SAMPLE CONTACT DETAILS',
-    'office@example.com', '&lt;Example office&gt;']) assert.ok(html.includes(detail), detail)
-  assert.ok(html.includes('Bill balance now'))
-  assert.ok(html.includes('Balance for this bill as of Oct 24, 2026.'))
+    'CONSUMPTION', '>0</strong>', 'PHP 260.00', 'PHP 100.00', 'PHP 160.00',
+    'Oct 29, 2026', 'Ana &amp; Co.', 'RECEIPT NO. 000027', '00123']) assert.ok(html.includes(detail), detail)
+  assert.equal((html.match(/TIN: 464-252-005/g) || []).length, 2)
+  assert.equal((html.match(/PARTIAL PAYMENT \/ BALANCE REMAINS/g) || []).length, 2)
+  assert.ok(html.includes('Customer Copy'))
+  assert.ok(html.includes('Office Copy'))
+  assert.ok(html.includes('CUT ALONG LINE'))
+  assert.ok(html.includes('Remaining for this bill'))
+  assert.ok(html.includes('Balance as of Oct 24, 2026.'))
+  assert.ok(!html.includes('office@example.com'))
 })
 
 test('printing waits for the logo and fonts and keeps a manual reprint button', async () => {
@@ -58,7 +63,7 @@ test('printing waits for the logo and fonts and keeps a manual reprint button', 
     focus: () => events.push('focus'),
     print: () => events.push('print'),
     document: {
-      open() {}, write() {}, close() {},
+      open() {}, write(html) { events.push(html) }, close() {},
       images: [{ decode: async () => { events.push('logo') } }],
       fonts: { ready: Promise.resolve() },
       getElementById: id => id === 'print-receipt' ? button : status,
@@ -68,10 +73,27 @@ test('printing waits for the logo and fonts and keeps a manual reprint button', 
     },
   }
   await printReceiptDocument({ amount_paid: 100 }, 'Customer', popup)
-  assert.equal(events[0], 'logo')
-  assert.match(events[1], /size: 58mm 161mm; margin: 0/)
+  assert.match(events[0], /@page \{ size: A4 portrait; margin: 0; \}/)
+  assert.ok(!events[0].includes('58mm'))
+  assert.equal(events[1], 'logo')
   assert.equal(events.at(-1), 'print')
   assert.equal(button.disabled, false)
   button.click()
   assert.equal(events.filter(event => event === 'print').length, 2)
+})
+
+test('settled and unknown balances have distinct receipt labels', () => {
+  assert.ok(receiptMarkup({ amount_paid: 150, bill_balance: 0 }).includes('BILL PAID IN FULL'))
+  const missing = receiptMarkup({ amount_paid: 150 })
+  assert.ok(missing.includes('BILL BALANCE UNAVAILABLE'))
+  assert.ok(!missing.includes('BILL PAID IN FULL'))
+})
+
+test('deduction is taken from recorded bill amounts and each payment retains its transaction number', () => {
+  const bill = { reference_number: 'BILL-1', charges: 150, penalty: 0, total_due: 135, amount_paid: 100, bill_balance: 35 }
+  const first = receiptMarkup({ ...bill, id: 27 })
+  const second = receiptMarkup({ ...bill, id: 28 })
+  assert.equal((first.match(/<span>Deduction<\/span><strong>PHP 15\.00<\/strong>/g) || []).length, 2)
+  assert.equal((first.match(/RECEIPT NO\. 000027/g) || []).length, 2)
+  assert.equal((second.match(/RECEIPT NO\. 000028/g) || []).length, 2)
 })

@@ -21,6 +21,7 @@ class ReceiptServiceTest extends TestCase
         ]);
         $bill->setRelation('customer', new Customer(['customer_name' => 'Sample Customer',
             'account_no' => 'M-001', 'address' => 'Purok 2']));
+        $bill->customer->setRelation('profile', new \App\Models\CustomerProfile(['meter_number' => '00123']));
         $bill->setRelation('reading', new Reading(['previous_reading' => 0, 'current_reading' => 12, 'usage_m3' => 12]));
         $payment = new BillTransaction(['amount' => 100, 'cash_received' => 100, 'change' => 0,
             'transaction_date' => '2026-10-24 06:00:00', 'payment_method' => 'cash', 'source' => 'Office']);
@@ -30,6 +31,7 @@ class ReceiptServiceTest extends TestCase
         $receipt = app(ReceiptService::class)->build($bill, $payment);
 
         $this->assertSame(27, $receipt['id']);
+        $this->assertSame('00123', $receipt['meter_number']);
         $this->assertSame('100.00', $receipt['amount_paid']);
         $this->assertSame('260.00', $receipt['total_due']);
         $this->assertSame('160.00', $receipt['bill_balance']);
@@ -55,5 +57,6 @@ class ReceiptServiceTest extends TestCase
         $this->assertNull($receipt['billing_period']);
         $this->assertNull($receipt['cash_received']);
         $this->assertNull($receipt['collector']);
+        $this->assertNull($receipt['meter_number']);
     }
 }

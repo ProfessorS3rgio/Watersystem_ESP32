@@ -22,6 +22,7 @@ class ReceiptService
             'reference_number' => $bill->reference_number,
             'customer_name' => $customer?->customer_name,
             'account_no' => $customer?->account_no ?? $bill->customer_account_number,
+            'meter_number' => $customer?->profile?->meter_number,
             'customer_type' => $customer?->type_id ? CustomerType::find($customer->type_id)?->type_name : null,
             'address' => $customer?->address,
             'barangay' => $customer?->brgy_id ? BarangaySequence::find($customer->brgy_id)?->barangay : null,

@@ -243,7 +243,7 @@ export function useBilling() {
     const printReceipt = async () => {
       if (!paymentReceipt.value) return
 
-      await printToThermal(paymentReceipt.value, paymentReceipt.value.customer_name)
+      await printPaymentReceipt(paymentReceipt.value, paymentReceipt.value.customer_name)
     }
 
     const printBill = async (bill) => {
@@ -275,7 +275,7 @@ export function useBilling() {
           created_at: paymentData.created_at || paymentData.transaction_date
         }
 
-        // Print to thermal printer
+        // Print the Customer and Office copies on one A4 sheet.
         await printReceiptDocument(receiptData, bill.customer?.customer_name, printWindow)
 
       } catch (error) {
@@ -475,7 +475,7 @@ export function useBilling() {
       voidLoading.value = false
     }
 
-    const printToThermal = async (receiptData, customerName) => {
+    const printPaymentReceipt = async (receiptData, customerName) => {
       try {
         await printReceiptDocument(receiptData, customerName)
       } catch (error) {
