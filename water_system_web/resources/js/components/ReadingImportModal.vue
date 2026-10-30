@@ -173,7 +173,7 @@
               </table>
             </div>
 
-            <p v-if="preview.format === 'monthly_collection'" class="text-xs" :class="mutedClass">Monthly collections combine both collection columns and apply to the existing bill for the workbook month. Zero or blank amounts leave payments unchanged. Meter numbers are matched by barangay, account sequence, and name. Penalty columns are ignored. Import readings first if the month's bill is missing.</p>
+            <p v-if="preview.format === 'monthly_collection'" class="text-xs" :class="mutedClass">Monthly collections apply to the workbook month's bill. A missing historical period can be created from actual Cubic Used and a unique reading in the preceding or following month. Review the reconstructed readings and proposed bill, calculated with current system rates and deductions. Zero or blank collections leave payments unchanged. Penalty columns are ignored. A restore point is saved before applying changes.</p>
             <p v-else class="text-xs" :class="mutedClass">Valid reading rows create one Pending bill for the workbook month, or update that month's existing unpaid bill. The proposed bill includes the customer type rate, minimum-charge rule, and deduction. Blank workbook payment status means Paid; Not Paid and Not Pad mean Pending.</p>
           </div>
 

@@ -581,9 +581,9 @@ export default {
 
     const openUsageModal = async (customer) => {
       modalsComposable.openUsageModal(customer)
+      // Loading history refreshes due bills; fetch summary balances afterward.
+      await usageComposable.fetchUsageReadings(customer.id)
       await refreshUsageCustomer()
-      const refreshedCustomer = modalsComposable.usageCustomer.value || customer
-      await usageComposable.fetchUsageReadings(refreshedCustomer.id)
     }
 
     const closeUsageModal = () => {

@@ -63,15 +63,35 @@ class CustomerController extends Controller
             $query->where('customer.updated_at', '>', Carbon::createFromTimestamp($updatedAfter));
         }
 
-        // IDs make the selected row deterministic. Joining by a maximum date
-        // can return more than one reading/bill when rows share that date.
-        $latestReading = DB::table('reading')
-            ->select('customer_id', DB::raw('MAX(reading_id) as latest_reading_id'))
-            ->groupBy('customer_id');
+        // Historical imports receive newer IDs. Choose the latest period,
+        // using the ID only to break ties within the same date.
+        $latestReading = DB::table('reading as candidate_reading')
+            ->select('candidate_reading.customer_id', 'candidate_reading.reading_id as latest_reading_id')
+            ->whereNotExists(function ($newer) {
+                $newer->selectRaw('1')->from('reading as newer_reading')
+                    ->whereColumn('newer_reading.customer_id', 'candidate_reading.customer_id')
+                    ->where(function ($date) {
+                        $date->whereColumn('newer_reading.reading_at', '>', 'candidate_reading.reading_at')
+                            ->orWhere(function ($tie) {
+                                $tie->whereColumn('newer_reading.reading_at', 'candidate_reading.reading_at')
+                                    ->whereColumn('newer_reading.reading_id', '>', 'candidate_reading.reading_id');
+                            });
+                    });
+            });
 
-        $latestBill = DB::table('bill')
-            ->select('customer_id', DB::raw('MAX(bill_id) as latest_bill_id'))
-            ->groupBy('customer_id');
+        $latestBill = DB::table('bill as candidate_bill')
+            ->select('candidate_bill.customer_id', 'candidate_bill.bill_id as latest_bill_id')
+            ->whereNotExists(function ($newer) {
+                $newer->selectRaw('1')->from('bill as newer_bill')
+                    ->whereColumn('newer_bill.customer_id', 'candidate_bill.customer_id')
+                    ->where(function ($date) {
+                        $date->whereColumn('newer_bill.bill_date', '>', 'candidate_bill.bill_date')
+                            ->orWhere(function ($tie) {
+                                $tie->whereColumn('newer_bill.bill_date', 'candidate_bill.bill_date')
+                                    ->whereColumn('newer_bill.bill_id', '>', 'candidate_bill.bill_id');
+                            });
+                    });
+            });
 
         $accountBalances = DB::table('bill')
             ->select(

@@ -19,6 +19,7 @@ class CollectionWorkbookImportTest extends TestCase
         parent::setUp();
         $this->artisan('migrate', ['--force' => true])->assertExitCode(0);
         $this->seed([\Database\Seeders\BarangaySequenceSeeder::class, \Database\Seeders\CustomerTypeSeeder::class]);
+        DB::table('customer_type')->where('type_id', 1)->update(['min_m3' => 10, 'min_charge' => 150, 'rate_per_m3' => 15]);
         $this->actingAs(User::factory()->create());
         $brgy = DB::table('barangay_sequence')->where('prefix', 'M')->value('brgy_id');
         $this->member = Customer::create(['account_no' => 'M-001', 'customer_name' => 'Test Member', 'type_id' => 1,
@@ -55,7 +56,7 @@ class CollectionWorkbookImportTest extends TestCase
             $sheet->fromArray(['cubic un-paid', 'PENALTY', 'Minimum', 'Minimum', 'Cubic Used', 'No.', 'NAME', 'PENALTY LAST MONTH', 'MONTHLY COLLECTION', null, 'METER No.', 'COLLECTABLE FAILURE TO PAY', 'PENALTY'], null, 'A6');
             foreach (($rows ?: [[1, 'Test Member', 150, 0, '‘00123']]) as $i => $row) {
                 [$seq, $name, $minimum, $collection, $meter] = $row;
-                $sheet->fromArray([0, 999, 1, 0, 0, $seq, $name, 888, $minimum, $collection, $meter, 0, 777], null, 'A'.($i + 7));
+                $sheet->fromArray([0, 999, $row[6] ?? 1, 0, array_key_exists(5, $row) ? $row[5] : 0, $seq, $name, 888, $minimum, $collection, $meter, 0, 777], null, 'A'.($i + 7));
             }
         }
         $path = tempnam(sys_get_temp_dir(), 'collection-test-');
@@ -339,5 +340,148 @@ class CollectionWorkbookImportTest extends TestCase
         $this->assertDatabaseCount('customer_profiles', 0);
         $this->assertDatabaseCount('bill_transaction', 0);
         $this->assertDatabaseHas('bill', ['bill_id' => $this->bill->bill_id, 'amount_paid' => 0]);
+    }
+
+    private function historicalPreview(mixed $usage = 10, mixed $minimum = 0, float $amount = 150)
+    {
+        $upload = $this->workbook([[1, 'Test Member', 0, $amount, '123', $usage, $minimum]]);
+        $book = IOFactory::load($upload->getRealPath());
+        $book->getActiveSheet()->setCellValue('G4', 'Billing Month: August 1-30, 2026');
+        $book->getActiveSheet()->setCellValue('J4', 'September 5, 2026');
+        IOFactory::createWriter($book, 'Xlsx')->save($upload->getRealPath());
+        return $this->post('/customers/readings-import/preview', ['file' => $upload], ['Accept' => 'application/json'])->assertOk();
+    }
+
+    public function test_historical_reading_is_reconstructed_from_next_month_and_restorable(): void
+    {
+        $preview = $this->historicalPreview()->assertJsonPath('rows.0.bill_action', 'Create historical reading and bill')
+            ->assertJsonPath('rows.0.file_previous', 7)->assertJsonPath('rows.0.file_present', 17)
+            ->assertJsonPath('rows.0.file_usage', 10)->assertJsonPath('rows.0.proposed_bill_amount', 150)
+            ->assertJsonPath('rows.0.status', 'warning');
+        $response = $this->confirm($preview->json('token'))->assertOk()->assertJsonPath('created', 1)
+            ->assertJsonPath('bills_created', 1)->assertJsonPath('payments_imported', 1);
+        $this->assertDatabaseHas('reading', ['customer_id' => $this->member->customer_id, 'reading_at' => '2026-08-31 12:00:00',
+            'previous_reading' => 7, 'current_reading' => 17, 'usage_m3' => 10]);
+        $this->assertDatabaseHas('bill', ['customer_id' => $this->member->customer_id, 'charges' => 150, 'penalty' => 0,
+            'amount_paid' => 150, 'balance_due' => 0, 'status' => 'Paid']);
+        $this->assertDatabaseHas('customer', ['customer_id' => $this->member->customer_id, 'previous_reading' => 17]);
+        $this->historicalPreview()->assertJsonPath('summary.unchanged', 1)->assertJsonPath('token', null);
+        $this->assertDatabaseCount('reading', 2);
+        $this->assertDatabaseCount('bill_transaction', 1);
+        $this->postJson('/backup/restore-points/'.$response->json('restore_point_id').'/restore')->assertOk();
+        $this->assertDatabaseCount('reading', 1);
+        $this->assertDatabaseCount('bill', 1);
+        $this->assertDatabaseCount('bill_transaction', 0);
+    }
+
+    public function test_historical_creation_requires_actual_consumption_and_consistent_adjacent_values(): void
+    {
+        foreach ([null, '', -1, 2.5, 'Stop meter'] as $usage) {
+            $this->historicalPreview($usage)->assertJsonPath('summary.errors', 1)->assertJsonPath('token', null);
+        }
+        $this->historicalPreview(0, 1)->assertJsonPath('summary.errors', 1);
+        $this->historicalPreview(100)->assertJsonPath('summary.errors', 1); // Negative reconstructed start.
+        DB::table('reading')->insert(['customer_id' => $this->member->customer_id, 'customer_account_number' => 'M-001',
+            'device_uid' => 'COLLECTION-TEST', 'previous_reading' => 1, 'current_reading' => 8, 'usage_m3' => 7, 'reading_at' => '2026-07-31 12:00:00']);
+        $this->historicalPreview()->assertJsonPath('summary.errors', 1); // July ends at 8; September starts at 17; usage 10 conflicts.
+        DB::table('reading')->where('reading_at', '2026-07-31 12:00:00')->update(['current_reading' => 7]);
+        $this->historicalPreview()->assertJsonPath('rows.0.file_previous', 7)->assertJsonPath('summary.errors', 0);
+    }
+
+    public function test_gap_without_adjacent_reading_cannot_be_reconstructed(): void
+    {
+        DB::table('reading')->where('reading_id', $this->bill->reading_id)->update(['reading_at' => '2026-10-31 12:00:00']);
+        $this->historicalPreview()->assertJsonPath('summary.errors', 1)->assertJsonPath('token', null);
+        $this->assertDatabaseCount('reading', 1);
+    }
+
+    public function test_historical_creation_revalidates_readings_and_rates_on_confirmation(): void
+    {
+        $preview = $this->historicalPreview();
+        DB::table('reading')->where('reading_id', $this->bill->reading_id)->update(['previous_reading' => 18]);
+        $this->confirm($preview->json('token'))->assertUnprocessable();
+        $this->assertDatabaseCount('backup_snapshots', 0);
+        $this->assertDatabaseCount('customer_profiles', 0);
+        $preview = $this->historicalPreview();
+        DB::table('customer_type')->where('type_id', 1)->update(['min_charge' => 160]);
+        $this->confirm($preview->json('token'))->assertUnprocessable();
+        $this->assertDatabaseCount('reading', 1);
+        $this->assertDatabaseCount('bill', 1);
+    }
+
+    public function test_historical_creation_uses_system_deductions_and_rejects_excess_collections(): void
+    {
+        $id = DB::table('deduction')->insertGetId(['name' => 'Test discount', 'type' => 'percentage', 'value' => 10]);
+        $this->member->update(['deduction_id' => $id]);
+        $this->historicalPreview(amount: 150)->assertJsonPath('summary.errors', 1)->assertJsonPath('rows.0.proposed_bill_amount', 135);
+        $preview = $this->historicalPreview(amount: 100)->assertJsonPath('rows.0.proposed_bill_amount', 135);
+        $this->confirm($preview->json('token'))->assertOk();
+        $this->assertDatabaseHas('bill', ['charges' => 150, 'total_due' => 135, 'amount_paid' => 100, 'balance_due' => 35, 'status' => 'Partially Paid']);
+    }
+
+    public function test_previous_month_can_anchor_a_historical_reading_without_next_month(): void
+    {
+        DB::table('reading')->where('reading_id', $this->bill->reading_id)->update(['reading_at' => '2026-10-31 12:00:00']);
+        DB::table('reading')->insert(['customer_id' => $this->member->customer_id, 'customer_account_number' => 'M-001',
+            'device_uid' => 'COLLECTION-TEST', 'previous_reading' => 1, 'current_reading' => 7, 'usage_m3' => 6, 'reading_at' => '2026-07-31 12:00:00']);
+        $preview = $this->historicalPreview(11, 0, 165)->assertJsonPath('rows.0.file_previous', 7)
+            ->assertJsonPath('rows.0.file_present', 18)->assertJsonPath('rows.0.proposed_bill_amount', 165);
+        $this->confirm($preview->json('token'))->assertOk()->assertJsonPath('created', 1);
+        $this->assertDatabaseHas('reading', ['reading_at' => '2026-08-31 12:00:00', 'previous_reading' => 7, 'current_reading' => 18]);
+    }
+
+    public function test_ambiguous_adjacent_readings_block_historical_creation(): void
+    {
+        $copy = \App\Models\Reading::findOrFail($this->bill->reading_id)->replicate();
+        $copy->save();
+        $this->historicalPreview()->assertJsonPath('summary.errors', 1)->assertJsonPath('token', null);
+    }
+
+    public function test_bill_created_after_historical_preview_prevents_duplicate_creation(): void
+    {
+        $preview = $this->historicalPreview();
+        $copy = $this->bill->replicate();
+        $copy->reference_number = 'INTERVENING-AUGUST-BILL';
+        $copy->bill_date = '2026-08-31';
+        $copy->save();
+        $this->confirm($preview->json('token'))->assertUnprocessable();
+        $this->assertDatabaseCount('reading', 1);
+        $this->assertDatabaseCount('bill', 2);
+        $this->assertDatabaseCount('bill_transaction', 0);
+        $this->assertDatabaseCount('backup_snapshots', 0);
+    }
+
+    public function test_customer_latest_bill_and_reading_follow_dates_after_historical_import(): void
+    {
+        $preview = $this->historicalPreview();
+        $this->confirm($preview->json('token'))->assertOk();
+        $this->getJson('/customers?account_no=M-001')->assertOk()->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.latest_bill_id', $this->bill->bill_id)
+            ->assertJsonPath('data.0.latest_bill_state', 'due')
+            ->assertJsonPath('data.0.current_reading', 27);
+        $this->getJson('/customers?account_no=M-001&bill_state=paid')->assertOk()->assertJsonCount(0, 'data');
+        $this->getJson('/customers/'.$this->member->customer_id.'/readings')->assertOk()
+            ->assertJsonPath('data.0.bill_id', $this->bill->bill_id)->assertJsonPath('data.0.status', 'Due')
+            ->assertJsonPath('data.1.status', 'Paid');
+        $summary = $this->getJson('/customers?account_no=M-001')->assertOk();
+        $this->assertEquals(170, $summary->json('data.0.latest_bill_balance_due')); // 150 charge + configured 20 penalty.
+        $this->assertEquals(170, $summary->json('data.0.account_balance'));
+    }
+
+    public function test_latest_period_ties_select_one_row_deterministically(): void
+    {
+        $reading = \App\Models\Reading::findOrFail($this->bill->reading_id)->replicate();
+        $reading->current_reading = 30;
+        $reading->save();
+        $bill = $this->bill->replicate();
+        $bill->reference_number = 'SAME-DATE-NEWER-ID';
+        $bill->reading_id = $reading->reading_id;
+        $bill->status = 'Paid';
+        $bill->amount_paid = $bill->total_due;
+        $bill->balance_due = 0;
+        $bill->save();
+        $this->getJson('/customers?account_no=M-001')->assertOk()->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.latest_bill_id', $bill->bill_id)
+            ->assertJsonPath('data.0.latest_bill_state', 'paid')->assertJsonPath('data.0.current_reading', 30);
     }
 }

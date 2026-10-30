@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Models\{BarangaySequence, Bill, BillTransaction, Customer, CustomerProfile};
+use App\Models\{BarangaySequence, Bill, BillTransaction, Customer, CustomerProfile, Reading};
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -11,7 +11,7 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 
-/** Collection-only workbooks never create readings or recalculate charges/penalties. */
+/** Collections may reconstruct missing historical periods from adjacent readings. */
 class CollectionWorkbookImport
 {
     private function normalize(mixed $value): string
@@ -148,6 +148,7 @@ class CollectionWorkbookImport
             }
             $result[] = ['row' => $number, 'sequence' => (int) $sequence, 'name' => trim($row['G']),
                 'meter' => Str::upper(ltrim(trim((string) ($row['K'] ?? '')), "'‘’")),
+                'usage' => $row['E'] ?? null, 'minimum' => $row['C'] ?? null,
                 'amounts' => [$row['I'] ?? null, $row['J'] ?? null]];
         }
         return $result;
@@ -217,8 +218,21 @@ class CollectionWorkbookImport
             if ($skipMeter) $warnings[] = 'Meter number is duplicated or assigned to another account. Meter update will be skipped; collection can still be processed.';
             if (! $skipMeter && $meter !== '' && $profile?->meter_number && $profile->meter_number !== $meter) $error = 'Account already has a different meter number. Resolve in Member profile first.';
             $delta = $amount - (int) round((float) ($bill?->amount_paid ?? 0) * 100);
-            if ($amount > 0 && ! $bill) $error = 'A unique existing bill for this month is required to import a payment. Import readings first.';
-            elseif ($amount > 0 && (Str::lower($bill->status) === 'void' || $delta < 0 || $amount > (int) round((float) $bill->total_due * 100))) $error = 'Collection conflicts with the existing bill or recorded payments. Resolve before importing.';
+            $historical = null;
+            if (! $error && $amount > 0 && ! $bill) {
+                if ($bills->isNotEmpty()) {
+                    $error = 'Multiple bills exist for this month. Resolve the duplicate bills first.';
+                } else {
+                    $proposal = app(HistoricalCollectionReading::class)->propose($customer, $month, $source['usage'], $source['minimum']);
+                    if (isset($proposal['error'])) $error = $proposal['error'];
+                    else {
+                        $historical = $proposal;
+                        $warnings[] = 'Create historical reading and bill from Cubic Used and adjacent readings. Current rates, minimum charges and deductions apply; review the proposed values.';
+                    }
+                }
+            }
+            $totalDue = $bill ? (float) $bill->total_due : ($historical['billing']['total_due'] ?? null);
+            if (! $error && $amount > 0 && (($bill && Str::lower($bill->status) === 'void') || $delta < 0 || $amount > (int) round($totalDue * 100))) $error = 'Collection conflicts with the existing or proposed bill. Review the charges and payment amount before importing.';
             $meterChange = ! $skipMeter && $meter !== '' && $meter !== $profile?->meter_number;
             $paymentChange = $amount > 0 && $delta > 0;
             $status = $error ? 'error' : (($meterChange || $paymentChange) ? 'change' : 'unchanged');
@@ -232,14 +246,18 @@ class CollectionWorkbookImport
                 'status' => $status, 'message' => $message, 'file_payment_amount' => $amount / 100,
                 'file_meter_number' => $meter, 'database_meter_number' => $profile?->meter_number,
                 'meter_update_skipped' => $skipMeter,
+                'file_previous' => $historical['previous'] ?? null, 'file_present' => $historical['present'] ?? null,
+                'file_usage' => $historical['usage'] ?? null, 'proposed_bill_amount' => $historical['billing']['total_due'] ?? null,
                 'database_payment_status' => $bill?->status, 'file_payment_status' => $amount > 0 ? 'Payment recorded' : null,
-                'bill_date' => $bill?->bill_date?->format('Y-m-d'), 'bill_action' => $paymentChange ? 'Record collection' : null];
+                'bill_date' => $bill?->bill_date?->format('Y-m-d') ?? ($historical['bill_date'] ?? null),
+                'bill_action' => $historical ? 'Create historical reading and bill' : ($paymentChange ? 'Record collection' : null)];
             if (in_array($status, ['change', 'warning'], true)) {
                 $applicable[] = ['account_no' => $customer->account_no, 'customer_id' => $customer->customer_id,
                     'customer_name' => $customer->customer_name, 'brgy_id' => $customer->brgy_id,
                     'source_row' => $source['row'], 'old_meter' => $profile?->meter_number, 'meter' => $meterChange ? $meter : null,
                     'warnings' => $warnings,
-                    'bill_id' => $paymentChange ? $bill->bill_id : null, 'bill_state' => $this->billState($paymentChange ? $bill : null),
+                    'historical' => $historical, 'source_usage' => $source['usage'], 'source_minimum' => $source['minimum'],
+                    'bill_id' => $paymentChange ? $bill?->bill_id : null, 'bill_state' => $this->billState($paymentChange ? $bill : null),
                     'amount' => $amount / 100];
             }
         }
@@ -258,7 +276,7 @@ class CollectionWorkbookImport
             $restorePoint = app(RestorePointService::class)->create(
                 'Before Excel import: '.$payload['source_file'], 'excel_import', auth()->id(), $audit
             );
-            $payments = 0; $meters = 0;
+            $payments = 0; $meters = 0; $created = 0;
             foreach ($rows as $row) {
                 $customer = Customer::whereKey($row['customer_id'])->lockForUpdate()->first();
                 $profile = CustomerProfile::where('customer_id', $row['customer_id'])->lockForUpdate()->first();
@@ -273,11 +291,31 @@ class CollectionWorkbookImport
                     CustomerProfile::updateOrCreate(['customer_id' => $customer->customer_id], ['meter_number' => $row['meter']]);
                     $meters++;
                 }
-                if ($row['bill_id']) {
+                $bill = null;
+                if (! empty($row['historical'])) {
+                    $month = Carbon::createFromFormat('!Y-m', $payload['billing_month']);
+                    $proposal = app(HistoricalCollectionReading::class)->propose($customer, $month, $row['source_usage'], $row['source_minimum'], true);
+                    if ($proposal !== $row['historical']) {
+                        throw ValidationException::withMessages(['token' => 'Historical readings or billing rules changed after preview. Upload again.']);
+                    }
+                    $reading = Reading::create(['customer_id' => $customer->customer_id, 'customer_account_number' => $customer->account_no,
+                        'device_uid' => $proposal['device_uid'], 'previous_reading' => $proposal['previous'], 'current_reading' => $proposal['present'],
+                        'usage_m3' => $proposal['usage'], 'reading_at' => $month->copy()->endOfMonth()->setTime(12, 0),
+                        'read_by_user_id' => auth()->id(), 'Synced' => false]);
+                    $bill = Bill::create(['reference_number' => 'HIST-'.str_replace('-', '', $payload['billing_month']).'-'.$customer->account_no.'-'.$reading->reading_id,
+                        'customer_id' => $customer->customer_id, 'customer_account_number' => $customer->account_no,
+                        'reading_id' => $reading->reading_id, 'device_uid' => $reading->device_uid,
+                        'bill_date' => $proposal['bill_date'], 'due_date' => $proposal['due_date'], 'rate_per_m3' => $proposal['billing']['rate'],
+                        'charges' => $proposal['billing']['charges'], 'penalty' => 0, 'total_due' => $proposal['billing']['total_due'],
+                        'amount_paid' => 0, 'balance_due' => $proposal['billing']['total_due'], 'status' => 'Pending']);
+                    $created++;
+                } elseif ($row['bill_id']) {
                     $bill = Bill::whereKey($row['bill_id'])->lockForUpdate()->first();
                     if (json_encode($this->billState($bill)) !== json_encode($row['bill_state'])) {
                         throw ValidationException::withMessages(['token' => 'Bill changed after preview. Upload again.']);
                     }
+                }
+                if ($bill) {
                     $delta = round($row['amount'] - (float) $bill->amount_paid, 2);
                     $bill->amount_paid = $row['amount'];
                     $bill->balance_due = round((float) $bill->total_due - $row['amount'], 2);
@@ -292,7 +330,7 @@ class CollectionWorkbookImport
                 }
             }
             $result = ['restore_point_id' => $restorePoint['id'], 'applied' => $rows->count(), 'payments_imported' => $payments, 'meters_updated' => $meters,
-                'updated' => 0, 'created' => 0, 'bills_created' => 0, 'bills_updated' => 0, 'bill_statuses_updated' => $payments];
+                'updated' => 0, 'created' => $created, 'bills_created' => $created, 'bills_updated' => 0, 'bill_statuses_updated' => $payments];
             $audit->record('monthly_collections_imported', 'ReadingImport', null, $result, ['source_file' => $payload['source_file'],
                 'billing_month' => $payload['billing_month'], 'imported_rows' => $rows->all()]);
             return $result;

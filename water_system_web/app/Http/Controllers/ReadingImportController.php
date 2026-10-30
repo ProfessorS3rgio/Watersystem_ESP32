@@ -6,8 +6,6 @@ use App\Models\BarangaySequence;
 use App\Models\Bill;
 use App\Models\BillTransaction;
 use App\Models\Customer;
-use App\Models\CustomerType;
-use App\Models\Deduction;
 use App\Models\Device;
 use App\Models\Reading;
 use App\Models\Setting;
@@ -656,34 +654,7 @@ class ReadingImportController extends Controller
     /** Match the meter device's customer-type and deduction billing rules. */
     private function calculateBillingValues(Customer $customer, int $usage): array
     {
-        $type = CustomerType::find($customer->type_id);
-        if (! $type) {
-            throw ValidationException::withMessages([
-                'file' => "Customer {$customer->account_no} has no valid customer type for bill calculation.",
-            ]);
-        }
-
-        $rate = (float) $type->rate_per_m3;
-        $minimumUsage = (int) $type->min_m3;
-        $minimumCharge = (float) $type->min_charge;
-        $isOfficer = Str::lower(trim((string) $type->type_name)) === 'officers';
-        $grossCharge = $usage <= $minimumUsage
-            ? $minimumCharge
-            : ($isOfficer ? $minimumCharge + ($usage * $rate) : $usage * $rate);
-
-        $deduction = $customer->deduction_id ? Deduction::find($customer->deduction_id) : null;
-        $deductionAmount = 0.0;
-        if ($deduction) {
-            $deductionAmount = Str::lower((string) $deduction->type) === 'percentage'
-                ? $grossCharge * ((float) $deduction->value / 100)
-                : (float) $deduction->value;
-        }
-
-        return [
-            'rate' => $rate,
-            'charges' => round($grossCharge, 2),
-            'total_due' => round(max(0, $grossCharge - $deductionAmount), 2),
-        ];
+        return app(\App\Services\ImportBillingCalculator::class)->calculate($customer, $usage);
     }
 
     private function dueDateFor(Carbon $billDate): string
