@@ -20,6 +20,7 @@ inline void printAssociationHeader(const __FlashStringHelper* documentTitle,
   printer.println(F("Water System Association"));
   printer.boldOff();
   printer.println(F("Makilas Ipil Zamboanga Sibugay"));
+  printer.println(F("TIN: 464-252-005"));
 
   if (!keepFontB) {
     printer.setFont('A');
