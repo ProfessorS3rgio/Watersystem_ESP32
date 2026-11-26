@@ -14,12 +14,12 @@
         <div class="px-6 py-5">
           <div class="mb-3 flex items-center justify-between text-xs">
             <span class="font-semibold uppercase tracking-widest opacity-60">Print preview</span>
-            <span class="rounded-full bg-teal-100 px-3 py-1 font-semibold text-teal-800">A4 · Customer &amp; Office copies</span>
+            <span class="rounded-full bg-teal-100 px-3 py-1 font-semibold text-teal-800">Long bond · 3.9″ × 5.83″ receipt sets</span>
           </div>
           <div class="receipt-tray">
             <div class="receipt-preview-paper" v-html="previewHtml"></div>
           </div>
-          <p class="mt-4 text-xs leading-relaxed opacity-70">Choose your regular printer with A4 paper, portrait orientation, 100% scale, and no margins. <strong>Keep browser headers and footers OFF.</strong> Cut along the middle line to separate the Customer and Office copies.</p>
+          <p class="mt-4 text-xs leading-relaxed opacity-70">Choose 8.5″ × 13″ long bond paper, portrait orientation, 100% scale, and no margins. <strong>Keep browser headers and footers OFF.</strong> Two identical receipt sets print side by side. Cut lengthwise; each half keeps a 3.9″ × 5.83″ block containing Customer and Office copies.</p>
           <div class="mt-5 flex gap-3">
             <button type="button" @click="$emit('print')" class="flex flex-1 items-center justify-center gap-2 rounded-xl bg-teal-700 px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-teal-800">
               <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v8H6zM18 12h.01"/></svg>
@@ -58,5 +58,5 @@ export default {
 <style scoped>
 .receipt-tray { max-height: 58dvh; overflow: auto; padding: 22px 12px 30px; border: 1px solid #dcebe8; border-radius: 14px; background: #eaf1ef; }
 [data-dark="true"] .receipt-tray { border-color: #28454c; background: #08171d; }
-.receipt-preview-paper { width: 210mm; margin: 0 auto; background: #fff; box-shadow: 0 5px 18px #183e3920; position: relative; }
+.receipt-preview-paper { width: 8.5in; margin: 0 auto; background: #fff; box-shadow: 0 5px 18px #183e3920; position: relative; }
 </style>

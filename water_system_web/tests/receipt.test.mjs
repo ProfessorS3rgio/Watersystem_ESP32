@@ -30,7 +30,7 @@ test('blocked popups give a useful error', () => {
   delete globalThis.window
 })
 
-test('A4 receipt repeats payment data and TIN on the Customer and Office copies', () => {
+test('each long-bond half keeps a complete Customer and Office receipt set', () => {
   const html = receiptMarkup({
     id: 27, meter_number: '00123', customer_type: 'Residential', address: 'Purok 2 <West>', barangay: 'Makilas',
     billing_period: 'Oct 1, 2026 – Oct 24, 2026', due_date: '2026-10-29',
@@ -44,11 +44,13 @@ test('A4 receipt repeats payment data and TIN on the Customer and Office copies'
   for (const detail of ['Residential', 'Purok 2 &lt;West&gt;', 'Makilas',
     'CONSUMPTION', '>0</strong>', 'PHP 260.00', 'PHP 100.00', 'PHP 160.00',
     'Oct 29, 2026', 'Ana &amp; Co.', 'RECEIPT NO. 000027', '00123']) assert.ok(html.includes(detail), detail)
-  assert.equal((html.match(/TIN: 464-252-005/g) || []).length, 2)
-  assert.equal((html.match(/PARTIAL PAYMENT \/ BALANCE REMAINS/g) || []).length, 2)
+  assert.equal((html.match(/TIN: 464-252-005/g) || []).length, 4)
+  assert.equal((html.match(/PARTIAL PAYMENT \/ BALANCE REMAINS/g) || []).length, 4)
+  assert.equal((html.match(/class="receipt-block"/g) || []).length, 2)
   assert.ok(html.includes('Customer Copy'))
   assert.ok(html.includes('Office Copy'))
-  assert.ok(html.includes('CUT ALONG LINE'))
+  assert.ok(html.includes('CUT LENGTHWISE'))
+  assert.equal((html.match(/CUT COPIES APART/g) || []).length, 2)
   assert.ok(html.includes('Remaining for this bill'))
   assert.ok(html.includes('Balance as of Oct 24, 2026.'))
   assert.ok(!html.includes('office@example.com'))
@@ -73,7 +75,8 @@ test('printing waits for the logo and fonts and keeps a manual reprint button', 
     },
   }
   await printReceiptDocument({ amount_paid: 100 }, 'Customer', popup)
-  assert.match(events[0], /@page \{ size: A4 portrait; margin: 0; \}/)
+  assert.match(events[0], /@page \{ size: 8\.5in 13in; margin: 0; \}/)
+  assert.match(events[0], /width: 3\.9in; height: 5\.83in/)
   assert.ok(!events[0].includes('58mm'))
   assert.equal(events[1], 'logo')
   assert.equal(events.at(-1), 'print')
@@ -93,7 +96,7 @@ test('deduction is taken from recorded bill amounts and each payment retains its
   const bill = { reference_number: 'BILL-1', charges: 150, penalty: 0, total_due: 135, amount_paid: 100, bill_balance: 35 }
   const first = receiptMarkup({ ...bill, id: 27 })
   const second = receiptMarkup({ ...bill, id: 28 })
-  assert.equal((first.match(/<span>Deduction<\/span><strong>PHP 15\.00<\/strong>/g) || []).length, 2)
-  assert.equal((first.match(/RECEIPT NO\. 000027/g) || []).length, 2)
-  assert.equal((second.match(/RECEIPT NO\. 000028/g) || []).length, 2)
+  assert.equal((first.match(/<span>Deduction<\/span><strong>PHP 15\.00<\/strong>/g) || []).length, 4)
+  assert.equal((first.match(/RECEIPT NO\. 000027/g) || []).length, 4)
+  assert.equal((second.match(/RECEIPT NO\. 000028/g) || []).length, 4)
 })
